@@ -1,17 +1,27 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-require("dotenv").config();
+const connectDB = require("./config/db");
+const routes = require("./routes");
+const errorHandler = require("./middlewares/errorHandler");
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5000;
 
+// Kết nối cơ sở dữ liệu MongoDB
+connectDB();
+
+// Middlewares
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-app.get("/api/health", (request, response) => {
-  response.json({ status: "ok" });
-});
+// Định tuyến API
+app.use("/api", routes);
+
+// Middleware xử lý lỗi (luôn đặt sau routes)
+app.use(errorHandler);
 
 app.listen(port, () => {
-  console.log(`Backend listening on http://localhost:${port}`);
+  console.log(`Server đang chạy tại http://localhost:${port}`);
 });
