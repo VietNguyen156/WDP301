@@ -150,3 +150,10 @@ temp/
 .eslintcache
 .prettiercache
 .stylelintcache
+
+# AG Kit
+.agents
+.agents/agents
+
+#WebStorm
+.idea

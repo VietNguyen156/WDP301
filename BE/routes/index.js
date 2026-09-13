@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const authRoutes = require("./authRoutes");
 const userRoutes = require("./userRoutes");
 
 // Health check route
@@ -8,6 +9,7 @@ router.get("/health", (req, res) => {
 });
 
 // Resource routes
+router.use("/auth", authRoutes);
 router.use("/users", userRoutes);
 
 module.exports = router;

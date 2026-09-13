@@ -207,3 +207,57 @@ Trong đó:
 ## 3. Quy tắc Frontend (Zero-friction UX & No-app Tenant View)
 - **Mobile First cho Quản lý:** Bàn phím số tự động bật lên (`input type="number" pattern="[0-9]*" inputmode="numeric"`), hỗ trợ nút Next nhảy ngay sang phòng tiếp theo mà không cần chạm tay vào ô khác.
 - **Tenant Invoice View:** Tải trang dưới 1.5 giây, hiển thị mã VietQR to rõ ràng ở trung tâm màn hình, tương thích mọi kích thước điện thoại.
+
+---
+
+## 4. Quy tắc Xác thực & Phân quyền (Authentication & RBAC - Option B)
+
+Hệ thống tuân thủ chuẩn xác thực **Enterprise SaaS Multi-tenancy** nhằm bảo mật tối đa dữ liệu giữa các chuỗi trọ và ngăn chặn rác dữ liệu:
+
+### 1. Kiến trúc Bảo mật 2 Tầng Token (OWASP Compliant)
+- **Access Token (15 phút):** Lưu trữ hoàn toàn trong **Bộ nhớ React (In-Memory State)**. Tuyệt đối **CẤM** lưu Access Token trong `localStorage` hoặc `sessionStorage` để triệt tiêu nguy cơ tấn công XSS.
+- **Refresh Token (7 ngày):** Được lưu trữ trong **HttpOnly Cookie** (`httpOnly: true`, `sameSite: 'lax'`, `secure` trên production). Trình duyệt tự động gửi cookie này khi gọi API refresh.
+- **Silent Refresh & Token Rotation:**
+  - Client cấu hình interceptor tự động bắt mã lỗi `401 Token Expired`.
+  - Gọi ngầm `POST /api/auth/refresh` để nhận Access Token mới và xoay vòng Refresh Token (Token Rotation).
+  - Tự động thử lại (retry) request nghiệp vụ ban đầu mà người dùng không hề bị gián đoạn hay văng ra ngoài.
+- **Thu hồi phiên (Revoke Sessions):** Trường `refreshTokens: [String]` trong Model `User` lưu danh sách token hợp lệ. Khi `POST /api/auth/logout`, token hiện tại sẽ bị xóa khỏi cơ sở dữ liệu và cookie bị clear.
+
+### 2. Nguyên tắc Phân tầng Đăng ký (Multi-tenant Onboarding Guard)
+```
+[ Khách vãng lai ] ──► Đăng ký Public ──► CHỈ CẤP CHO VAI TRÒ: LANDLORD (Chủ chuỗi trọ)
+                                               │
+                                               ▼
+                                      Tự động gán: landlordId = user._id
+```
+- **Chỉ LANDLORD được phép tự đăng ký (Public Register):** Ngăn chặn người lạ tự đăng ký làm `TENANT` hoặc `PROPERTY_MANAGER` mà không thuộc chuỗi trọ nào.
+- **PROPERTY_MANAGER:** Do Landlord trực tiếp khởi tạo trong module Quản lý nhân sự, gán danh sách chi nhánh phụ trách (`assignedBranches`) và thừa hưởng `landlordId`.
+- **TENANT (Khách thuê):** Tự động khởi tạo tài khoản khi Landlord/Manager tạo Hợp đồng thuê phòng (`Contract`).
+- **ADMIN:** Tài khoản quản trị cấp cao nhất, quản lý toàn bộ các gói SaaS và tenant trong hệ thống.
+
+### 3. Quy trình Xác thực Email Bắt buộc (Email Verification Flow)
+1. Sau khi Landlord đăng ký thành công, tài khoản ở trạng thái `isEmailVerified: false`.
+2. Hệ thống sinh token ngẫu nhiên bảo mật 32 bytes (`crypto.randomBytes`) kèm hạn sử dụng 24 giờ và gửi email kích hoạt HTML (kèm bản Plain Text theo chuẩn MIME) qua Nodemailer SMTP.
+3. Khi đăng nhập (`POST /api/auth/login`), nếu tài khoản chưa xác thực email:
+   - Trả về mã lỗi: `403 EMAIL_NOT_VERIFIED`.
+   - Frontend hiển thị thông báo kèm nút **"Gửi lại link kích hoạt"** (`POST /api/auth/resend-verification`).
+4. Khi người dùng nhấp vào link email:
+   - Gọi `GET /api/auth/verify-email?token=...`.
+   - Kích hoạt `isEmailVerified: true`, `status: 'ACTIVE'`.
+   - Tự động cấp Access Token và Cookie Refresh Token để người dùng vào thẳng Dashboard.
+
+### 4. Quy tắc Kiểm tra Quyền & Cô lập Dữ liệu (Enforce Tenant Middleware)
+Mọi API tài nguyên nghiệp vụ bắt buộc phải gắn middleware `protect` và `authorize`:
+```javascript
+// Middleware protect giải mã JWT và gán Tenant Context:
+req.user = user;
+req.landlordId = user.role === "LANDLORD" ? user._id : user.landlordId;
+
+// Middleware authorize kiểm tra RBAC:
+router.post("/branches", protect, authorize("ADMIN", "LANDLORD"), createBranch);
+```
+Mọi truy vấn Mongoose trong Controller **BẮT BUỘC** phải lọc theo `req.landlordId`:
+```javascript
+// BẮT BUỘC:
+const invoices = await Invoice.find({ landlordId: req.landlordId });
+```

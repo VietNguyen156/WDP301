@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const cookieParser = require("cookie-parser");
 const connectDB = require("./config/db");
 const routes = require("./routes");
 const errorHandler = require("./middlewares/errorHandler");
@@ -12,7 +13,14 @@ const port = process.env.PORT || 5000;
 connectDB();
 
 // Middlewares
-app.use(cors());
+const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+app.use(
+  cors({
+    origin: clientUrl,
+    credentials: true,
+  })
+);
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -24,4 +32,5 @@ app.use(errorHandler);
 
 app.listen(port, () => {
   console.log(`Server đang chạy tại http://localhost:${port}`);
+  console.log(`[Config] Email Service: ${process.env.EMAIL_USER ? process.env.EMAIL_USER : "Chưa cấu hình (Console/Ethereal mode)"}`);
 });
