@@ -78,44 +78,14 @@ const userSchema = new mongoose.Schema(
       type: Boolean, // Đã đăng ký tạm trú chưa
       default: false,
     },
-    // Xác thực Email & Khôi phục mật khẩu (Option B)
-    isEmailVerified: {
-      type: Boolean,
-      default: false,
-    },
-    emailVerificationToken: {
-      type: String,
-      select: false,
-    },
-    emailVerificationExpires: {
-      type: Date,
-      select: false,
-    },
-    passwordResetToken: {
-      type: String,
-      select: false,
-    },
-    passwordResetExpires: {
-      type: Date,
-      select: false,
-    },
-    // Lưu refresh token để hỗ trợ rotation và thu hồi phiên
-    refreshTokens: {
-      type: [String],
-      select: false,
-      default: [],
-    },
   },
   {
     timestamps: true,
   }
 );
 
-// Hash password trước khi lưu vào DB & tự động gán landlordId cho LANDLORD
+// Hash password trước khi lưu vào DB (Mongoose 8/9 async hook)
 userSchema.pre("save", async function () {
-  if (this.role === "LANDLORD" && !this.landlordId) {
-    this.landlordId = this._id;
-  }
   if (!this.isModified("password")) return;
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);

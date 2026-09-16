@@ -204,7 +204,19 @@ Trong đó:
   }
   ```
 
-## 3. Quy tắc Frontend (Zero-friction UX & No-app Tenant View)
+## 3. Quy tắc Frontend & Toàn vẹn Dữ liệu (Zero Mock Data Policy)
+- **NGHIÊM CẤM DỮ LIỆU GIẢ / DEMO (Zero Mock Data - 100% Live MongoDB Data):**
+  - Tuyệt đối **CẤM** hardcode dữ liệu giả, mảng mẫu (dummy/mock array), số liệu tĩnh (như "10 phòng", "5.000.000đ", `const mockRooms = [...]`) trên bất kỳ màn hình nào của Frontend (Dashboard, Cơ sở, Phòng, Hợp đồng, Hóa đơn, Sự cố, Admin).
+  - Tất cả thông tin hiển thị và số liệu thống kê **BẮT BUỘC 100% phải được fetch từ API Backend và truy vấn trực tiếp từ cơ sở dữ liệu MongoDB**.
+  - **Quy chuẩn Xử lý Trạng thái Rỗng (Empty State First-Class Citizen):**
+    - Khi người dùng mới đăng ký hoặc cơ sở chưa phát sinh dữ liệu, hệ thống **phải hiển thị giao diện Empty State chuyên nghiệp**: Biểu tượng minh họa, dòng thông điệp rõ ràng (*"Chưa có phòng nào được tạo"*, *"Tháng này chưa phát sinh hóa đơn"*, *"Doanh thu: 0đ"*).
+    - Đi kèm **Nút hành động dẫn dắt (Call To Action - CTA)** như: `+ Thêm phòng mới`, `+ Tạo hợp đồng ngay`.
+    - Tuyệt đối **KHÔNG ĐƯỢC** tự ý bịa dữ liệu giả để lấp đầy giao diện khi dữ liệu rỗng.
+  - **Môi trường Phát triển & Kiểm thử (Seed Script Only):** Khi dev hoặc demo tính năng cho giảng viên/khách hàng, toàn bộ nhóm bắt buộc chạy script nạp dữ liệu chuẩn:
+    ```bash
+    npm run seed
+    ```
+    Script [BE/seeds/seed.js](file:///d:/KI8/WDP301/project/BE/seeds/seed.js) sẽ tự động nạp dữ liệu thật vào MongoDB để Frontend gọi API hiển thị.
 - **Mobile First cho Quản lý:** Bàn phím số tự động bật lên (`input type="number" pattern="[0-9]*" inputmode="numeric"`), hỗ trợ nút Next nhảy ngay sang phòng tiếp theo mà không cần chạm tay vào ô khác.
 - **Tenant Invoice View:** Tải trang dưới 1.5 giây, hiển thị mã VietQR to rõ ràng ở trung tâm màn hình, tương thích mọi kích thước điện thoại.
 
