@@ -54,7 +54,7 @@ const incidentSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["PENDING", "IN_PROGRESS", "RESOLVED", "CLOSED"],
+      enum: ["PENDING", "IN_PROGRESS", "SOLVED", "RESOLVED", "CLOSED", "REJECTED"],
       default: "PENDING",
       index: true,
     },
@@ -77,6 +77,11 @@ const incidentSchema = new mongoose.Schema(
     notes: {
       type: String,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   {
     timestamps: true,
@@ -84,5 +89,6 @@ const incidentSchema = new mongoose.Schema(
 );
 
 incidentSchema.index({ landlordId: 1, status: 1 });
+incidentSchema.index({ landlordId: 1, branchId: 1, status: 1 });
 
 module.exports = mongoose.model("Incident", incidentSchema);

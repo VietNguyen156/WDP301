@@ -29,7 +29,6 @@ const contractSchema = new mongoose.Schema(
     contractCode: {
       type: String,
       required: true,
-      unique: true,
       trim: true, // vd: "HDT-2026-P301-01"
     },
     startDate: {
@@ -42,7 +41,7 @@ const contractSchema = new mongoose.Schema(
     },
     rentalPrice: {
       type: Number,
-      required: true, // Giá thuê thỏa thuận thực tế
+      required: true, // Giá thuê thỏa thuận thực tế (VNĐ/tháng)
     },
     // Tiền cọc phòng
     depositAmount: {
@@ -67,7 +66,7 @@ const contractSchema = new mongoose.Schema(
       default: 0,
     },
 
-    // Danh sách người ở cùng phòng (đăng ký tạm trú)
+    // Danh sách người ở cùng phòng
     roommates: [
       {
         fullName: { type: String, required: true },
@@ -76,14 +75,44 @@ const contractSchema = new mongoose.Schema(
       },
     ],
 
+    // Dữ liệu phục vụ quy trình Nghiệm thu Trả phòng & Quyết toán Tiền cọc (Check-out Settlement)
+    actualEndDate: {
+      type: Date,
+    },
+    finalElectricIndex: {
+      type: Number,
+    },
+    finalWaterIndex: {
+      type: Number,
+    },
+    deductions: [
+      {
+        reason: { type: String, required: true },
+        amount: { type: Number, required: true },
+        evidenceImage: { type: String },
+      },
+    ],
+    refundedDepositAmount: {
+      type: Number,
+      default: 0,
+    },
+    settlementNotes: {
+      type: String,
+    },
+
     status: {
       type: String,
-      enum: ["ACTIVE", "EXPIRED", "TERMINATED", "DRAFT"],
+      enum: ["ACTIVE", "EXPIRING_SOON", "EXPIRED", "TERMINATED", "DRAFT"],
       default: "ACTIVE",
       index: true,
     },
     notes: {
       type: String,
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
   },
   {
@@ -91,6 +120,9 @@ const contractSchema = new mongoose.Schema(
   }
 );
 
+// Compound Index: Đảm bảo trong 1 chuỗi trọ của Chủ trọ mã hợp đồng là duy nhất
+contractSchema.index({ landlordId: 1, contractCode: 1 }, { unique: true });
 contractSchema.index({ landlordId: 1, status: 1 });
+contractSchema.index({ landlordId: 1, roomId: 1, status: 1 });
 
 module.exports = mongoose.model("Contract", contractSchema);

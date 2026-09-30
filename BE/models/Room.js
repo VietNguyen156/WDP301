@@ -34,7 +34,7 @@ const roomSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["EMPTY", "RENTED", "DEPOSITED", "MAINTENANCE", "OVERDUE_CLEANUP"],
+      enum: ["EMPTY", "RENTED", "MAINTENANCE", "CLEANING", "INACTIVE"],
       default: "EMPTY",
       index: true,
     },
@@ -65,15 +65,21 @@ const roomSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-// Compound Index: Đảm bảo trong 1 cơ sở không bao giờ có 2 phòng trùng tên
+// Compound Index: Đảm bảo trong 1 cơ sở không bao giờ có 2 phòng trùng số
 roomSchema.index({ branchId: 1, roomNumber: 1 }, { unique: true });
-// Compound Index hỗ trợ thống kê tỷ lệ lấp đầy cực nhanh
+// Compound Index hỗ trợ thống kê tỷ lệ lấp đầy cực nhanh theo Chủ trọ
 roomSchema.index({ landlordId: 1, status: 1 });
+roomSchema.index({ landlordId: 1, branchId: 1, isDeleted: 1 });
 
 module.exports = mongoose.model("Room", roomSchema);

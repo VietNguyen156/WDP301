@@ -26,6 +26,13 @@ const utilityReadingSchema = new mongoose.Schema(
       required: true,
     },
 
+    // Kỳ hóa đơn chuẩn định dạng YYYY-MM (vd: "2026-09")
+    billingPeriod: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
+    },
     month: {
       type: Number,
       required: true,
@@ -73,8 +80,13 @@ const utilityReadingSchema = new mongoose.Schema(
     electricMeterImage: { type: String },
     waterMeterImage: { type: String },
 
-    // Trạng thái đã lập hóa đơn cho kỳ này chưa
+    // Trạng thái đã lập hóa đơn cho kỳ này chưa (sẽ chuyển sang true khi Invoice phát hành ISSUED)
     isBilled: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    isDeleted: {
       type: Boolean,
       default: false,
       index: true,
@@ -85,9 +97,16 @@ const utilityReadingSchema = new mongoose.Schema(
   }
 );
 
-// Một phòng trong một tháng/năm chỉ có 1 bản ghi chốt số duy nhất
+// Tự động đồng bộ billingPeriod trước khi validate nếu chỉ truyền month và year
+utilityReadingSchema.pre("validate", function () {
+  if (!this.billingPeriod && this.month && this.year) {
+    this.billingPeriod = `${this.year}-${String(this.month).padStart(2, "0")}`;
+  }
+});
+
+// Một phòng trong một cơ sở trong một kỳ chỉ có 1 bản ghi chốt số duy nhất
 utilityReadingSchema.index(
-  { roomId: 1, month: 1, year: 1 },
+  { landlordId: 1, branchId: 1, roomId: 1, billingPeriod: 1 },
   { unique: true }
 );
 

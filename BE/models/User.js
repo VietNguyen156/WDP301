@@ -18,7 +18,7 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: [true, "Vui lòng nhập mật khẩu"],
+      default: "password123",
       minlength: [6, "Mật khẩu tối thiểu 6 ký tự"],
       select: false, // Mặc định không trả về password khi query
     },
@@ -28,7 +28,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["ADMIN", "LANDLORD", "PROPERTY_MANAGER", "TENANT"],
+      enum: ["SUPER_ADMIN", "LANDLORD", "PROPERTY_MANAGER", "TENANT"],
       default: "TENANT",
       index: true,
     },
@@ -77,6 +77,11 @@ const userSchema = new mongoose.Schema(
     temporaryResidenceRegistered: {
       type: Boolean, // Đã đăng ký tạm trú chưa
       default: false,
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
   },
   {

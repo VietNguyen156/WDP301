@@ -1,4 +1,5 @@
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 const mongoose = require("mongoose");
 const connectDB = require("../config/db");
 const {
@@ -11,7 +12,10 @@ const {
   UtilityReading,
   Invoice,
   Payment,
+  UnmatchedPayment,
   Incident,
+  AuditLog,
+  PlatformInvoice,
 } = require("../models");
 
 const seedDatabase = async () => {
@@ -28,13 +32,16 @@ const seedDatabase = async () => {
       User.deleteMany({}),
       SaaSPlan.deleteMany({}),
       Subscription.deleteMany({}),
+      PlatformInvoice.deleteMany({}),
       Branch.deleteMany({}),
       Room.deleteMany({}),
       Contract.deleteMany({}),
       UtilityReading.deleteMany({}),
       Invoice.deleteMany({}),
       Payment.deleteMany({}),
+      UnmatchedPayment.deleteMany({}),
       Incident.deleteMany({}),
+      AuditLog.deleteMany({}),
     ]);
     console.log("✅ Đã dọn dẹp sạch dữ liệu cũ!");
 
@@ -57,7 +64,12 @@ const seedDatabase = async () => {
         maxBranches: 1,
         maxRooms: 20,
         maxManagers: 2,
-        features: ["Tự động hóa hóa đơn", "VietQR động", "Webhook ngân hàng", "Báo cáo công nợ"],
+        features: [
+          "Tự động hóa hóa đơn",
+          "VietQR động",
+          "Webhook ngân hàng",
+          "Báo cáo công nợ",
+        ],
       },
       {
         name: "Gói Pro (Chuỗi chuyên nghiệp)",
@@ -88,13 +100,13 @@ const seedDatabase = async () => {
     // 3. Tạo Tài khoản Người dùng (Users: Admin, Landlord, Manager, Tenants)
     console.log("👥 Đang tạo tài khoản người dùng mẫu...");
 
-    // 3.1 Platform Admin
+    // 3.1 Platform Super Admin
     const admin = await User.create({
-      name: "Nguyễn Quản Trị (Admin)",
+      name: "Nguyễn Quản Trị (Super Admin)",
       email: "admin@wdp301.com",
       password: "password123",
       phoneNumber: "0901000001",
-      role: "ADMIN",
+      role: "SUPER_ADMIN",
       status: "ACTIVE",
     });
 
@@ -241,7 +253,12 @@ const seedDatabase = async () => {
       status: "RENTED",
       currentElectricIndex: 305,
       currentWaterIndex: 68,
-      amenities: ["Điều hòa Inverter", "Nóng lạnh", "Tủ lạnh mini", "Ban công thoáng"],
+      amenities: [
+        "Điều hòa Inverter",
+        "Nóng lạnh",
+        "Tủ lạnh mini",
+        "Ban công thoáng",
+      ],
     });
 
     const room202 = await Room.create({
@@ -285,7 +302,13 @@ const seedDatabase = async () => {
       depositStatus: "PAID",
       initialElectricIndex: 100,
       initialWaterIndex: 20,
-      roommates: [{ fullName: "Nguyễn Văn Em", citizenId: "001201009999", phoneNumber: "0912111999" }],
+      roommates: [
+        {
+          fullName: "Nguyễn Văn Em",
+          citizenId: "001201009999",
+          phoneNumber: "0912111999",
+        },
+      ],
       status: "ACTIVE",
     });
     room101.currentContractId = contract1._id;
@@ -335,6 +358,7 @@ const seedDatabase = async () => {
         branchId: branch._id,
         roomId: room101._id,
         recordedBy: manager._id,
+        billingPeriod: "2026-09",
         month: 9,
         year: 2026,
         oldElectricIndex: 120,
@@ -350,6 +374,7 @@ const seedDatabase = async () => {
         branchId: branch._id,
         roomId: room102._id,
         recordedBy: manager._id,
+        billingPeriod: "2026-09",
         month: 9,
         year: 2026,
         oldElectricIndex: 85,
@@ -365,6 +390,7 @@ const seedDatabase = async () => {
         branchId: branch._id,
         roomId: room201._id,
         recordedBy: manager._id,
+        billingPeriod: "2026-09",
         month: 9,
         year: 2026,
         oldElectricIndex: 210,
@@ -399,15 +425,39 @@ const seedDatabase = async () => {
       contractId: contract1._id,
       tenantId: tenant1._id,
       invoiceCode: "HD1001",
+      billingPeriod: "2026-09",
       month: 9,
       year: 2026,
       dueDate: new Date("2026-09-05"),
       roomAmount: 3500000,
-      electricDetail: { oldIndex: 120, newIndex: 195, consumed: 75, unitPrice: 3800, amount: 75 * 3800 },
-      waterDetail: { billingType: "METER", oldIndex: 45, newIndex: 52, consumed: 7, unitPrice: 30000, amount: 7 * 30000 },
+      electricDetail: {
+        oldIndex: 120,
+        newIndex: 195,
+        consumed: 75,
+        unitPrice: 3800,
+        amount: 75 * 3800,
+      },
+      waterDetail: {
+        billingType: "METER",
+        oldIndex: 45,
+        newIndex: 52,
+        consumed: 7,
+        unitPrice: 30000,
+        amount: 7 * 30000,
+      },
       servicesDetail: [
-        { serviceName: "Rác & Vệ sinh", unitPrice: 30000, quantity: 1, amount: 30000 },
-        { serviceName: "Internet Cáp quang", unitPrice: 50000, quantity: 1, amount: 50000 },
+        {
+          serviceName: "Rác & Vệ sinh",
+          unitPrice: 30000,
+          quantity: 1,
+          amount: 30000,
+        },
+        {
+          serviceName: "Internet Cáp quang",
+          unitPrice: 50000,
+          quantity: 1,
+          amount: 50000,
+        },
       ],
       totalAmount: inv1Total,
       paidAmount: inv1Total,
@@ -417,7 +467,7 @@ const seedDatabase = async () => {
       status: "PAID",
     });
 
-    // Hóa đơn 2 (P.102): ĐANG CHỜ THANH TOÁN (UNPAID) - Để test quét VietQR
+    // Hóa đơn 2 (P.102): ĐÃ PHÁT HÀNH (ISSUED) - Chờ quét VietQR
     const inv2Total = 3200000 + 55 * 3800 + 5 * 30000 + 30000 + 50000; // = 3.639.000đ
     const inv2Syntax = "HD1002 P102";
     const invoice2 = await Invoice.create({
@@ -427,25 +477,49 @@ const seedDatabase = async () => {
       contractId: contract2._id,
       tenantId: tenant2._id,
       invoiceCode: "HD1002",
+      billingPeriod: "2026-09",
       month: 9,
       year: 2026,
       dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // Còn 3 ngày nữa hết hạn
       roomAmount: 3200000,
-      electricDetail: { oldIndex: 85, newIndex: 140, consumed: 55, unitPrice: 3800, amount: 55 * 3800 },
-      waterDetail: { billingType: "METER", oldIndex: 30, newIndex: 35, consumed: 5, unitPrice: 30000, amount: 5 * 30000 },
+      electricDetail: {
+        oldIndex: 85,
+        newIndex: 140,
+        consumed: 55,
+        unitPrice: 3800,
+        amount: 55 * 3800,
+      },
+      waterDetail: {
+        billingType: "METER",
+        oldIndex: 30,
+        newIndex: 35,
+        consumed: 5,
+        unitPrice: 30000,
+        amount: 5 * 30000,
+      },
       servicesDetail: [
-        { serviceName: "Rác & Vệ sinh", unitPrice: 30000, quantity: 1, amount: 30000 },
-        { serviceName: "Internet Cáp quang", unitPrice: 50000, quantity: 1, amount: 50000 },
+        {
+          serviceName: "Rác & Vệ sinh",
+          unitPrice: 30000,
+          quantity: 1,
+          amount: 30000,
+        },
+        {
+          serviceName: "Internet Cáp quang",
+          unitPrice: 50000,
+          quantity: 1,
+          amount: 50000,
+        },
       ],
       totalAmount: inv2Total,
       paidAmount: 0,
       remainingAmount: inv2Total,
       vietQrUrl: makeVietQrUrl(inv2Total, inv2Syntax),
       paymentSyntax: inv2Syntax,
-      status: "UNPAID",
+      status: "ISSUED",
     });
 
-    // Hóa đơn 3 (P.201): QUÁ HẠN THANH TOÁN (OVERDUE) - Để test cảnh báo công nợ
+    // Hóa đơn 3 (P.201): ĐÃ PHÁT HÀNH NHƯNG QUÁ HẠN (ISSUED + dueDate quá hạn -> isOverdue = true)
     const inv3Total = 4000000 + 95 * 3800 + 8 * 30000 + 30000 + 50000 + 100000; // Kèm xe máy = 4.781.000đ
     const inv3Syntax = "HD1003 P201";
     const invoice3 = await Invoice.create({
@@ -455,29 +529,59 @@ const seedDatabase = async () => {
       contractId: contract3._id,
       tenantId: tenant3._id,
       invoiceCode: "HD1003",
+      billingPeriod: "2026-09",
       month: 9,
       year: 2026,
-      dueDate: new Date("2026-09-05"), // Đã quá hạn
+      dueDate: new Date("2026-09-05"), // Đã quá hạn (isOverdue = true tự động suy diễn)
       roomAmount: 4000000,
-      electricDetail: { oldIndex: 210, newIndex: 305, consumed: 95, unitPrice: 3800, amount: 95 * 3800 },
-      waterDetail: { billingType: "METER", oldIndex: 60, newIndex: 68, consumed: 8, unitPrice: 30000, amount: 8 * 30000 },
+      electricDetail: {
+        oldIndex: 210,
+        newIndex: 305,
+        consumed: 95,
+        unitPrice: 3800,
+        amount: 95 * 3800,
+      },
+      waterDetail: {
+        billingType: "METER",
+        oldIndex: 60,
+        newIndex: 68,
+        consumed: 8,
+        unitPrice: 30000,
+        amount: 8 * 30000,
+      },
       servicesDetail: [
-        { serviceName: "Rác & Vệ sinh", unitPrice: 30000, quantity: 1, amount: 30000 },
-        { serviceName: "Internet Cáp quang", unitPrice: 50000, quantity: 1, amount: 50000 },
-        { serviceName: "Gửi xe máy", unitPrice: 100000, quantity: 1, amount: 100000 },
+        {
+          serviceName: "Rác & Vệ sinh",
+          unitPrice: 30000,
+          quantity: 1,
+          amount: 30000,
+        },
+        {
+          serviceName: "Internet Cáp quang",
+          unitPrice: 50000,
+          quantity: 1,
+          amount: 50000,
+        },
+        {
+          serviceName: "Gửi xe máy",
+          unitPrice: 100000,
+          quantity: 1,
+          amount: 100000,
+        },
       ],
       totalAmount: inv3Total,
       paidAmount: 0,
       remainingAmount: inv3Total,
       vietQrUrl: makeVietQrUrl(inv3Total, inv3Syntax),
       paymentSyntax: inv3Syntax,
-      status: "OVERDUE",
+      status: "ISSUED",
     });
 
     // 9. Tạo Giao dịch thanh toán mẫu (Payment record cho Hóa đơn 1)
     console.log("💳 Đang tạo lịch sử giao dịch thanh toán...");
     await Payment.create({
       landlordId: landlord._id,
+      branchId: branch._id,
       invoiceId: invoice1._id,
       invoiceCode: invoice1.invoiceCode,
       amount: inv1Total,
@@ -511,16 +615,30 @@ const seedDatabase = async () => {
     console.log("---------------------------------------------");
     console.log("🎉 SEED DỮ LIỆU THÀNH CÔNG RỰC RỠ!");
     console.log("---------------------------------------------");
-    console.log("🔑 DANH SÁCH TÀI KHOẢN ĐĂNG NHẬP MẪU (Password chung: password123):");
+    console.log(
+      "🔑 DANH SÁCH TÀI KHOẢN ĐĂNG NHẬP MẪU (Password chung: password123):",
+    );
     console.log("1. Admin:            admin@wdp301.com");
-    console.log("2. Chủ trọ:          landlord@wdp301.com (Gói PRO, STK: 0988888888 MBBank)");
-    console.log("3. Quản lý cơ sở:    manager@wdp301.com  (Phụ trách Tòa Nhà Trọ Xanh)");
-    console.log("4. Khách thuê P.101: tenant1@wdp301.com  (Hóa đơn HD1001: Đã thanh toán)");
-    console.log("5. Khách thuê P.102: tenant2@wdp301.com  (Hóa đơn HD1002: Chờ quét VietQR)");
-    console.log("6. Khách thuê P.201: tenant3@wdp301.com  (Hóa đơn HD1003: Quá hạn thanh toán)");
+    console.log(
+      "2. Chủ trọ:          landlord@wdp301.com (Gói PRO, STK: 0988888888 MBBank)",
+    );
+    console.log(
+      "3. Quản lý cơ sở:    manager@wdp301.com  (Phụ trách Tòa Nhà Trọ Xanh)",
+    );
+    console.log(
+      "4. Khách thuê P.101: tenant1@wdp301.com  (Hóa đơn HD1001: Đã thanh toán)",
+    );
+    console.log(
+      "5. Khách thuê P.102: tenant2@wdp301.com  (Hóa đơn HD1002: Chờ quét VietQR)",
+    );
+    console.log(
+      "6. Khách thuê P.201: tenant3@wdp301.com  (Hóa đơn HD1003: Quá hạn thanh toán)",
+    );
     console.log("---------------------------------------------");
     console.log("🌐 LINK XEM HÓA ĐƠN NO-APP (KHÁCH THUÊ P.102):");
-    console.log(`http://localhost:5000/api/invoices/public/${invoice2.publicAccessToken}`);
+    console.log(
+      `http://localhost:5000/api/invoices/public/${invoice2.publicAccessToken}`,
+    );
     console.log("---------------------------------------------");
 
     process.exit(0);

@@ -13,6 +13,11 @@ const branchSchema = new mongoose.Schema(
       required: [true, "Vui lòng nhập tên cơ sở / tòa nhà"],
       trim: true, // vd: "Tòa nhà Happy House Cầu Giấy"
     },
+    totalFloors: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
     address: {
       street: { type: String, trim: true },
       ward: { type: String, trim: true }, // Phường / Xã
@@ -29,18 +34,18 @@ const branchSchema = new mongoose.Schema(
     },
     waterBillingType: {
       type: String,
-      enum: ["METER", "PER_PERSON"], // METER: theo đồng hồ khối, PER_PERSON: theo đầu người
+      enum: ["METER", "PER_PERSON", "FIXED"], // METER: theo khối, PER_PERSON: theo đầu người, FIXED: khoán theo phòng
       default: "METER",
     },
     defaultWaterPrice: {
       type: Number,
       required: true,
-      default: 30000, // VNĐ/khối hoặc VNĐ/người/tháng
+      default: 30000, // VNĐ/khối hoặc VNĐ/người/tháng hoặc khoán phòng/tháng
     },
     // Các loại phí dịch vụ cố định (rác, wifi, thang máy, gửi xe)
     defaultServices: [
       {
-        name: { type: String, required: true }, // vd: "Rác", "Internet", "Gửi xe máy"
+        name: { type: String, required: true }, // vd: "Rác & Vệ sinh", "Internet Cáp quang", "Gửi xe máy"
         price: { type: Number, required: true },
         billingType: {
           type: String,
@@ -74,6 +79,12 @@ const branchSchema = new mongoose.Schema(
       type: String,
       enum: ["ACTIVE", "INACTIVE"],
       default: "ACTIVE",
+      index: true,
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
   },
   {
@@ -83,5 +94,6 @@ const branchSchema = new mongoose.Schema(
 
 // Compound Index để tra cứu cơ sở của một Chủ trọ nhanh
 branchSchema.index({ landlordId: 1, name: 1 });
+branchSchema.index({ landlordId: 1, isDeleted: 1 });
 
 module.exports = mongoose.model("Branch", branchSchema);

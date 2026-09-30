@@ -8,6 +8,11 @@ const paymentSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    branchId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Branch",
+      index: true,
+    },
     invoiceId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Invoice",
@@ -16,12 +21,12 @@ const paymentSchema = new mongoose.Schema(
     },
     invoiceCode: {
       type: String,
-      required: true, // vd: "HD1024"
+      required: true, // vd: "HD2026090001"
       index: true,
     },
     amount: {
       type: Number,
-      required: true,
+      required: true, // Số nguyên VNĐ
     },
     paymentMethod: {
       type: String,
@@ -65,10 +70,20 @@ const paymentSchema = new mongoose.Schema(
       default: "SUCCESS",
     },
 
+    // Lưu raw payload Webhook để đối soát kế toán khi có tranh chấp
+    rawWebhookData: {
+      type: Object,
+    },
+
     // Trường hợp nộp tiền mặt thì lưu ai là người bấm xác nhận
     confirmedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
   },
   {
@@ -77,5 +92,6 @@ const paymentSchema = new mongoose.Schema(
 );
 
 paymentSchema.index({ landlordId: 1, createdAt: -1 });
+paymentSchema.index({ landlordId: 1, branchId: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Payment", paymentSchema);

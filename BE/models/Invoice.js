@@ -33,16 +33,22 @@ const invoiceSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Mã hóa đơn duy nhất toàn sàn để sinh mã VietQR và khớp Webhook ngân hàng (vd: "HD1024")
+    // Mã hóa đơn công khai duy nhất trong chuỗi của Chủ trọ (vd: "HD2026090001")
     invoiceCode: {
       type: String,
       required: true,
-      unique: true,
       uppercase: true,
       trim: true,
       index: true,
     },
 
+    // Kỳ hóa đơn định dạng chuỗi chuẩn: YYYY-MM (vd: "2026-09")
+    billingPeriod: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
+    },
     month: {
       type: Number,
       required: true,
@@ -76,7 +82,11 @@ const invoiceSchema = new mongoose.Schema(
 
     // 3. Chi tiết Tiền nước
     waterDetail: {
-      billingType: { type: String, enum: ["METER", "PER_PERSON"], default: "METER" },
+      billingType: {
+        type: String,
+        enum: ["METER", "PER_PERSON", "FIXED"],
+        default: "METER",
+      },
       oldIndex: { type: Number, default: 0 },
       newIndex: { type: Number, default: 0 },
       consumed: { type: Number, default: 0 }, // Số m3 nếu tính theo đồng hồ
@@ -121,7 +131,11 @@ const invoiceSchema = new mongoose.Schema(
     },
     remainingAmount: {
       type: Number,
-      default: 0, // = totalAmount - paidAmount
+      default: 0, // = totalAmount - paidAmount (nếu > 0)
+    },
+    overpaidAmount: {
+      type: Number,
+      default: 0, // Số tiền khách trả thừa (nếu paidAmount > totalAmount)
     },
 
     // Tích hợp VietQR Động
@@ -129,7 +143,7 @@ const invoiceSchema = new mongoose.Schema(
       type: String, // Link ảnh QuickLink VietQR
     },
     paymentSyntax: {
-      type: String, // Cú pháp chuẩn gạch nợ: vd "HD1024 P301"
+      type: String, // Cú pháp chuẩn gạch nợ: vd "HD2026090001 P101"
     },
 
     // Token bảo mật truy cập trực tiếp xem hóa đơn No-App cho Khách thuê
@@ -141,21 +155,53 @@ const invoiceSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["DRAFT", "UNPAID", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED"],
-      default: "UNPAID",
+      enum: [
+        "DRAFT",
+        "ISSUED",
+        "PARTIALLY_PAID",
+        "PAID",
+        "OVERPAID",
+        "CANCELLED",
+        "UNPAID", // Giữ hỗ trợ tương thích nếu dữ liệu cũ còn
+      ],
+      default: "DRAFT",
       index: true,
     },
     notes: {
       type: String,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
 
-// Compound Indexes tối ưu cho Dashboard Chủ trọ và lọc công nợ
-invoiceSchema.index({ landlordId: 1, status: 1, createdAt: -1 });
-invoiceSchema.index({ landlordId: 1, month: 1, year: 1 });
+// Tự động đồng bộ billingPeriod trước khi validate
+invoiceSchema.pre("validate", function () {
+  if (!this.billingPeriod && this.month && this.year) {
+    this.billingPeriod = `${this.year}-${String(this.month).padStart(2, "0")}`;
+  }
+});
+
+// Virtual: OVERDUE là trạng thái suy diễn (Derived Condition), không lưu cứng
+invoiceSchema.virtual("isOverdue").get(function () {
+  if (this.dueDate && ["ISSUED", "PARTIALLY_PAID", "UNPAID"].includes(this.status)) {
+    return new Date() > this.dueDate;
+  }
+  return false;
+});
+
+// Compound Indexes tối ưu Multi-tenancy
+invoiceSchema.index({ landlordId: 1, invoiceCode: 1 }, { unique: true });
+invoiceSchema.index({ landlordId: 1, status: 1, billingPeriod: -1 });
+invoiceSchema.index({ landlordId: 1, status: 1, dueDate: 1 });
+invoiceSchema.index({ landlordId: 1, isDeleted: 1 });
 
 module.exports = mongoose.model("Invoice", invoiceSchema);
