@@ -99,6 +99,7 @@ const invoiceSchema = new mongoose.Schema(
     servicesDetail: [
       {
         serviceName: { type: String, required: true },
+        billingType: { type: String, enum: ["PER_ROOM", "PER_PERSON", "PER_UNIT"] },
         unitPrice: { type: Number, required: true },
         quantity: { type: Number, default: 1 },
         amount: { type: Number, required: true },
@@ -147,6 +148,13 @@ const invoiceSchema = new mongoose.Schema(
     },
 
     // Token bảo mật truy cập trực tiếp xem hóa đơn No-App cho Khách thuê
+    bankSnapshot: {
+      bankCode: String,
+      bankName: String,
+      accountNumber: String,
+      accountName: String,
+    },
+    cancellationReason: String,
     publicAccessToken: {
       type: String,
       unique: true,
@@ -203,5 +211,6 @@ invoiceSchema.index({ landlordId: 1, invoiceCode: 1 }, { unique: true });
 invoiceSchema.index({ landlordId: 1, status: 1, billingPeriod: -1 });
 invoiceSchema.index({ landlordId: 1, status: 1, dueDate: 1 });
 invoiceSchema.index({ landlordId: 1, isDeleted: 1 });
+invoiceSchema.index({ landlordId: 1, roomId: 1, billingPeriod: 1 }, { unique: true, partialFilterExpression: { isDeleted: false } });
 
 module.exports = mongoose.model("Invoice", invoiceSchema);

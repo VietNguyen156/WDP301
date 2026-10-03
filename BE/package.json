@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "node scripts/check-syntax.js && oxlint --deny correctness --deny-warnings .",
     "start": "node server.js",
-    "dev": "nodemon server.js",
+    "dev": "node --watch server.js",
     "seed": "node seeds/seed.js"
   },
   "keywords": [],
@@ -17,9 +17,11 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.5"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "oxlint": "^1.86.0"
   }
 }

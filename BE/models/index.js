@@ -8,6 +8,7 @@ const Contract = require("./Contract");
 const UtilityReading = require("./UtilityReading");
 const Invoice = require("./Invoice");
 const Payment = require("./Payment");
+const PaymentReceipt = require("./PaymentReceipt");
 const UnmatchedPayment = require("./UnmatchedPayment");
 const Incident = require("./Incident");
 const AuditLog = require("./AuditLog");
@@ -23,6 +24,7 @@ module.exports = {
   UtilityReading,
   Invoice,
   Payment,
+  PaymentReceipt,
   UnmatchedPayment,
   Incident,
   AuditLog,

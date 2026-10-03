@@ -67,6 +67,11 @@ const contractSchema = new mongoose.Schema(
     },
 
     // Danh sách người ở cùng phòng
+    serviceQuantities: {
+      type: Map,
+      of: { type: Number, min: 0, validate: Number.isSafeInteger },
+      default: {},
+    },
     roommates: [
       {
         fullName: { type: String, required: true },
