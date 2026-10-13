@@ -1,4 +1,4 @@
-﻿/* Navigation and page layout */
+/* Navigation and page layout */
 .app-shell {
   min-height: 100vh;
   padding-top: 60px;
@@ -2196,3 +2196,4 @@ td .room-actions {
     print-color-adjust: exact;
   }
 }
+/* App-level scoped CSS for DOMUS ERP Finance Module */

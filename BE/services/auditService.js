@@ -1,4 +1,5 @@
 const AuditLog = require("../models/AuditLog");
+
 async function log({
   req,
   action,
@@ -28,4 +29,32 @@ async function log({
   );
   return record;
 }
-module.exports = { log };
+
+async function recordAudit(
+  { actor, invoice, action, before, after, metadata = {} },
+  session,
+) {
+  const [record] = await AuditLog.create(
+    [
+      {
+        actorId: actor._id,
+        actorRole: actor.role,
+        landlordId: invoice.landlordId,
+        action,
+        entityType: "INVOICE",
+        entityId: invoice._id,
+        before,
+        after,
+        ipAddress: metadata.ipAddress,
+        userAgent: metadata.userAgent,
+      },
+    ],
+    { session },
+  );
+  return record;
+}
+
+module.exports = {
+  log,
+  recordAudit,
+};

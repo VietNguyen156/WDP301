@@ -32,6 +32,17 @@ const roomSchema = new mongoose.Schema(
       type: Number,
       default: 2, // Số người ở tối đa
     },
+    electricityPrice: { type: Number, min: 0 },
+    waterPrice: { type: Number, min: 0 },
+    waterBillingType: { type: String, enum: ["METER", "PER_PERSON", "FIXED"] },
+    services: {
+      type: [{
+        name: { type: String, required: true },
+        price: { type: Number, required: true, min: 0 },
+        billingType: { type: String, enum: ["PER_ROOM", "PER_PERSON", "PER_UNIT"], default: "PER_ROOM" },
+      }],
+      default: undefined,
+    },
     status: {
       type: String,
       enum: ["EMPTY", "RENTED", "MAINTENANCE", "CLEANING", "INACTIVE"],

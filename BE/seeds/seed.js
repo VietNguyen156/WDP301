@@ -1,6 +1,5 @@
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
-const mongoose = require("mongoose");
 const connectDB = require("../config/db");
 const {
   User,
@@ -12,6 +11,7 @@ const {
   UtilityReading,
   Invoice,
   Payment,
+  PaymentReceipt,
   UnmatchedPayment,
   Incident,
   AuditLog,
@@ -39,6 +39,7 @@ const seedDatabase = async () => {
       UtilityReading.deleteMany({}),
       Invoice.deleteMany({}),
       Payment.deleteMany({}),
+      PaymentReceipt.deleteMany({}),
       UnmatchedPayment.deleteMany({}),
       Incident.deleteMany({}),
       AuditLog.deleteMany({}),
@@ -101,7 +102,7 @@ const seedDatabase = async () => {
     console.log("👥 Đang tạo tài khoản người dùng mẫu...");
 
     // 3.1 Platform Super Admin
-    const admin = await User.create({
+    await User.create({
       name: "Nguyễn Quản Trị (Super Admin)",
       email: "admin@wdp301.com",
       password: "password123",
@@ -261,7 +262,7 @@ const seedDatabase = async () => {
       ],
     });
 
-    const room202 = await Room.create({
+    await Room.create({
       landlordId: landlord._id,
       branchId: branch._id,
       roomNumber: "P.202",
@@ -274,7 +275,7 @@ const seedDatabase = async () => {
       amenities: ["Điều hòa", "Nóng lạnh", "Ban công"],
     });
 
-    const room301 = await Room.create({
+    await Room.create({
       landlordId: landlord._id,
       branchId: branch._id,
       roomNumber: "P.301",
@@ -522,7 +523,7 @@ const seedDatabase = async () => {
     // Hóa đơn 3 (P.201): ĐÃ PHÁT HÀNH NHƯNG QUÁ HẠN (ISSUED + dueDate quá hạn -> isOverdue = true)
     const inv3Total = 4000000 + 95 * 3800 + 8 * 30000 + 30000 + 50000 + 100000; // Kèm xe máy = 4.781.000đ
     const inv3Syntax = "HD1003 P201";
-    const invoice3 = await Invoice.create({
+    await Invoice.create({
       landlordId: landlord._id,
       branchId: branch._id,
       roomId: room201._id,

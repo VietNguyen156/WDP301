@@ -27,6 +27,8 @@ const paymentSchema = new mongoose.Schema(
     amount: {
       type: Number,
       required: true, // Số nguyên VNĐ
+      min: 1,
+      validate: Number.isSafeInteger,
     },
     paymentMethod: {
       type: String,
@@ -40,6 +42,7 @@ const paymentSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      immutable: true,
       trim: true,
       index: true,
     },
@@ -80,6 +83,10 @@ const paymentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    receiptNumber: { type: String, immutable: true },
+    payerName: String,
+    cashCollectionPoint: String,
+    note: String,
     isDeleted: {
       type: Boolean,
       default: false,

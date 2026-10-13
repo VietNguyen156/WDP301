@@ -62,6 +62,7 @@ const unmatchedPaymentSchema = new mongoose.Schema(
     notes: {
       type: String,
     },
+    isDeleted: { type: Boolean, default: false, index: true },
   },
   {
     timestamps: true,
