@@ -1,37 +1,33 @@
-const errorHandler = (err, req, res, next) => {
-  console.error("Error:", err.stack || err.message);
-
-  // Mongoose validation error
-  if (err.name === "ValidationError") {
-    const messages = Object.values(err.errors).map((val) => val.message);
-    return res.status(400).json({
-      success: false,
-      message: messages.join(", "),
-    });
+﻿const errorHandler = (error, req, res, next) => {
+  if (res.headersSent) return next(error);
+  let status = error.statusCode || 500;
+  let code = error.errorCode || "INTERNAL_SERVER_ERROR";
+  let message = error.statusCode
+    ? error.message
+    : "Không thể xử lý yêu cầu. Vui lòng thử lại.";
+  if (error.name === "ValidationError" && error.errors) {
+    status = 400;
+    code = "VALIDATION_ERROR";
+    message = Object.values(error.errors)
+      .map((e) => e.message)
+      .join("; ");
+  } else if (error.name === "CastError") {
+    status = 400;
+    code = "INVALID_ID";
+    message = "Mã định danh hoặc dữ liệu không hợp lệ";
+  } else if (error.code === 11000) {
+    status = 409;
+    code = "CONFLICT";
+    message = "Dữ liệu đã tồn tại (email, số phòng hoặc mã hợp đồng)";
+  } else if (error.type === "entity.parse.failed") {
+    status = 400;
+    code = "VALIDATION_ERROR";
+    message = "JSON không hợp lệ";
   }
-
-  // Mongoose duplicate key error (ví dụ trùng email)
-  if (err.code === 11000) {
-    const field = Object.keys(err.keyValue)[0];
-    return res.status(400).json({
-      success: false,
-      message: `${field} đã tồn tại trong hệ thống`,
-    });
-  }
-
-  // Mongoose invalid ObjectId
-  if (err.name === "CastError") {
-    return res.status(400).json({
-      success: false,
-      message: `ID không hợp lệ: ${err.value}`,
-    });
-  }
-
-  // Default error
-  res.status(err.statusCode || 500).json({
-    success: false,
-    message: err.message || "Lỗi máy chủ nội bộ",
-  });
+  if (status >= 500)
+    console.error("Request failed:", error.name, error.message);
+  res
+    .status(status)
+    .json({ success: false, errorCode: code, message, data: null });
 };
-
 module.exports = errorHandler;

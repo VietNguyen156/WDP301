@@ -2,6 +2,14 @@ const mongoose = require("mongoose");
 
 const contractSchema = new mongoose.Schema(
   {
+    settlement: {
+      heldDeposit: Number, electricAmount: Number, waterAmount: Number,
+      deductionAmount: Number, outstandingDebt: Number, totalCharges: Number,
+      refundedDepositAmount: Number, remainingDue: Number,
+    },
+    confirmedByBothParties: { type: Boolean, default: false },
+    electricImage: String,
+    waterImage: String,
     landlordId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -125,4 +133,9 @@ contractSchema.index({ landlordId: 1, contractCode: 1 }, { unique: true });
 contractSchema.index({ landlordId: 1, status: 1 });
 contractSchema.index({ landlordId: 1, roomId: 1, status: 1 });
 
+require('./propertyValidators')(contractSchema, ['rentalPrice', 'depositAmount', 'initialElectricIndex', 'initialWaterIndex', 'finalElectricIndex', 'finalWaterIndex', 'refundedDepositAmount']);
+require('./propertyValidators')(contractSchema.path('deductions').schema, ['amount']);
+contractSchema.pre('validate', function () {
+  if (this.startDate && this.endDate && this.endDate <= this.startDate) this.invalidate('endDate', 'Ngày kết thúc phải sau ngày bắt đầu');
+});
 module.exports = mongoose.model("Contract", contractSchema);

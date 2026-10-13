@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 
 const userSchema = new mongoose.Schema(
   {
+    quotaVersion: { type: Number, default: 0, select: false },
     name: {
       type: String,
       required: [true, "Vui lòng nhập họ và tên"],
@@ -34,7 +35,13 @@ const userSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["ACTIVE", "PENDING_APPROVAL", "REJECTED", "SUSPENDED"],
+      enum: [
+        "ACTIVE",
+        "PENDING_APPROVAL",
+        "PENDING_ACTIVATION",
+        "REJECTED",
+        "SUSPENDED",
+      ],
       default: "ACTIVE",
     },
 
@@ -86,7 +93,7 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Hash password trước khi lưu vào DB (Mongoose 8/9 async hook)

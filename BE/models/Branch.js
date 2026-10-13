@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const branchSchema = new mongoose.Schema(
   {
+    mutationVersion: { type: Number, default: 0, select: false },
     landlordId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -96,4 +97,6 @@ const branchSchema = new mongoose.Schema(
 branchSchema.index({ landlordId: 1, name: 1 });
 branchSchema.index({ landlordId: 1, isDeleted: 1 });
 
+require('./propertyValidators')(branchSchema, ['totalFloors', 'defaultElectricityPrice', 'defaultWaterPrice', 'billingCycleDay', 'paymentDueDays']);
+require('./propertyValidators')(branchSchema.path('defaultServices').schema, ['price']);
 module.exports = mongoose.model("Branch", branchSchema);

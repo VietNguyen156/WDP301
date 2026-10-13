@@ -77,9 +77,10 @@ const roomSchema = new mongoose.Schema(
 );
 
 // Compound Index: Đảm bảo trong 1 cơ sở không bao giờ có 2 phòng trùng số
-roomSchema.index({ branchId: 1, roomNumber: 1 }, { unique: true });
+roomSchema.index({ landlordId: 1, branchId: 1, roomNumber: 1 }, { unique: true });
 // Compound Index hỗ trợ thống kê tỷ lệ lấp đầy cực nhanh theo Chủ trọ
 roomSchema.index({ landlordId: 1, status: 1 });
 roomSchema.index({ landlordId: 1, branchId: 1, isDeleted: 1 });
 
+require('./propertyValidators')(roomSchema, ['floor', 'basePrice', 'maxOccupants', 'currentElectricIndex', 'currentWaterIndex']);
 module.exports = mongoose.model("Room", roomSchema);

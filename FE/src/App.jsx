@@ -1,122 +1,170 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
-
-function App() {
-  const [count, setCount] = useState(0)
-
+﻿import { lazy, Suspense } from "react";
+import {
+  BrowserRouter,
+  Navigate,
+  NavLink,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router-dom";
+import {
+  Building2,
+  DoorOpen,
+  FileText,
+  LogOut,
+  ChevronRight,
+  House,
+} from "lucide-react";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ToastProvider, useToast } from "./context/ToastContext";
+import { LoadingState, EmptyState, Button } from "./components/ui";
+import { errorMessage } from "./services/api";
+import LoginPage from "./features/auth/LoginPage";
+import "./App.css";
+const BranchesPage = lazy(() => import("./features/branches/BranchesPage"));
+const RoomsPage = lazy(() => import("./features/rooms/RoomsPage"));
+const ContractsPage = lazy(() => import("./features/contracts/ContractsPage"));
+const roles = {
+  LANDLORD: "Chủ cơ sở",
+  PROPERTY_MANAGER: "Quản lý cơ sở",
+  TENANT: "Khách thuê",
+  SUPER_ADMIN: "Quản trị nền tảng",
+};
+function Workspace() {
+  const { user, loading, logout } = useAuth(),
+    location = useLocation(),
+    toast = useToast();
+  if (loading)
+    return (
+      <div className="app-loading">
+        <LoadingState />
+      </div>
+    );
+  if (!user) return <LoginPage />;
+  const propertyAccess = ["LANDLORD", "PROPERTY_MANAGER"].includes(user.role);
+  const contractAccess = ["LANDLORD", "TENANT"].includes(user.role);
+  const home = propertyAccess ? "/branches" : "/contracts";
+  const nav = [
+    ...(propertyAccess
+      ? [
+          { path: "/branches", label: "Cơ sở / Nhà trọ", icon: Building2 },
+          { path: "/rooms", label: "Sơ đồ phòng", icon: DoorOpen },
+        ]
+      : []),
+    ...(contractAccess
+      ? [
+          {
+            path: "/contracts",
+            label:
+              user.role === "TENANT" ? "Hợp đồng của tôi" : "Hợp đồng thuê",
+            icon: FileText,
+          },
+        ]
+      : []),
+  ];
+  const current = nav.find((n) => location.pathname.startsWith(n.path));
+  async function signOut() {
+    try {
+      await logout();
+    } catch (err) {
+      toast(errorMessage(err), "error");
+    }
+  }
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div className="app-shell">
+      <header className="topbar">
+        <NavLink to={home} className="brand">
+          <House size={29} strokeWidth={2.5} />
+          <span>QUẢN LÝ TRỌ</span>
+        </NavLink>
+        <span className="topbar-caption">Quản lý nhà cho thuê</span>
+        <div className="topbar-right">
+          <div className="header-user">
+            <strong>{user.name}</strong>
+            <small>{roles[user.role]}</small>
+          </div>
+          <button
+            className="header-logout"
+            aria-label="Đăng xuất"
+            onClick={signOut}
+          >
+            <LogOut size={18} />
+            <span>Đăng xuất</span>
+          </button>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
+      </header>
+      <aside className="sidebar">
+        <div className="sidebar-account">
+          <div className="avatar">{user.name.slice(0, 1)}</div>
+          <div>
+            <strong>{roles[user.role]}</strong>
+            <small>{user.email}</small>
+          </div>
         </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+        <div className="nav-caption">QUẢN LÝ</div>
+        <nav aria-label="Điều hướng chính">
+          {nav.map(({ path, label, icon: Icon }) => (
+            <NavLink
+              to={path}
+              key={path}
+              className={({ isActive }) =>
+                `nav-item ${isActive ? "active" : ""}`
+              }
+            >
+              <Icon size={20} />
+              <span>{label}</span>
+              <ChevronRight size={15} />
+            </NavLink>
+          ))}
+        </nav>
+        <div className="sidebar-bottom">
+          <Building2 size={18} />
+          <span>Quản lý cơ sở và phòng cho thuê</span>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
+      </aside>
+      <div className="workspace-main">
+        <div className="breadcrumbs">
+          <House size={15} />
+          <span>Quản lý</span>
+          <ChevronRight size={14} />
+          <strong>{current?.label || "Tài khoản"}</strong>
         </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+        <main className="page-content">
+          <Suspense fallback={<LoadingState />}>
+            {user.role === "SUPER_ADMIN" ? (
+              <EmptyState
+                title="Tài khoản quản trị nền tảng"
+                description="Khu vực này dành cho chủ nhà và quản lý cơ sở. Hãy sử dụng tài khoản được cấp để xem phòng và hợp đồng."
+                action={<Button onClick={signOut}>Đổi tài khoản</Button>}
+              />
+            ) : (
+              <Routes>
+                {propertyAccess && (
+                  <>
+                    <Route path="/branches" element={<BranchesPage />} />
+                    <Route path="/rooms" element={<RoomsPage />} />
+                  </>
+                )}
+                {contractAccess && (
+                  <Route path="/contracts" element={<ContractsPage />} />
+                )}
+                <Route path="*" element={<Navigate to={home} replace />} />
+              </Routes>
+            )}
+          </Suspense>
+        </main>
+      </div>
+    </div>
+  );
 }
-
-export default App
+export default function App() {
+  return (
+    <BrowserRouter>
+      <ToastProvider>
+        <AuthProvider>
+          <Workspace />
+        </AuthProvider>
+      </ToastProvider>
+    </BrowserRouter>
+  );
+}
