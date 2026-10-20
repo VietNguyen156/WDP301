@@ -11,6 +11,8 @@ import {
   getInvoiceStatusMeta,
   getPaymentMethodMeta,
 } from "../../utils/formatters";
+import { publicInvoiceUrl, canSharePublicInvoice } from "../../utils/publicLink";
+import { invoicePermissions, PAYABLE_STATUSES } from "../../utils/invoicePermissions";
 
 export function InvoiceDetailModal({
   isOpen,
@@ -19,6 +21,7 @@ export function InvoiceDetailModal({
   onOpenCashPayment,
   onOpenCancelInvoice,
   onInvoiceUpdated,
+  role,
 }) {
   const { toast } = useToast();
   const [payments, setPayments] = useState([]);
@@ -45,13 +48,16 @@ export function InvoiceDetailModal({
 
   if (!invoice) return null;
 
+  const perms = invoicePermissions(role);
+  const isPayable = PAYABLE_STATUSES.includes(invoice.status);
   const statusMeta = getInvoiceStatusMeta(invoice.status, invoice.isOverdue);
   const invoiceId = invoice.id || invoice._id;
   const canCancel =
+    perms.canCancel &&
     (!invoice.paidAmount || invoice.paidAmount === 0) &&
     invoice.status !== "CANCELLED";
 
-  const publicLink = `${window.location.origin}/#public/${invoice.publicAccessToken}`;
+  const publicLink = publicInvoiceUrl(invoice.publicAccessToken);
 
   const copyPublicLink = () => {
     navigator.clipboard.writeText(publicLink);
@@ -73,7 +79,14 @@ export function InvoiceDetailModal({
       onInvoiceUpdated?.();
       onClose();
     } catch (err) {
-      toast.error(err.message || "Phát hành hóa đơn thất bại");
+      const errorCode = err.response?.data?.errorCode;
+      const message =
+        errorCode === "BANK_NOT_CONFIGURED"
+          ? "Chưa cấu hình tài khoản ngân hàng nhận tiền. Vào Hồ sơ > Tài khoản ngân hàng, nhập ngân hàng, số tài khoản và tên chủ tài khoản trước khi phát hành."
+          : err.response?.data?.message ||
+            err.message ||
+            "Phát hành hóa đơn thất bại";
+      toast.error(message);
     } finally {
       setIssuing(false);
     }
@@ -91,12 +104,13 @@ export function InvoiceDetailModal({
       footer={
         <div style={{ display: "flex", gap: "10px", width: "100%", justifyContent: "space-between" }}>
           <div style={{ display: "flex", gap: "8px" }}>
-            {invoice.status !== "CANCELLED" && (
+            {perms.canShareLink && canSharePublicInvoice(invoice.status) && (
               <Button variant="outline" size="sm" onClick={copyPublicLink}>
-                🔗 Sao chép link khách
+                <span className="material-symbols-outlined" style={{ fontSize: "17px" }}>link</span>
+                Sao chép link khách
               </Button>
             )}
-            {canCancel && (
+            {perms.canCancel && (!invoice.paidAmount || invoice.paidAmount === 0) && invoice.status !== "CANCELLED" && (
               <Button
                 variant="destructive"
                 size="sm"
@@ -105,12 +119,13 @@ export function InvoiceDetailModal({
                   onOpenCancelInvoice?.(invoice);
                 }}
               >
-                🗑️ Hủy hóa đơn
+                <span className="material-symbols-outlined" style={{ fontSize: "17px" }}>delete</span>
+                Hủy hóa đơn
               </Button>
             )}
           </div>
           <div style={{ display: "flex", gap: "10px" }}>
-            {invoice.status === "DRAFT" && (
+            {perms.canIssue && invoice.status === "DRAFT" && (
               <Button
                 variant="secondary"
                 size="md"
@@ -120,7 +135,17 @@ export function InvoiceDetailModal({
                 🚀 Phát hành hóa đơn
               </Button>
             )}
-            {["ISSUED", "PARTIALLY_PAID", "UNPAID"].includes(invoice.status) && (
+            {perms.canPayOnline && isPayable && (
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => window.open(publicLink, "_blank", "noopener")}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: "17px" }}>qr_code_2</span>
+                Thanh toán qua VietQR
+              </Button>
+            )}
+            {perms.canCollectCash && isPayable && (
               <Button
                 variant="primary"
                 size="md"
@@ -129,7 +154,8 @@ export function InvoiceDetailModal({
                   onOpenCashPayment?.(invoice);
                 }}
               >
-                💵 Thu tiền mặt ngay
+                <span className="material-symbols-outlined" style={{ fontSize: "17px" }}>payments</span>
+                {perms.isManager ? "Báo cáo thu tiền mặt" : "Thu tiền mặt ngay"}
               </Button>
             )}
             <Button variant="outline" size="md" onClick={onClose}>
@@ -139,7 +165,7 @@ export function InvoiceDetailModal({
         </div>
       }
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      <div className="invoice-detail-content" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
         {invoice.status === "CANCELLED" && (
           <div
             style={{
@@ -395,6 +421,7 @@ export function InvoiceDetailModal({
               Hệ thống tự động ghi nhận thanh toán và gửi thông báo biên nhận ngay sau khi ngân hàng xử lý.
             </div>
 
+            {perms.canShareLink && (
             <div
               style={{
                 marginTop: "6px",
@@ -408,8 +435,9 @@ export function InvoiceDetailModal({
               <span style={{ fontSize: "0.82rem", color: "var(--neutral-500)" }}>
                 Link khách thuê xem No-App:
               </span>
+              {canSharePublicInvoice(invoice.status) ? (
               <a
-                href={`/#public/${invoice.publicAccessToken}`}
+                href={publicLink}
                 target="_blank"
                 rel="noreferrer"
                 style={{
@@ -421,7 +449,15 @@ export function InvoiceDetailModal({
               >
                 {publicLink}
               </a>
+              ) : (
+                <span style={{ fontSize: "0.82rem", color: "var(--neutral-500)", fontStyle: "italic" }}>
+                  {invoice.status === "DRAFT"
+                    ? "Phát hành hóa đơn để tạo link cho khách thuê."
+                    : "Hóa đơn đã hủy, không chia sẻ cho khách thuê."}
+                </span>
+              )}
             </div>
+            )}
           </div>
         </div>
 

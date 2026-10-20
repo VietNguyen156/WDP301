@@ -8,6 +8,7 @@ export function Modal({
   children,
   footer,
   maxWidth = "600px",
+  closeOnBackdropClick = true,
 }) {
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -35,7 +36,7 @@ export function Modal({
         backdropFilter: "blur(4px)",
       }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) {
+        if (closeOnBackdropClick && e.target === e.currentTarget) {
           onClose?.();
         }
       }}

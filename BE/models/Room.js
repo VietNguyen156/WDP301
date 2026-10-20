@@ -93,5 +93,6 @@ roomSchema.index({ landlordId: 1, branchId: 1, roomNumber: 1 }, { unique: true }
 roomSchema.index({ landlordId: 1, status: 1 });
 roomSchema.index({ landlordId: 1, branchId: 1, isDeleted: 1 });
 
-require('./propertyValidators')(roomSchema, ['floor', 'basePrice', 'maxOccupants', 'currentElectricIndex', 'currentWaterIndex']);
+require('./propertyValidators')(roomSchema, ['floor', 'basePrice', 'maxOccupants', 'currentElectricIndex', 'currentWaterIndex', 'electricityPrice', 'waterPrice']);
+require('./propertyValidators')(roomSchema.path('services').schema, ['price']);
 module.exports = mongoose.model("Room", roomSchema);

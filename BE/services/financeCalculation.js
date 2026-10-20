@@ -1,4 +1,4 @@
-const AppError = require("../utils/AppError");
+const { AppError } = require("../utils/errors");
 const { money } = require("../utils/financeValidation");
 
 function consumption(oldIndex, newIndex, label) {
@@ -8,11 +8,7 @@ function consumption(oldIndex, newIndex, label) {
     oldIndex < 0 ||
     newIndex < oldIndex
   ) {
-    throw new AppError(
-      400,
-      "READING_LOWER_THAN_PREVIOUS",
-      `Chỉ số ${label} không hợp lệ`,
-    );
+    throw new AppError(`Chỉ số ${label} không hợp lệ`, 400, "READING_LOWER_THAN_PREVIOUS");
   }
   return newIndex - oldIndex;
 }
@@ -45,11 +41,7 @@ function calculateInvoice({ branch, room, contract, reading, snapshot }) {
     "Đơn giá nước",
   );
   if (!["METER", "PER_PERSON", "FIXED"].includes(waterType)) {
-    throw new AppError(
-      400,
-      "VALIDATION_ERROR",
-      "Hình thức tính nước không hợp lệ",
-    );
+    throw new AppError("Hình thức tính nước không hợp lệ", 400, "VALIDATION_ERROR");
   }
   const services = snapshot
     ? snapshot.servicesDetail.map((service) => ({
@@ -67,11 +59,7 @@ function calculateInvoice({ branch, room, contract, reading, snapshot }) {
         contract.serviceQuantities?.get?.(service.name) ??
         contract.serviceQuantities?.[service.name];
       if (!Number.isSafeInteger(quantity) || quantity < 0) {
-        throw new AppError(
-          400,
-          "VALIDATION_ERROR",
-          `Thiếu số lượng dịch vụ ${service.name} trong hợp đồng`,
-        );
+        throw new AppError(`Thiếu số lượng dịch vụ ${service.name} trong hợp đồng`, 400, "VALIDATION_ERROR");
       }
     }
     // Older invoices do not have billingType; keep their recorded quantities.
@@ -162,11 +150,7 @@ function paymentBalance(invoice, amount) {
 
 function makeVietQr(bank, amount, syntax) {
   if (!bank?.bankCode || !bank.accountNumber || !bank.accountName) {
-    throw new AppError(
-      400,
-      "BANK_NOT_CONFIGURED",
-      "Chủ trọ chưa cấu hình đầy đủ tài khoản ngân hàng",
-    );
+    throw new AppError("Chủ trọ chưa cấu hình đầy đủ tài khoản ngân hàng", 400, "BANK_NOT_CONFIGURED");
   }
   money(amount, "Số tiền QR");
   const query = new URLSearchParams({

@@ -32,16 +32,15 @@ const paymentSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["VIETQR", "BANK_TRANSFER", "CASH"],
+      enum: ["VIETQR", "BANK_TRANSFER", "CASH", "DEPOSIT"],
       default: "VIETQR",
     },
 
-    // QUAN TRỌNG: referenceCode là Mã giao dịch ngân hàng / ID giao dịch SePay
-    // Unique để chống lỗi Idempotency (bắn lặp webhook xử lý trừ tiền 2 lần)
+    // QUAN TRỌNG: referenceCode là Mã giao dịch ngân hàng / số biên lai tiền mặt.
+    // Unique trong phạm vi (chủ trọ, phương thức) để chống xử lý lặp mà không đụng dữ liệu chủ trọ khác.
     referenceCode: {
       type: String,
       required: true,
-      unique: true,
       immutable: true,
       trim: true,
       index: true,
@@ -69,7 +68,7 @@ const paymentSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["SUCCESS", "FAILED", "REFUNDED"],
+      enum: ["PENDING_CONFIRMATION", "SUCCESS", "FAILED", "REFUNDED"],
       default: "SUCCESS",
     },
 
@@ -83,6 +82,16 @@ const paymentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    reportedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    reviewedAt: Date,
+    reviewNote: String,
     receiptNumber: { type: String, immutable: true },
     payerName: String,
     cashCollectionPoint: String,
@@ -95,9 +104,10 @@ const paymentSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
+paymentSchema.index({ landlordId: 1, paymentMethod: 1, referenceCode: 1 }, { unique: true });
 paymentSchema.index({ landlordId: 1, createdAt: -1 });
 paymentSchema.index({ landlordId: 1, branchId: 1, createdAt: -1 });
 

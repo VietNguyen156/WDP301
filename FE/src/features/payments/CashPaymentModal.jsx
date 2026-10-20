@@ -4,10 +4,13 @@ import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { paymentService } from "../../services/paymentService";
 import { useToast } from "../../context/ToastContext";
+import { useAuth } from "../../context/AuthContext";
 import { formatCurrency, generateReceiptNumber } from "../../utils/formatters";
 
 export function CashPaymentModal({ isOpen, onClose, invoice, onPaymentSuccess }) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isManagerReport = user?.role === "PROPERTY_MANAGER";
   const [amount, setAmount] = useState(0);
   const [receiptNumber, setReceiptNumber] = useState("");
   const [payerName, setPayerName] = useState("");
@@ -81,7 +84,9 @@ export function CashPaymentModal({ isOpen, onClose, invoice, onPaymentSuccess })
       setSubmitting(true);
       const res = await paymentService.recordCashPayment(payload);
       toast.success(
-        res?.message || `Đã xác nhận thu tiền mặt ${formatCurrency(numAmount)} thành công!`
+        res?.message || (isManagerReport
+          ? `Đã gửi báo cáo thu tiền mặt ${formatCurrency(numAmount)} chờ Chủ trọ duyệt.`
+          : `Đã xác nhận thu tiền mặt ${formatCurrency(numAmount)} thành công!`)
       );
       onPaymentSuccess?.(res?.data || res);
       onClose();
@@ -96,7 +101,7 @@ export function CashPaymentModal({ isOpen, onClose, invoice, onPaymentSuccess })
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Xác nhận Thu tiền mặt (Cash Payment)"
+      title={isManagerReport ? "Báo cáo Thu tiền mặt" : "Xác nhận Thu tiền mặt (Cash Payment)"}
       subtitle={`Hóa đơn ${invoice.invoiceCode || ""} • Khách thuê nộp tiền trực tiếp`}
       maxWidth="560px"
       footer={
@@ -105,7 +110,7 @@ export function CashPaymentModal({ isOpen, onClose, invoice, onPaymentSuccess })
             Hủy bỏ
           </Button>
           <Button variant="primary" loading={submitting} onClick={handleSubmit}>
-            💰 Xác nhận đã nhận tiền mặt
+            {isManagerReport ? "Gửi báo cáo thu tiền" : "💰 Xác nhận đã nhận tiền mặt"}
           </Button>
         </div>
       }
@@ -236,7 +241,9 @@ export function CashPaymentModal({ isOpen, onClose, invoice, onPaymentSuccess })
             color: "var(--warning-text)",
           }}
         >
-          ⚠️ Giao dịch thu tiền mặt sẽ tự động tạo bản ghi <strong>Payment (CASH)</strong>, cập nhật trạng thái hóa đơn và ghi nhận vào <strong>AuditLog</strong> của hệ thống.
+          {isManagerReport
+            ? <>Báo cáo sẽ ở trạng thái <strong>CHỜ CHỦ TRỌ XÁC NHẬN</strong>. Hệ thống chưa cộng tiền vào hóa đơn cho đến khi Landlord duyệt.</>
+            : <>Giao dịch thu tiền mặt sẽ tạo bản ghi <strong>Payment (CASH)</strong>, cập nhật hóa đơn và ghi nhận vào <strong>AuditLog</strong>.</>}
         </div>
       </form>
     </Modal>

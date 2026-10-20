@@ -50,6 +50,8 @@ function branch(body, creating = false) {
     body.defaultServices.forEach((s) => {
       v.fields(s, ["name", "price", "billingType"]);
       v.text(s.name, "Tên dịch vụ");
+      if (/[.$]/.test(s.name) || ["__proto__", "prototype", "constructor"].includes(s.name))
+        throw new ValidationError("Tên dịch vụ không hợp lệ");
       v.number(s.price, "Giá dịch vụ");
       v.choice(
         s.billingType,
@@ -57,6 +59,8 @@ function branch(body, creating = false) {
         "Cách tính dịch vụ",
       );
     });
+    if (new Set(body.defaultServices.map((s) => s.name.trim())).size !== body.defaultServices.length)
+      throw new ValidationError("Tên dịch vụ không được trùng nhau");
   }
   return body;
 }
@@ -73,12 +77,21 @@ function room(body, creating = false, manager = false) {
           "status",
           "amenities",
           "notes",
+          "electricityPrice",
+          "waterPrice",
+          "waterBillingType",
+          "services",
         ],
   );
   if (creating || body.roomNumber !== undefined)
     v.text(body.roomNumber, "Số phòng");
   if (body.floor !== undefined) v.number(body.floor, "Tầng", 1, 100);
   if (body.basePrice !== undefined) v.number(body.basePrice, "Giá thuê");
+  for (const key of ["electricityPrice", "waterPrice"])
+    if (body[key] !== undefined) v.number(body[key], key);
+  if (body.waterBillingType !== undefined)
+    v.choice(body.waterBillingType, ["METER", "PER_PERSON", "FIXED"], "Cách tính nước");
+  if (body.services !== undefined) branch({ defaultServices: body.services });
   if (body.maxOccupants !== undefined)
     v.number(body.maxOccupants, "Số người tối đa", 1, 30);
   if (body.status !== undefined)

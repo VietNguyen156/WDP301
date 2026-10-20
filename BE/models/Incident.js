@@ -70,10 +70,27 @@ const incidentSchema = new mongoose.Schema(
       default: "LANDLORD", // Mặc định hao mòn tự nhiên thì chủ chịu
     },
 
+    // Ngày ghi nhận chi phí gần nhất; bắt buộc có trước khi đóng phiếu
+    costUpdatedAt: { type: Date },
+    // Hợp đồng của phòng tại thời điểm báo sự cố (để khấu trừ cọc khi khách chịu phí)
+    contractId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Contract",
+    },
+
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User", // Nhân viên / Quản lý phụ trách theo dõi ca sửa
     },
+    statusHistory: [
+      {
+        _id: false,
+        status: { type: String, required: true },
+        changedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+        changedAt: { type: Date, default: Date.now },
+        note: { type: String, trim: true },
+      },
+    ],
     notes: {
       type: String,
     },
@@ -91,4 +108,7 @@ const incidentSchema = new mongoose.Schema(
 incidentSchema.index({ landlordId: 1, status: 1 });
 incidentSchema.index({ landlordId: 1, branchId: 1, status: 1 });
 
+incidentSchema.index({ landlordId: 1, contractId: 1 });
+
+require("./propertyValidators")(incidentSchema, ["repairCost"]);
 module.exports = mongoose.model("Incident", incidentSchema);

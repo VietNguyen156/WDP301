@@ -1,10 +1,13 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import {
   authApi,
+  profileApi,
   restoreSession,
   setAccessToken,
   setSessionExpiredHandler,
+  setPasswordChangeRequiredHandler,
 } from "../services/api";
+import { updateSocketAuthToken, disconnectSocket } from "../services/socket";
 
 const AuthContext = createContext(null);
 
@@ -18,18 +21,66 @@ export function AuthProvider({ children }) {
       return null;
     }
   });
+  const [profile, setProfile] = useState(() => {
+    try {
+      const saved = localStorage.getItem("profile");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedBranchId, setSelectedBranchId] = useState(
     () => localStorage.getItem("selectedBranchId") || "",
   );
 
+  const refreshProfile = useCallback(async () => {
+    try {
+      const currentToken = localStorage.getItem("token");
+      if (!currentToken) return null;
+      const p = await profileApi.get();
+      if (p) {
+        setProfile(p);
+        localStorage.setItem("profile", JSON.stringify(p));
+      }
+      return p;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // Reload the signed-in user (e.g. the active SaaS plan after a payment).
+  const refreshUser = useCallback(async () => {
+    try {
+      const fresh = await authApi.me();
+      if (fresh) {
+        setUser(fresh);
+        localStorage.setItem("user", JSON.stringify(fresh));
+      }
+      return fresh;
+    } catch {
+      return null;
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
+
     setSessionExpiredHandler(() => {
       setToken("");
       setUser(null);
+      setProfile(null);
+      setMustChangePassword(false);
+      setSelectedBranchId("");
       localStorage.removeItem("token");
       localStorage.removeItem("user");
+      localStorage.removeItem("profile");
+      localStorage.removeItem("selectedBranchId");
+    });
+
+    setPasswordChangeRequiredHandler(() => {
+      setMustChangePassword(true);
     });
 
     restoreSession()
@@ -37,11 +88,33 @@ export function AuthProvider({ children }) {
         if (active && data?.user) {
           setUser(data.user);
           setToken(data.token || localStorage.getItem("token") || "");
+          if (data.user.mustChangePassword) {
+            setMustChangePassword(true);
+          } else {
+            // Load fresh profile details (including bankAccount for LANDLORD)
+            profileApi.get()
+              .then((p) => {
+                if (active && p) {
+                  setProfile(p);
+                  localStorage.setItem("profile", JSON.stringify(p));
+                }
+              })
+              .catch(() => {});
+          }
           localStorage.setItem("user", JSON.stringify(data.user));
         }
       })
       .catch(() => {
-        // Fallback to localStorage if available
+        setAccessToken(null);
+        setToken("");
+        setUser(null);
+        setProfile(null);
+        setMustChangePassword(false);
+        setSelectedBranchId("");
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        localStorage.removeItem("profile");
+        localStorage.removeItem("selectedBranchId");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -56,17 +129,23 @@ export function AuthProvider({ children }) {
     if (token) {
       localStorage.setItem("token", token);
       setAccessToken(token);
+      updateSocketAuthToken(token);
     } else {
       localStorage.removeItem("token");
       setAccessToken(null);
+      disconnectSocket();
     }
   }, [token]);
 
   useEffect(() => {
     if (user) {
       localStorage.setItem("user", JSON.stringify(user));
+      if (user.mustChangePassword) {
+        setMustChangePassword(true);
+      }
     } else {
       localStorage.removeItem("user");
+      setMustChangePassword(false);
     }
   }, [user]);
 
@@ -79,26 +158,58 @@ export function AuthProvider({ children }) {
   }, [selectedBranchId]);
 
   async function login(firstArg, secondArg) {
-    // If called with (token, user) - Manh's style
     if (typeof firstArg === "string" && secondArg) {
       setToken(firstArg);
       setUser(secondArg);
       setAccessToken(firstArg);
+      if (secondArg.mustChangePassword) {
+        setMustChangePassword(true);
+      }
       if (secondArg.assignedBranches?.length > 0) {
         setSelectedBranchId(secondArg.assignedBranches[0]);
       }
-      return;
+      return { token: firstArg, user: secondArg };
     }
 
-    // Otherwise called with credentials object: { email, password } - Viet's style
     const data = await authApi.login(firstArg);
     setAccessToken(data.token);
     setToken(data.token);
     setUser(data.user);
+    if (data.user?.mustChangePassword) {
+      setMustChangePassword(true);
+    } else {
+      setMustChangePassword(false);
+    }
     if (data.user?.assignedBranches?.length > 0) {
       setSelectedBranchId(data.user.assignedBranches[0]);
     }
+    if (data.user && !data.user.mustChangePassword) {
+      profileApi.get()
+        .then((p) => {
+          if (p) {
+            setProfile(p);
+            localStorage.setItem("profile", JSON.stringify(p));
+          }
+        })
+        .catch(() => {});
+    }
     return data;
+  }
+
+  async function changePassword({ currentPassword, newPassword }) {
+    const res = await authApi.changePassword({ currentPassword, newPassword });
+    // After password change, all sessions are revoked by backend
+    setAccessToken(null);
+    setToken("");
+    setUser(null);
+    setProfile(null);
+    setMustChangePassword(false);
+    setSelectedBranchId("");
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("profile");
+    localStorage.removeItem("selectedBranchId");
+    return res;
   }
 
   async function logout() {
@@ -110,9 +221,12 @@ export function AuthProvider({ children }) {
     setAccessToken(null);
     setToken("");
     setUser(null);
+    setProfile(null);
+    setMustChangePassword(false);
     setSelectedBranchId("");
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    localStorage.removeItem("profile");
     localStorage.removeItem("selectedBranchId");
   }
 
@@ -121,10 +235,17 @@ export function AuthProvider({ children }) {
       value={{
         token,
         user,
+        profile,
+        setProfile,
+        refreshProfile,
+        refreshUser,
         loading,
+        mustChangePassword,
+        setMustChangePassword,
         selectedBranchId,
         setSelectedBranchId,
         login,
+        changePassword,
         logout,
         isAuthenticated: !!user || !!token,
       }}

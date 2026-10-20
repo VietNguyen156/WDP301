@@ -17,6 +17,29 @@ export function PublicInvoicePage({ token: initialToken }) {
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [simulating, setSimulating] = useState(false);
+  const currentToken = (tokenInput || initialToken || "").trim();
+
+  // Sandbox: SePay test mode cannot scan a real transfer, so fake one through the real flow.
+  async function simulatePayment() {
+    if (!currentToken) return;
+    try {
+      setSimulating(true);
+      const result = await invoiceService.simulatePublicPayment(currentToken);
+      if (result?.paid) {
+        toast.success("Đã giả lập chuyển khoản thành công. Hóa đơn đã được gạch nợ.");
+      } else if (result?.unmatched) {
+        toast.warning(
+          `Giao dịch giả lập đã ghi nhận nhưng chưa tự gạch nợ: ${result.reason || "không khớp hóa đơn"}`
+        );
+      }
+      await fetchPublicInvoice(currentToken);
+    } catch (err) {
+      toast.error(err.message || "Không thể giả lập thanh toán");
+    } finally {
+      setSimulating(false);
+    }
+  }
 
   const fetchPublicInvoice = useCallback(
     async (tokenToFetch) => {
@@ -304,15 +327,25 @@ export function PublicInvoicePage({ token: initialToken }) {
                 </div>
               </div>
 
-              <div style={{ marginTop: "14px", display: "flex", justifyContent: "center" }}>
+              <div style={{ marginTop: "14px", display: "flex", justifyContent: "center", gap: "8px", flexWrap: "wrap" }}>
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => fetchPublicInvoice(invoice.publicAccessToken)}
+                  onClick={() => fetchPublicInvoice(currentToken)}
                 >
                   🔄 Kiểm tra lại trạng thái thanh toán
                 </Button>
+                {invoice.paymentSimulator && (
+                  <Button size="sm" variant="secondary" busy={simulating} onClick={simulatePayment}>
+                    🧪 Giả lập thanh toán thành công (Sandbox)
+                  </Button>
+                )}
               </div>
+              {invoice.paymentSimulator && (
+                <p style={{ margin: "8px 0 0", textAlign: "center", fontSize: "0.75rem", color: "var(--neutral-500)" }}>
+                  Chỉ hiện ở môi trường thử nghiệm: tạo một giao dịch chuyển khoản giả đúng số tiền và nội dung CK.
+                </p>
+              )}
             </Card>
           )}
 

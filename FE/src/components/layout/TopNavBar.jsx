@@ -9,10 +9,15 @@ export function TopNavBar({ searchTerm, onSearchChange }) {
   useEffect(() => {
     let isMounted = true;
     branchService.getBranches().then((data) => {
-      if (isMounted && Array.isArray(data)) {
-        setBranches(data);
-        if (!selectedBranchId && data.length > 0) {
-          setSelectedBranchId(data[0]._id || data[0].id);
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.items)
+        ? data.items
+        : [];
+      if (isMounted) {
+        setBranches(list);
+        if (!selectedBranchId && list.length > 0) {
+          setSelectedBranchId(list[0]._id || list[0].id);
         }
       }
     });

@@ -13,7 +13,7 @@ const UnmatchedPayment = require("./UnmatchedPayment");
 const Incident = require("./Incident");
 const AuditLog = require("./AuditLog");
 const AuthSession = require("./AuthSession");
-const OtpChallenge = require("./OtpChallenge");
+const PlanUpgradeRequest = require("./PlanUpgradeRequest");
 
 module.exports = {
   User,
@@ -31,5 +31,5 @@ module.exports = {
   Incident,
   AuditLog,
   AuthSession,
-  OtpChallenge,
+  PlanUpgradeRequest,
 };

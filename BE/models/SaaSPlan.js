@@ -1,7 +1,11 @@
 const mongoose = require("mongoose");
+const { FEATURE_KEYS } = require("../utils/planFeatures");
 
 const saasPlanSchema = new mongoose.Schema(
   {
+    isDeleted: { type: Boolean, default: false, index: true },
+    mutationVersion: { type: Number, default: 0, select: false },
+    trialDays: { type: Number, default: 30, min: 1, max: 365, validate: Number.isSafeInteger },
     name: {
       type: String,
       required: [true, "Vui lòng nhập tên gói dịch vụ"],
@@ -39,9 +43,15 @@ const saasPlanSchema = new mongoose.Schema(
     },
     features: [
       {
-        type: String, // Danh sách tính năng (vd: Auto VietQR, SMS Noti, Webhook SePay...)
+        type: String, // Danh sách tính năng hiển thị (vd: Auto VietQR, SMS Noti, Webhook SePay...)
       },
     ],
+    // Tính năng được backend chặn theo gói (danh mục trong utils/planFeatures.js).
+    // Không đặt (undefined) = gói cũ trước khi có cờ, được dùng mọi tính năng.
+    featureFlags: {
+      type: [{ type: String, enum: FEATURE_KEYS }],
+      default: undefined,
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -52,4 +62,5 @@ const saasPlanSchema = new mongoose.Schema(
   }
 );
 
+require('./propertyValidators')(saasPlanSchema, ['price', 'maxBranches', 'maxRooms', 'maxManagers']);
 module.exports = mongoose.model("SaaSPlan", saasPlanSchema);
