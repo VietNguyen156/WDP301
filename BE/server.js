@@ -1,29 +1,32 @@
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
+// Indexes are built explicitly after migrations, not automatically on connect.
+require("mongoose").set("autoIndex", false);
+const http = require("http");
 const app = require("./app");
+const realtime = require("./realtime");
 const connectDB = require("./config/db");
+const { migrateFinanceIndexes, backfillPlanFeatureFlags } = require("./config/migrations");
 const models = require("./models");
 
 async function start() {
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("Cần JWT_SECRET tối thiểu 32 ký tự trong BE/.env");
-    } else {
-      process.env.JWT_SECRET =
-        process.env.JWT_SECRET || "development-jwt-secret-wdp301-super-secure-32chars";
-      console.warn("⚠️ [DEV] Chưa cấu hình JWT_SECRET chuẩn, sử dụng khóa phát triển tạm thời.");
-    }
+    throw new Error("Cần JWT_SECRET tối thiểu 32 ký tự trong BE/.env");
   }
 
   await connectDB();
-  try {
-    await Promise.all(Object.values(models).map((model) => model.init?.()));
-  } catch (err) {
-    console.warn("Lưu ý khi tạo index database:", err.message);
-  }
-
+  await migrateFinanceIndexes();
+  await backfillPlanFeatureFlags();
+  await Promise.all(
+    Object.values(models).map(async (model) => {
+      await model.init();
+      await model.createIndexes();
+    }),
+  );
   const port = process.env.PORT || 5000;
-  const server = app.listen(port);
+  const server = http.createServer(app);
+  realtime.attach(server, app);
+  server.listen(port);
   server.on("listening", () =>
     console.log(`Server đang chạy tại http://localhost:${port}`),
   );
@@ -37,4 +40,5 @@ async function start() {
 start().catch((error) => {
   console.error("Không thể khởi động BE:", error.message);
   process.exitCode = 1;
+  require("mongoose").disconnect();
 });
