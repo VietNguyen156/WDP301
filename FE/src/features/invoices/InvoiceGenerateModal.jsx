@@ -29,18 +29,28 @@ export function InvoiceGenerateModal({ isOpen, onClose, onGenerated, defaultBran
   useEffect(() => {
     if (isOpen) {
       branchService.getBranches().then((data) => {
-        if (Array.isArray(data)) {
-          setBranches(data);
-          setFormData((prev) => {
-            if (!prev.branchId && data.length > 0) {
-              return { ...prev, branchId: data[0]._id || data[0].id };
-            }
-            return prev;
-          });
-        }
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.items)
+          ? data.items
+          : [];
+        setBranches(list);
+        setFormData((prev) => {
+          const currentId = defaultBranchId || prev.branchId;
+          const matched = list.find(
+            (b) => String(b._id || b.id) === String(currentId)
+          );
+          if (matched) {
+            return { ...prev, branchId: matched._id || matched.id };
+          }
+          if (list.length > 0 && !prev.branchId) {
+            return { ...prev, branchId: list[0]._id || list[0].id };
+          }
+          return prev;
+        });
       });
     }
-  }, [isOpen]);
+  }, [isOpen, defaultBranchId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -99,12 +109,13 @@ export function InvoiceGenerateModal({ isOpen, onClose, onGenerated, defaultBran
             Hủy bỏ
           </Button>
           <Button variant="primary" loading={submitting} onClick={handleSubmit}>
-            ⚡ Bắt đầu tạo hóa đơn
+            <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>bolt</span>
+            Bắt đầu tạo hóa đơn
           </Button>
         </div>
       }
     >
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <form className="invoice-modal-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <Select
           label="Cơ sở / Tòa nhà áp dụng"
           required

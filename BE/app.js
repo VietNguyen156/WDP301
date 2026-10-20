@@ -18,7 +18,7 @@ app.use(
   express.json({
     limit: "256kb",
     verify: (req, res, buffer) => {
-      req.rawBody = buffer;
+      if (/\/payments\/webhook\/?$/i.test(req.path)) req.rawBody = buffer;
     },
   }),
 );
@@ -26,7 +26,7 @@ app.use(express.urlencoded({ extended: true, limit: "256kb" }));
 app.use(cookieParser());
 
 app.use((req, res, next) => {
-  if (req.headers["x-landlord-id"])
+  if (req.headers["x-landlord-id"] || req.headers["x-user-id"])
     throw new ForbiddenError("Không hỗ trợ header thay đổi phạm vi chủ trọ");
   next();
 });

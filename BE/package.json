@@ -6,10 +6,9 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "seed": "node seeds/seed.js",
-    "setup": "node scripts/setup-dev.js",
     "test": "node --test tests/*.test.js",
     "test:integration": "node --test tests/integration.test.js",
-    "lint": "node scripts/check-syntax.js && oxlint --deny correctness --deny-warnings ."
+    "lint": "oxlint --deny correctness --deny-warnings ."
   },
   "keywords": [],
   "author": "",
@@ -23,11 +22,13 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.1",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.9.5"
+    "mongoose": "^9.9.5",
+    "socket.io": "^4.8.4"
   },
   "devDependencies": {
     "mongodb-memory-server": "^11.3.0",
     "oxlint": "^1.86.0",
+    "socket.io-client": "^4.8.4",
     "supertest": "^7.3.1"
   }
 }

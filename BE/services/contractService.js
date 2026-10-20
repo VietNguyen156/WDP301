@@ -1,9 +1,9 @@
 const mongoose = require("mongoose");
 const crypto = require("crypto");
 const Contract = require("../models/Contract");
-const User = require("../models/User");
+const accounts = require("./accountService");
 const Room = require("../models/Room");
-const Invoice = require("../models/Invoice");
+const settlementService = require("./contractSettlementService");
 const branchService = require("./branchService");
 const {
   getTenantScope,
@@ -40,25 +40,22 @@ function validateCreate(body) {
     "initialWaterIndex",
     "roommates",
     "notes",
+    "serviceQuantities",
   ]);
   validId(body.branchId);
   validId(body.roomId);
-  v.fields(body.tenant, [
-    "name",
-    "email",
-    "phoneNumber",
-    "citizenId",
-    "hometown",
-  ]);
-  for (const key of ["name", "email", "phoneNumber", "citizenId"])
-    v.text(body.tenant[key], key);
-  if (
-    !/^\S+@\S+\.\S+$/.test(body.tenant.email) ||
-    !/^\+?[\d\s-]{9,15}$/.test(body.tenant.phoneNumber)
-  )
-    throw new ValidationError("Email hoặc số điện thoại không hợp lệ");
-  if (body.tenant.hometown !== undefined)
-    v.text(body.tenant.hometown, "Quê quán", false);
+  accounts.profile(body.tenant, "TENANT");
+  if (body.serviceQuantities !== undefined) {
+    v.object(body.serviceQuantities, "Số lượng dịch vụ");
+    if (Object.keys(body.serviceQuantities).length > 30)
+      throw new ValidationError("Tối đa 30 số lượng dịch vụ");
+    for (const [name, quantity] of Object.entries(body.serviceQuantities)) {
+      v.text(name, "Tên dịch vụ");
+      if (/[.$]/.test(name) || ["__proto__", "prototype", "constructor"].includes(name))
+        throw new ValidationError("Tên dịch vụ không hợp lệ");
+      v.number(quantity, "Số lượng dịch vụ");
+    }
+  }
   const start = v.date(body.startDate, "Ngày bắt đầu"),
     end = v.date(body.endDate, "Ngày kết thúc");
   if (end <= start)
@@ -85,23 +82,29 @@ function validateCreate(body) {
   if (body.notes !== undefined) v.text(body.notes, "Ghi chú", false);
   return body;
 }
+// Mongoose re-checks a per-document match on the fetched docs, so the matched
+// fields must be selected or every populate silently falls back to the raw id.
+const owned = (doc) => ({ landlordId: doc.landlordId, isDeleted: false });
+const OWNED_FIELDS = " landlordId isDeleted";
 async function enrich(items) {
   return Contract.populate(items, [
     {
       path: "tenantId",
-      select: "name email phoneNumber citizenId hometown",
-      match: (doc) => ({ landlordId: doc.landlordId, isDeleted: false }),
+      select: "name email phoneNumber citizenId hometown" + OWNED_FIELDS,
+      match: owned,
     },
     {
       path: "branchId",
       select:
-        "name address defaultElectricityPrice defaultWaterPrice waterBillingType",
-      match: (doc) => ({ landlordId: doc.landlordId, isDeleted: false }),
+        "name address defaultElectricityPrice defaultWaterPrice waterBillingType" +
+        OWNED_FIELDS,
+      match: owned,
     },
     {
       path: "roomId",
-      select: "roomNumber floor currentElectricIndex currentWaterIndex",
-      match: (doc) => ({ landlordId: doc.landlordId, isDeleted: false }),
+      select:
+        "roomNumber floor currentElectricIndex currentWaterIndex" + OWNED_FIELDS,
+      match: owned,
     },
   ]);
 }
@@ -110,6 +113,8 @@ async function get(req, id) {
     scoped(getTenantScope(req), { _id: validId(id) }),
   ).lean();
   if (!contract) throw new NotFoundError("Không tìm thấy hợp đồng");
+  if (contract.settlement?.state === "PREPARED")
+    contract.settlement = await settlementService.currentSettlement(contract);
   await enrich([contract]);
   return { ...contract, displayStatus: displayStatus(contract) };
 }
@@ -156,7 +161,7 @@ async function list(req) {
 }
 async function create(req) {
   const body = validateCreate(req.body);
-  const id = await mongoose.connection.transaction(async (session) => {
+  const result = await mongoose.connection.transaction(async (session) => {
     const branch = await branchService.lock(req, body.branchId, session);
     const room = await Room.findOne({
       _id: body.roomId,
@@ -165,6 +170,10 @@ async function create(req) {
       isDeleted: false,
     }).session(session);
     if (!room) throw new NotFoundError("Không tìm thấy phòng trong cơ sở");
+    for (const service of room.services || branch.defaultServices || []) {
+      if (service.billingType === "PER_UNIT" && body.serviceQuantities?.[service.name] === undefined)
+        throw new ValidationError(`Thiếu số lượng dịch vụ ${service.name}`);
+    }
     if (
       room.status !== "EMPTY" ||
       room.currentContractId ||
@@ -186,45 +195,8 @@ async function create(req) {
         "Chỉ số bàn giao không được nhỏ hơn chỉ số hiện tại",
         "READING_LOWER_THAN_PREVIOUS",
       );
-    const email = body.tenant.email.trim().toLowerCase(),
-      phoneNumber = body.tenant.phoneNumber.trim();
-    const matches = await User.find({
-      $or: [{ email }, { phoneNumber }],
-    }).session(session);
-    let tenant = matches[0];
-    if (
-      matches.length > 1 ||
-      (tenant &&
-        (tenant.role !== "TENANT" ||
-          tenant.isDeleted ||
-          !["ACTIVE", "PENDING_ACTIVATION"].includes(tenant.status) ||
-          String(tenant.landlordId) !== String(branch.landlordId) ||
-          tenant.email !== email ||
-          tenant.phoneNumber !== phoneNumber ||
-          (tenant.citizenId &&
-            tenant.citizenId !== body.tenant.citizenId.trim())))
-    )
-      throw new BusinessRuleError(
-        "Thông tin khách thuê trùng với tài khoản khác. Vui lòng kiểm tra email, SĐT và CCCD.",
-        "TENANT_IDENTITY_CONFLICT",
-      );
-    if (!tenant) {
-      [tenant] = await User.create(
-        [
-          {
-            ...body.tenant,
-            email,
-            phoneNumber,
-            role: "TENANT",
-            status: "PENDING_ACTIVATION",
-            landlordId: branch.landlordId,
-            password: crypto.randomBytes(32).toString("hex"),
-          },
-        ],
-        { session },
-      );
-    }
-    const { tenant: ignoredTenant, ...input } = body;
+    const { user: tenant, credentials } = await accounts.tenantForContract(req, body.tenant, session);
+    const { tenant: _tenant, ...input } = body;
     const [contract] = await Contract.create(
       [
         {
@@ -250,158 +222,21 @@ async function create(req) {
       after: contract.toObject(),
       session,
     });
-    return String(contract._id);
+    return { id: String(contract._id), credentials };
   });
-  return get(req, id);
-}
-function calculateSettlement({ contract, room, branch, body, debt = 0 }) {
-  v.number(body.finalElectricIndex, "Chỉ số điện cuối");
-  v.number(body.finalWaterIndex, "Chỉ số nước cuối");
-  if (
-    body.finalElectricIndex < room.currentElectricIndex ||
-    body.finalWaterIndex < room.currentWaterIndex
-  )
-    throw new BusinessRuleError(
-      "Chỉ số cuối phải lớn hơn hoặc bằng chỉ số hiện tại",
-      "READING_LOWER_THAN_PREVIOUS",
-    );
-  if (!Array.isArray(body.deductions) || body.deductions.length > 30)
-    throw new ValidationError("Các khoản khấu trừ không hợp lệ");
-  body.deductions.forEach((d) => {
-    v.fields(d, ["reason", "amount", "evidenceImage"]);
-    v.text(d.reason, "Lý do khấu trừ");
-    v.number(d.amount, "Số tiền khấu trừ");
-    v.text(d.evidenceImage, "Ảnh nghiệm thu");
-    if (!/^https?:\/\//.test(d.evidenceImage))
-      throw new ValidationError("Ảnh nghiệm thu phải là URL http/https");
-  });
-  const electricAmount =
-    (body.finalElectricIndex - room.currentElectricIndex) *
-    branch.defaultElectricityPrice;
-  const waterAmount =
-    branch.waterBillingType === "METER"
-      ? (body.finalWaterIndex - room.currentWaterIndex) *
-        branch.defaultWaterPrice
-      : 0;
-  const deductionAmount = body.deductions.reduce((sum, d) => sum + d.amount, 0);
-  const heldDeposit =
-    contract.depositStatus === "PAID" ? contract.depositAmount : 0;
-  const totalCharges = electricAmount + waterAmount + deductionAmount + debt;
-  v.number(totalCharges, "Tổng quyết toán");
-  return {
-    heldDeposit,
-    electricAmount,
-    waterAmount,
-    deductionAmount,
-    outstandingDebt: debt,
-    totalCharges,
-    refundedDepositAmount: Math.max(heldDeposit - totalCharges, 0),
-    remainingDue: Math.max(totalCharges - heldDeposit, 0),
-  };
+  const contract = await get(req, result.id);
+  return result.credentials ? { ...contract, tenantCredentials: result.credentials } : contract;
 }
 async function terminate(req) {
-  const body = v.fields(req.body, [
-    "actualEndDate",
-    "finalElectricIndex",
-    "finalWaterIndex",
-    "deductions",
-    "settlementNotes",
-    "confirmedByBothParties",
-    "electricImage",
-    "waterImage",
-  ]);
-  const actualEndDate = v.date(body.actualEndDate, "Ngày trả phòng");
-  if (body.confirmedByBothParties !== true)
-    throw new ValidationError(
-      "Cần xác nhận biên bản bởi chủ nhà và người thuê",
-    );
-  for (const key of ["electricImage", "waterImage"]) {
-    v.text(body[key], "Ảnh đồng hồ");
-    if (!/^https?:\/\//.test(body[key]))
-      throw new ValidationError("Ảnh đồng hồ phải là URL http/https");
-  }
-  v.text(body.settlementNotes, "Ghi chú", false);
-  const id = validId(req.params.contractId);
-  await mongoose.connection.transaction(async (session) => {
-    const contract = await Contract.findOne(
-      scoped(getTenantScope(req), { _id: id }),
-    ).session(session);
-    if (!contract) throw new NotFoundError();
-    if (!liveStatuses.includes(contract.status))
-      throw new BusinessRuleError("Hợp đồng không còn hiệu lực để thanh lý");
-    if (actualEndDate < contract.startDate || actualEndDate > new Date())
-      throw new ValidationError(
-        "Ngày trả phòng phải từ ngày bắt đầu đến hôm nay",
-      );
-    const branch = await branchService.get(
-      req,
-      String(contract.branchId),
-      session,
-    );
-    const room = await Room.findOne({
-      _id: contract.roomId,
-      landlordId: contract.landlordId,
-      branchId: contract.branchId,
-      isDeleted: false,
-      currentContractId: contract._id,
-    }).session(session);
-    if (!room)
-      throw new BusinessRuleError("Phòng không còn gắn với hợp đồng này");
-    const pending = await Invoice.exists({
-      landlordId: contract.landlordId,
-      branchId: contract.branchId,
-      contractId: contract._id,
-      isDeleted: false,
-      status: { $nin: ["PAID", "OVERPAID", "CANCELLED"] },
-    }).session(session);
-    // Finance owns payment allocation. Do not silently mark existing invoices paid.
-    if (pending)
-      throw new BusinessRuleError(
-        "Cần quyết toán các hóa đơn còn mở ở phân hệ tài chính trước khi thanh lý",
-        "CONTRACT_OUTSTANDING_INVOICES",
-      );
-    const settlement = calculateSettlement({ contract, room, branch, body });
-    if (settlement.remainingDue > 0)
-      throw new BusinessRuleError(
-        `Chi phí vượt cọc ${settlement.remainingDue.toLocaleString("vi-VN")} ₫. Cần thu và quyết toán chi phí qua phân hệ tài chính trước.`,
-        "SETTLEMENT_BALANCE_DUE",
-      );
-    const before = contract.toObject();
-    Object.assign(contract, body, {
-      actualEndDate,
-      status: "TERMINATED",
-      settlement,
-      refundedDepositAmount: settlement.refundedDepositAmount,
-      depositStatus: settlement.heldDeposit
-        ? settlement.totalCharges
-          ? "PARTIALLY_REFUNDED"
-          : "REFUNDED"
-        : contract.depositStatus,
-    });
-    await contract.save({ session });
-    room.status = "CLEANING";
-    room.currentContractId = undefined;
-    room.currentElectricIndex = body.finalElectricIndex;
-    room.currentWaterIndex = body.finalWaterIndex;
-    await room.save({ session });
-    await audit.log({
-      req,
-      action: "SETTLE_CONTRACT",
-      entityType: "CONTRACT",
-      entityId: contract._id,
-      before,
-      after: contract.toObject(),
-      session,
-    });
-  });
-  return get(req, id);
+  await settlementService.terminate(req);
+  return get(req, req.params.contractId);
 }
+const { prepareSettlement } = settlementService;
 module.exports = {
   get,
   list,
   create,
   terminate,
   displayStatus,
-  validateCreate,
-  calculateSettlement,
+  prepareSettlement,
 };

@@ -8,9 +8,9 @@ const {
 } = require("../utils/scope");
 const { bulk, room, branch } = require("../services/propertyValidation");
 const {
-  calculateSettlement,
   displayStatus,
 } = require("../services/contractService");
+const { calculateSettlement } = require("../services/contractSettlementService");
 const { search, pagination } = require("../utils/validation");
 test("scopes separate branch IDs from child scopes and deny platform access", () => {
   const req = {
@@ -133,4 +133,29 @@ test("settlement uses received deposit, meter deltas, integer deductions and evi
       }),
     { errorCode: "READING_LOWER_THAN_PREVIOUS" },
   );
+});
+
+test("settlement prorates unbilled rent/water/services and does not recharge invoiced periods", () => {
+  const input = {
+    contract: { startDate: "2026-10-01", rentalPrice: 3100000, initialElectricIndex: 100,
+      initialWaterIndex: 10, depositAmount: 3000000, depositStatus: "PAID", roommates: [{}],
+      serviceQuantities: { "Giữ xe": 2 } },
+    room: { currentElectricIndex: 100, currentWaterIndex: 10, electricityPrice: 4000,
+      waterBillingType: "PER_PERSON", waterPrice: 310000 },
+    branch: { defaultElectricityPrice: 3500, defaultWaterPrice: 30000, waterBillingType: "METER",
+      defaultServices: [{ name: "Giữ xe", price: 310000, billingType: "PER_UNIT" }] },
+    body: { actualEndDate: "2026-10-10", finalElectricIndex: 120, finalWaterIndex: 10, deductions: [] },
+  };
+  const result = calculateSettlement(input);
+  assert.equal(result.roomAmount, 1000000);
+  assert.equal(result.waterAmount, 200000);
+  assert.equal(result.serviceAmount, 200000);
+  assert.equal(result.electricAmount, 80000);
+  const billed = calculateSettlement({ ...input, debt: 50000, invoices: [{ billingPeriod: "2026-10",
+    electricDetail: { newIndex: 115 }, waterDetail: { newIndex: 10 } }] });
+  assert.equal(billed.roomAmount, 0);
+  assert.equal(billed.waterAmount, 0);
+  assert.equal(billed.serviceAmount, 0);
+  assert.equal(billed.electricAmount, 20000);
+  assert.equal(billed.totalCharges, 70000);
 });

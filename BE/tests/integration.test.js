@@ -62,7 +62,7 @@ const contractBody = (roomId, suffix = "a") => ({
   initialWaterIndex: 10,
   roommates: [],
 });
-test("authentication contract, refresh, logout, invalid credentials and prototype route retirement", async () => {
+test("authentication contract, refresh, logout and invalid credentials", async () => {
   await request(app).get("/api/v1/branches").expect(401);
   await request(app)
     .post("/api/v1/auth/login")
@@ -80,7 +80,7 @@ test("authentication contract, refresh, logout, invalid credentials and prototyp
   await agent.post("/api/v1/auth/logout").expect(200);
   await agent.post("/api/v1/auth/refresh").expect(401);
   await api("get", "/auth/me").expect(200);
-  await request(app).get("/api/users").expect(404);
+  await request(app).get("/api/users").expect(401);
   await api("get", "/branches")
     .set("x-landlord-id", String(f.other._id))
     .expect(403);
@@ -183,40 +183,19 @@ test("concurrent contracts reserve room once and roll back duplicate tenant writ
     .expect(422);
   const contract = await Contract.findById(room.currentContractId);
   const tenant = await User.findById(contract.tenantId);
-  assert.equal(tenant.status, "PENDING_ACTIVATION");
-  const sms = require("../services/smsService");
-  const originalSend = sms.sendOtp;
-  let sentCode;
-  sms.sendOtp = async (phone, code) => {
-    assert.equal(phone, tenant.phoneNumber);
-    sentCode = code;
-  };
-  let challenge;
-  try {
-    challenge = await request(app)
-      .post("/api/v1/auth/otp/request")
-      .send({ email: tenant.email, phoneNumber: tenant.phoneNumber })
-      .expect(200);
-  } finally {
-    sms.sendOtp = originalSend;
-  }
-  const activation = {
-    challengeId: challenge.body.data.challengeId,
-    code: sentCode,
-    password: "tenant-test-password",
-  };
-  await request(app)
-    .post("/api/v1/auth/otp/verify")
-    .send({ ...activation, code: "000000" })
-    .expect(400);
-  await request(app)
-    .post("/api/v1/auth/otp/verify")
-    .send(activation)
-    .expect(200);
-  await request(app)
-    .post("/api/v1/auth/otp/verify")
-    .send(activation)
-    .expect(400);
+  assert.equal(tenant.status, "ACTIVE");
+  assert.equal(tenant.mustChangePassword, true);
+  const credentials = responses.find((r) => r.status === 201).body.data.tenantCredentials;
+  assert.equal(credentials.username, tenant.citizenId);
+  const firstLogin = await request(app).post("/api/v1/auth/login")
+    .send({ username: credentials.username, password: credentials.temporaryPassword }).expect(200);
+  const restrictedToken = firstLogin.body.data.token;
+  const restricted = await request(app).get("/api/v1/contracts")
+    .set("Authorization", `Bearer ${restrictedToken}`).expect(403);
+  assert.equal(restricted.body.errorCode, "PASSWORD_CHANGE_REQUIRED");
+  await request(app).post("/api/v1/auth/change-password")
+    .set("Authorization", `Bearer ${restrictedToken}`)
+    .send({ currentPassword: credentials.temporaryPassword, newPassword: "tenant-test-password" }).expect(200);
   const logged = await request(app)
     .post("/api/v1/auth/login")
     .send({ email: tenant.email, password: "tenant-test-password" })
@@ -227,8 +206,11 @@ test("concurrent contracts reserve room once and roll back duplicate tenant writ
   await api("get", "/branches", "tenant").expect(403);
   await api("get", `/contracts/${contract._id}`, "other").expect(404);
 });
-test("termination guards invoices, records deposit settlement and transitions to CLEANING atomically", async () => {
+test("termination applies deposit to outstanding invoices and preserves their payments atomically", async () => {
   const contract = await Contract.findOne({ roomId: f.room._id });
+  const now = new Date();
+  contract.startDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  await contract.save();
   const body = {
     actualEndDate: new Date().toISOString(),
     finalElectricIndex: 110,
@@ -248,24 +230,22 @@ test("termination guards invoices, records deposit settlement and transitions to
     contractId: contract._id,
     tenantId: contract.tenantId,
     invoiceCode: "TEST-OPEN",
-    month: 1,
-    year: 2026,
+    month: now.getUTCMonth() + 1,
+    year: now.getUTCFullYear(),
     dueDate: new Date(),
     status: "ISSUED",
     totalAmount: 10,
     remainingAmount: 10,
   });
-  const blocked = await api("post", `/contracts/${contract._id}/terminate`)
-    .send(body)
-    .expect(422);
-  assert.equal(blocked.body.errorCode, "CONTRACT_OUTSTANDING_INVOICES");
-  invoice.status = "CANCELLED";
-  await invoice.save();
   const response = await api("post", `/contracts/${contract._id}/terminate`)
     .send(body)
     .expect(200);
   assert.equal(response.body.data.status, "TERMINATED");
-  assert.equal(response.body.data.refundedDepositAmount, 2935000);
+  assert.equal(response.body.data.refundedDepositAmount, 2934990);
+  const credited = await Invoice.findById(invoice._id);
+  assert.equal(credited.status, "PAID");
+  assert.equal(credited.depositAppliedAmount, 10);
+  assert.equal(await mongoose.models.Payment.countDocuments({ invoiceId: invoice._id, paymentMethod: "DEPOSIT" }), 1);
   const room = await Room.findById(f.room._id);
   assert.equal(room.status, "CLEANING");
   assert.equal(room.currentContractId, undefined);
@@ -280,6 +260,55 @@ test("termination guards invoices, records deposit settlement and transitions to
     .send(body)
     .expect(422);
 });
+test("prepared settlement survives a shortfall, accepts real payments, and never applies deposit twice", async () => {
+  const room = await Room.create({ landlordId: f.landlord._id, branchId: f.branch._id,
+    roomNumber: "SETTLEMENT.01", basePrice: 3100000, maxOccupants: 3 });
+  const startDate = new Date().toISOString().slice(0, 10);
+  const endDate = new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10);
+  const created = await api("post", "/contracts").send({
+    branchId: String(f.branch._id), roomId: String(room._id),
+    tenant: { name: "Khách quyết toán", citizenId: "001234567899" },
+    startDate, endDate, rentalPrice: 3100000, depositAmount: 1000, depositStatus: "PAID",
+    initialElectricIndex: 0, initialWaterIndex: 0,
+    roommates: [{ fullName: "Người ở cùng" }],
+  }).expect(201);
+  const id = created.body.data._id;
+  await api("put", `/rooms/${room._id}`).send({ maxOccupants: 1 }).expect(422);
+  const body = { actualEndDate: startDate, finalElectricIndex: 10, finalWaterIndex: 0,
+    electricImage: "https://example.com/e.jpg", waterImage: "https://example.com/w.jpg",
+    deductions: [], confirmedByBothParties: true };
+  await api("post", `/contracts/${id}/settlement`, "other").send(body).expect(404);
+  const prepared = await api("post", `/contracts/${id}/settlement`).send(body).expect(200);
+  assert.equal(prepared.body.data.settlement.state, "PREPARED");
+  assert.equal(prepared.body.data.settlement.depositAppliedAmount, 1000);
+  assert.ok(prepared.body.data.settlement.remainingDue > 0);
+  const invoiceId = prepared.body.data.settlement.invoiceId;
+  const repeated = await api("post", `/contracts/${id}/settlement`).send({}).expect(200);
+  assert.equal(repeated.body.data.settlement.invoiceId, invoiceId);
+  assert.equal(await mongoose.models.Payment.countDocuments({ invoiceId, paymentMethod: "DEPOSIT" }), 1);
+  await api("post", `/contracts/${id}/settlement`).send({ ...body, finalElectricIndex: 11 }).expect(422);
+  await api("put", `/rooms/${room._id}`).send({ notes: "Không sửa khi đã chốt" }).expect(422);
+  const denied = await api("post", `/contracts/${id}/terminate`).send({}).expect(422);
+  assert.equal(denied.body.errorCode, "SETTLEMENT_BALANCE_DUE");
+  assert.equal((await Room.findById(room._id)).status, "RENTED");
+  await api("post", "/payments/cash").send({ invoiceId,
+    amount: prepared.body.data.settlement.remainingDue, receiptNumber: "SETTLEMENT-RECEIPT-01",
+    transactionDate: new Date().toISOString(), payerName: "Khách quyết toán" }).expect(201);
+  assert.equal((await api("get", `/contracts/${id}`).expect(200)).body.data.settlement.remainingDue, 0);
+  const terminated = await api("post", `/contracts/${id}/terminate`).send({}).expect(200);
+  assert.equal(terminated.body.data.status, "TERMINATED");
+  assert.equal(terminated.body.data.depositStatus, "APPLIED");
+  assert.equal((await Room.findById(room._id)).status, "CLEANING");
+  assert.equal(await Invoice.countDocuments({ contractId: id, invoiceType: "SETTLEMENT" }), 1);
+});
+
+test("manager cannot reopen an inactive room", async () => {
+  const room = await Room.create({ landlordId: f.landlord._id, branchId: f.branch._id,
+    roomNumber: "INACTIVE.01", status: "INACTIVE" });
+  const denied = await api("put", `/rooms/${room._id}`, "manager").send({ status: "EMPTY" }).expect(422);
+  assert.equal(denied.body.errorCode, "ROOM_INACTIVE");
+});
+
 test("manager quota interface requires same transaction and excludes deleted staff", async () => {
   await assert.rejects(
     quota.guard({ landlordId: f.landlord._id, resource: "manager" }),

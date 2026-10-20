@@ -120,6 +120,8 @@ async function update(req) {
   );
   return mongoose.connection.transaction(async (session) => {
     const before = await get(req, req.params.roomId, session);
+    if (req.user.role === "PROPERTY_MANAGER" && before.status === "INACTIVE")
+      throw new BusinessRuleError("Chỉ chủ trọ được kích hoạt lại phòng đã ngừng hoạt động", "ROOM_INACTIVE");
     const branch = await branchService.lock(
       req,
       String(before.branchId),
@@ -127,6 +129,17 @@ async function update(req) {
     );
     if (body.floor > branch.totalFloors)
       throw new BusinessRuleError("Tầng phòng vượt quá số tầng của cơ sở");
+    if (before.currentContractId) {
+      const contract = await Contract.findOne({
+        _id: before.currentContractId, landlordId: before.landlordId,
+        roomId: before._id, isDeleted: false,
+      }).session(session);
+      if (!contract) throw new BusinessRuleError("Phòng không còn liên kết hợp đồng hợp lệ");
+      if (contract.settlement?.state === "PREPARED")
+        throw new BusinessRuleError("Phòng đang quyết toán hợp đồng", "CONTRACT_SETTLEMENT_PENDING");
+      if (body.maxOccupants !== undefined && body.maxOccupants < 1 + contract.roommates.length)
+        throw new BusinessRuleError("Sức chứa không được nhỏ hơn số người đang ở", "ROOM_CAPACITY_EXCEEDED");
+    }
     if (
       (before.status === "RENTED" || before.currentContractId) &&
       body.status !== undefined

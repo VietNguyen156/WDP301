@@ -13,12 +13,13 @@ export function Button({
   children,
   variant = "primary",
   busy = false,
+  compact = false,
   className = "",
   ...props
 }) {
   return (
     <button
-      className={`button ${variant} ${className}`}
+      className={`button ${variant}${compact ? " compact" : ""} ${className}`}
       {...props}
       disabled={busy || props.disabled}
     >
@@ -152,6 +153,10 @@ export function Modal({
   onClose,
   wide = false,
   busy = false,
+  footer,
+  maxWidth,
+  closeOnBackdropClick = true,
+  className = "",
 }) {
   const ref = useRef(null);
   const titleId = useId();
@@ -163,14 +168,15 @@ export function Modal({
   return (
     <dialog
       ref={ref}
-      className={`modal ${wide ? "wide" : ""}`}
+      className={`modal ${wide ? "wide" : ""} ${className}`}
+      style={maxWidth ? { maxWidth } : undefined}
       aria-labelledby={titleId}
       onCancel={(e) => {
         e.preventDefault();
         if (!busy) onClose();
       }}
       onClick={(e) => {
-        if (e.target === ref.current && !busy) onClose();
+        if (closeOnBackdropClick && e.target === ref.current && !busy) onClose();
       }}
     >
       <div className="modal-inner">
@@ -189,6 +195,7 @@ export function Modal({
           </button>
         </header>
         {children}
+        {footer && <footer className="modal-footer">{footer}</footer>}
       </div>
     </dialog>
   );

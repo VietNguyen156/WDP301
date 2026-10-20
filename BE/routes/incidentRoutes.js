@@ -1,0 +1,10 @@
+const router = require("express").Router();
+const { authenticate, authorize } = require("../middlewares/auth");
+const c = require("../controllers/incidentController");
+router.use(authenticate, authorize("LANDLORD", "PROPERTY_MANAGER", "TENANT"));
+router.route("/").get(c.list).post(c.create);
+router.get("/:incidentId", c.get);
+const staff = authorize("LANDLORD", "PROPERTY_MANAGER");
+router.put("/:incidentId/status", staff, c.updateStatus);
+router.put("/:incidentId/cost", staff, c.updateCost);
+module.exports = router;

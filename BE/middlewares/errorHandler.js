@@ -19,7 +19,8 @@ const errorHandler = (err, req, res, next) => {
   } else if (err.code === 11000) {
     status = 409;
     code = "CONFLICT";
-    message = "Dữ liệu đã tồn tại (email, số phòng hoặc mã hợp đồng)";
+    message =
+      "Dữ liệu đã tồn tại (tài khoản, email, số phòng hoặc mã hợp đồng)";
   } else if (err.type === "entity.parse.failed") {
     status = 400;
     code = "VALIDATION_ERROR";
@@ -28,10 +29,17 @@ const errorHandler = (err, req, res, next) => {
     status = 413;
     code = "PAYLOAD_TOO_LARGE";
     message = "Dung lượng yêu cầu quá lớn";
-  } else if (err.code === 20 || err.codeName === "IllegalOperation") {
+  } else if (
+    err.code === 20 ||
+    err.codeName === "IllegalOperation" ||
+    /retryable writes|transaction numbers are only allowed|replica set|mongos/i.test(
+      err.message || "",
+    )
+  ) {
     status = 503;
     code = "TRANSACTIONS_REQUIRED";
-    message = "Hệ thống yêu cầu MongoDB replica set hoặc Atlas để chạy transaction";
+    message =
+      "Hệ thống yêu cầu MongoDB replica set hoặc Atlas để chạy transaction";
   }
 
   if (status >= 500 && !err.errorCode && code === "INTERNAL_SERVER_ERROR") {
@@ -45,7 +53,7 @@ const errorHandler = (err, req, res, next) => {
     success: false,
     errorCode: code,
     message,
-    data: null,
+    data: err.details ?? null,
   });
 };
 

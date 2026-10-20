@@ -1,4 +1,4 @@
-const { ForbiddenError, ValidationError } = require("./errors");
+const { AppError, ForbiddenError, ValidationError } = require("./errors");
 const mongoose = require("mongoose");
 const validId = (id) => {
   if (typeof id !== "string" || !mongoose.isObjectIdOrHexString(id))
@@ -6,6 +6,7 @@ const validId = (id) => {
   return id;
 };
 function getTenantScope({ user }) {
+  if (!user) throw new AppError("Vui lòng đăng nhập", 401, "AUTH_REQUIRED");
   if (user.role === "LANDLORD") return { landlordId: user._id };
   if (user.role === "PROPERTY_MANAGER" && user.landlordId)
     return {

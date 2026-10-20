@@ -53,10 +53,11 @@ async function list(req) {
       },
     },
   ]);
+  const statsByBranch = new Map(stats.map((stat) => [String(stat._id), stat]));
   return {
     items: items.map((b) => ({
       ...b,
-      roomStats: stats.find((s) => String(s._id) === String(b._id)) || {
+      roomStats: statsByBranch.get(String(b._id)) || {
         total: 0,
         rented: 0,
       },

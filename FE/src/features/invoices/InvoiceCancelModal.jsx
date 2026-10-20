@@ -46,13 +46,15 @@ export function InvoiceCancelModal({ isOpen, onClose, invoice, onInvoiceCancelle
             Quay lại
           </Button>
           <Button variant="destructive" loading={submitting} onClick={handleCancel}>
-            🗑️ Xác nhận hủy hóa đơn
+            <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>delete</span>
+            Xác nhận hủy hóa đơn
           </Button>
         </div>
       }
     >
       <form onSubmit={handleCancel} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         <div
+          className="invoice-danger-note"
           style={{
             padding: "12px 14px",
             backgroundColor: "var(--error-bg)",
@@ -66,7 +68,7 @@ export function InvoiceCancelModal({ isOpen, onClose, invoice, onInvoiceCancelle
           ⚠️ <strong>Lưu ý:</strong> Chỉ được hủy hóa đơn chưa phát sinh thanh toán (đã thu = 0 VNĐ). Sau khi hủy, hóa đơn sẽ chuyển sang trạng thái <strong>CANCELLED</strong> và mã QR thanh toán sẽ bị vô hiệu hóa.
         </div>
 
-        <div>
+        <div className="invoice-modal-field">
           <label
             htmlFor="cancel-reason"
             style={{ fontSize: "0.85rem", fontWeight: "600", color: "var(--neutral-700)" }}

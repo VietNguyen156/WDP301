@@ -3,7 +3,6 @@ import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { Card } from "../../components/ui/Card";
 import { paymentService } from "../../services/paymentService";
-import { branchService } from "../../services/branchService";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { UnmatchedPaymentList } from "./UnmatchedPaymentList";
@@ -14,18 +13,21 @@ import {
 } from "../../utils/formatters";
 
 export function PaymentHistoryList() {
-  const { selectedBranchId } = useAuth();
+  const { selectedBranchId, user } = useAuth();
   const { toast } = useToast();
 
   const [activeSubTab, setActiveSubTab] = useState("ledger"); // "ledger" or "unmatched"
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [branches, setBranches] = useState([]);
 
   // Filters
   const [methodFilter, setMethodFilter] = useState("ALL");
   const [branchFilter, setBranchFilter] = useState(selectedBranchId || "");
   const [searchTerm, setSearchTerm] = useState("");
+
+  const canReviewCashReports = user?.role === "LANDLORD";
+  // Unmatched bank transfers (/payments/unmatched) are landlord-only; tenants/managers would get 403.
+  const canReviewUnmatched = user?.role === "LANDLORD";
 
   const loadPayments = useCallback(async () => {
     try {
@@ -45,16 +47,24 @@ export function PaymentHistoryList() {
   }, [methodFilter, branchFilter, toast]);
 
   useEffect(() => {
-    branchService.getBranches().then((data) => {
-      if (Array.isArray(data)) setBranches(data);
-    });
-  }, []);
-
-  useEffect(() => {
     if (activeSubTab === "ledger") {
       loadPayments();
     }
   }, [loadPayments, activeSubTab]);
+
+  useEffect(() => {
+    setBranchFilter(selectedBranchId || "");
+  }, [selectedBranchId]);
+
+  async function approveCashReport(paymentId) {
+    try {
+      await paymentService.confirmCashPayment(paymentId);
+      toast.success("Đã duyệt báo cáo thu tiền mặt và cập nhật hóa đơn.");
+      loadPayments();
+    } catch (err) {
+      toast.error(err.message || "Không thể duyệt báo cáo thu tiền mặt");
+    }
+  }
 
   // Client search filter
   const filteredPayments = useMemo(() => {
@@ -124,6 +134,7 @@ export function PaymentHistoryList() {
           >
             📋 Sổ quỹ đã khớp ({payments.length})
           </button>
+          {canReviewUnmatched && (
           <button
             type="button"
             onClick={() => setActiveSubTab("unmatched")}
@@ -141,10 +152,11 @@ export function PaymentHistoryList() {
           >
             ⚡ Chuyển khoản chưa khớp (SePay)
           </button>
+          )}
         </div>
       </div>
 
-      {activeSubTab === "unmatched" ? (
+      {activeSubTab === "unmatched" && canReviewUnmatched ? (
         <UnmatchedPaymentList />
       ) : (
         <>
@@ -268,22 +280,6 @@ export function PaymentHistoryList() {
                   </select>
                 </div>
 
-                {/* Branch Filter */}
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span style={{ fontSize: "0.85rem", color: "var(--neutral-600)" }}>Cơ sở:</span>
-                  <select
-                    value={branchFilter}
-                    onChange={(e) => setBranchFilter(e.target.value)}
-                    style={{ width: "180px" }}
-                  >
-                    <option value="">Tất cả cơ sở</option>
-                    {branches.map((b) => (
-                      <option key={b._id || b.id} value={b._id || b.id}>
-                        {b.name || b.branchName || `Cơ sở ${b._id || b.id}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
               </div>
 
               {/* Search box & Refresh */}
@@ -391,9 +387,24 @@ export function PaymentHistoryList() {
                           +{formatCurrency(p.amount)}
                         </td>
                         <td>
-                          <Badge variant={p.status === "SUCCESS" ? "success" : "neutral"}>
-                            {p.status === "SUCCESS" ? "Thành công" : p.status}
-                          </Badge>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                            <Badge variant={p.status === "SUCCESS" ? "success" : "neutral"}>
+                              {p.status === "SUCCESS"
+                                ? "Thành công"
+                                : p.status === "PENDING_CONFIRMATION"
+                                  ? "Chờ Chủ trọ duyệt"
+                                  : p.status}
+                            </Badge>
+                            {canReviewCashReports && p.status === "PENDING_CONFIRMATION" && (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => approveCashReport(p._id || p.id)}
+                              >
+                                Duyệt thu tiền
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

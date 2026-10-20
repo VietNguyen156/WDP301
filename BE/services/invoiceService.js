@@ -8,11 +8,13 @@ const {
   UtilityReading,
   User,
 } = require("../models");
-const AppError = require("../utils/AppError");
+const { AppError } = require("../utils/errors");
 const validate = require("../utils/financeValidation");
-const { getTenantScope, getBranchScope } = require("../utils/tenantScope");
+const { getTenantScope, getBranchScope } = require("../utils/scope");
 const { calculateInvoice, makeVietQr } = require("./financeCalculation");
 const { recordAudit } = require("./auditService");
+const { simulatorEnabled } = require("../utils/paymentSimulator");
+const { periodRange } = require("../utils/vnTime");
 
 const VISIBLE_STATUSES = [
   "ISSUED",
@@ -35,7 +37,7 @@ async function getInvoice(req, id, session) {
     _id: validate.objectId(id, "invoiceId"),
   }).session(session || null);
   if (!invoice)
-    throw new AppError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy hóa đơn");
+    throw new AppError("Không tìm thấy hóa đơn", 404, "RESOURCE_NOT_FOUND");
   return invoice;
 }
 
@@ -48,11 +50,7 @@ async function listInvoices(req) {
     filters.push({ billingPeriod: validate.period(billingPeriod) });
   if (status) {
     if (!INVOICE_STATUSES.includes(status))
-      throw new AppError(
-        400,
-        "VALIDATION_ERROR",
-        "Trạng thái hóa đơn không hợp lệ",
-      );
+      throw new AppError("Trạng thái hóa đơn không hợp lệ", 400, "VALIDATION_ERROR");
     filters.push({ status });
   }
   const filter = { $and: [invoiceScope(req), ...filters] };
@@ -69,9 +67,7 @@ async function listInvoices(req) {
 
 async function invoiceInputs(req, room, billingPeriod, session, contractId) {
   const landlordId = getTenantScope(req).landlordId;
-  const [year, month] = billingPeriod.split("-").map(Number);
-  const start = new Date(Date.UTC(year, month - 1, 1) - 7 * 60 * 60 * 1000);
-  const end = new Date(Date.UTC(year, month, 1) - 7 * 60 * 60 * 1000);
+  const { start, end } = periodRange(billingPeriod);
   const contract = await Contract.findOne({
     _id: contractId || room.currentContractId,
     landlordId,
@@ -79,15 +75,14 @@ async function invoiceInputs(req, room, billingPeriod, session, contractId) {
     roomId: room._id,
     isDeleted: false,
     status: { $in: ["ACTIVE", "EXPIRING_SOON", "EXPIRED"] },
+    "settlement.state": { $ne: "PREPARED" },
     startDate: { $lt: end },
     endDate: { $gte: start },
   }).session(session);
   if (!contract)
-    throw new AppError(
-      409,
-      "CONTRACT_NOT_ACTIVE",
-      `Phòng ${room.roomNumber} không có hợp đồng hợp lệ cho kỳ này`,
-    );
+    throw new AppError(`Phòng ${room.roomNumber} không có hợp đồng hợp lệ cho kỳ này`, 409, "CONTRACT_NOT_ACTIVE");
+  await Contract.updateOne({ _id: contract._id, landlordId, isDeleted: false },
+    { $inc: { mutationVersion: 1 } }, { session });
   const reading = await UtilityReading.findOne({
     landlordId,
     branchId: room.branchId,
@@ -96,12 +91,76 @@ async function invoiceInputs(req, room, billingPeriod, session, contractId) {
     isDeleted: false,
   }).session(session);
   if (!reading)
-    throw new AppError(
-      409,
-      "READING_REQUIRED",
-      `Phòng ${room.roomNumber} chưa chốt số điện nước`,
-    );
+    throw new AppError(`Phòng ${room.roomNumber} chưa chốt số điện nước`, 409, "READING_REQUIRED");
   return { contract, reading };
+}
+
+// Create or recalculate the MONTHLY draft of one room; non-draft invoices are returned untouched.
+async function upsertDraftInvoice({ req, branch, room, billingPeriod, dueDate, keepDueDate = false, session }) {
+  const existing = await Invoice.findOne({
+    landlordId: branch.landlordId,
+    roomId: room._id,
+    billingPeriod,
+    contractId: room.currentContractId,
+    invoiceType: "MONTHLY",
+    isDeleted: false,
+    // Cancelled invoices stay as history; the period is billed again by a new invoice.
+    status: { $ne: "CANCELLED" },
+  }).session(session);
+  if (existing && existing.status !== "DRAFT") {
+    return existing;
+  }
+  const { contract, reading } = await invoiceInputs(
+    req,
+    room,
+    billingPeriod,
+    session,
+    existing?.contractId,
+  );
+  if (reading.isBilled)
+    throw new AppError("Chỉ số kỳ này đã được phát hành hóa đơn", 409, "READING_ALREADY_BILLED");
+  const calculated = calculateInvoice({
+    branch,
+    room,
+    contract,
+    reading,
+    snapshot: existing,
+  });
+  if (existing) {
+    // Reading-triggered refreshes keep the due date the landlord already set.
+    Object.assign(existing, calculated, !keepDueDate && { dueDate });
+    await existing.save({ session });
+    return existing;
+  }
+  const [invoice] = await Invoice.create(
+    [
+      {
+        landlordId: branch.landlordId,
+        branchId: branch._id,
+        roomId: room._id,
+        contractId: contract._id,
+        tenantId: contract.tenantId,
+        invoiceCode: `HD${billingPeriod.replace("-", "")}${crypto.randomBytes(6).toString("hex").toUpperCase()}`,
+        billingPeriod,
+        year: Number(billingPeriod.slice(0, 4)),
+        month: Number(billingPeriod.slice(5)),
+        dueDate,
+        ...calculated,
+      },
+    ],
+    { session },
+  );
+  await recordAudit(
+    {
+      actor: req.user,
+      invoice,
+      action: "CREATE_INVOICE",
+      after: invoice.toObject(),
+      metadata: req.auditMetadata,
+    },
+    session,
+  );
+  return invoice;
 }
 
 async function generateInvoices(req) {
@@ -116,11 +175,7 @@ async function generateInvoices(req) {
       !body.roomIds.length ||
       body.roomIds.length > 500
     ) {
-      throw new AppError(
-        400,
-        "VALIDATION_ERROR",
-        "roomIds phải có từ 1 đến 500 phòng",
-      );
+      throw new AppError("roomIds phải có từ 1 đến 500 phòng", 400, "VALIDATION_ERROR");
     }
     roomIds = [...new Set(body.roomIds)].map((id) =>
       validate.objectId(id, "roomId"),
@@ -134,7 +189,7 @@ async function generateInvoices(req) {
       ],
     }).session(session);
     if (!branch)
-      throw new AppError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy cơ sở");
+      throw new AppError("Không tìm thấy cơ sở", 404, "RESOURCE_NOT_FOUND");
     const rooms = await Room.find({
       landlordId: branch.landlordId,
       branchId,
@@ -143,89 +198,13 @@ async function generateInvoices(req) {
       ...(roomIds && { _id: { $in: roomIds } }),
     }).session(session);
     if (!rooms.length || (roomIds && rooms.length !== roomIds.length)) {
-      throw new AppError(
-        400,
-        "ROOM_NOT_BILLABLE",
-        "Danh sách phòng không hợp lệ hoặc không có phòng đang thuê",
-      );
+      throw new AppError("Danh sách phòng không hợp lệ hoặc không có phòng đang thuê", 400, "ROOM_NOT_BILLABLE");
     }
     if (rooms.length > 500)
-      throw new AppError(
-        400,
-        "VALIDATION_ERROR",
-        "Mỗi lần tạo tối đa 500 hóa đơn",
-      );
+      throw new AppError("Mỗi lần tạo tối đa 500 hóa đơn", 400, "VALIDATION_ERROR");
     const invoices = [];
-    for (const room of rooms) {
-      const existing = await Invoice.findOne({
-        landlordId: branch.landlordId,
-        roomId: room._id,
-        billingPeriod,
-        isDeleted: false,
-      }).session(session);
-      if (existing?.status === "CANCELLED") {
-        throw new AppError(409, "INVOICE_CANCELLED", `Hóa đơn kỳ ${billingPeriod} đã hủy; cần xử lý điều chỉnh riêng`);
-      }
-      if (existing && existing.status !== "DRAFT") {
-        invoices.push(existing);
-        continue;
-      }
-      const { contract, reading } = await invoiceInputs(
-        req,
-        room,
-        billingPeriod,
-        session,
-        existing?.contractId,
-      );
-      if (reading.isBilled)
-        throw new AppError(
-          409,
-          "READING_ALREADY_BILLED",
-          "Chỉ số kỳ này đã được phát hành hóa đơn",
-        );
-      const calculated = calculateInvoice({
-        branch,
-        room,
-        contract,
-        reading,
-        snapshot: existing,
-      });
-      if (existing) {
-        Object.assign(existing, calculated, { dueDate });
-        await existing.save({ session });
-        invoices.push(existing);
-      } else {
-        const [invoice] = await Invoice.create(
-          [
-            {
-              landlordId: branch.landlordId,
-              branchId,
-              roomId: room._id,
-              contractId: contract._id,
-              tenantId: contract.tenantId,
-              invoiceCode: `HD${billingPeriod.replace("-", "")}${crypto.randomBytes(6).toString("hex").toUpperCase()}`,
-              billingPeriod,
-              year: Number(billingPeriod.slice(0, 4)),
-              month: Number(billingPeriod.slice(5)),
-              dueDate,
-              ...calculated,
-            },
-          ],
-          { session },
-        );
-        await recordAudit(
-          {
-            actor: req.user,
-            invoice,
-            action: "CREATE_INVOICE",
-            after: invoice.toObject(),
-            metadata: req.auditMetadata,
-          },
-          session,
-        );
-        invoices.push(invoice);
-      }
-    }
+    for (const room of rooms)
+      invoices.push(await upsertDraftInvoice({ req, branch, room, billingPeriod, dueDate, session }));
     return invoices;
   });
 }
@@ -234,11 +213,7 @@ async function issueInvoice(req) {
   return mongoose.connection.transaction(async (session) => {
     const invoice = await getInvoice(req, req.params.invoiceId, session);
     if (invoice.status !== "DRAFT")
-      throw new AppError(
-        409,
-        "INVOICE_NOT_DRAFT",
-        "Chỉ phát hành hóa đơn nháp",
-      );
+      throw new AppError("Chỉ phát hành hóa đơn nháp", 409, "INVOICE_NOT_DRAFT");
     const branch = await Branch.findOne({
       _id: invoice.branchId,
       landlordId: invoice.landlordId,
@@ -257,11 +232,7 @@ async function issueInvoice(req) {
       isDeleted: false,
     }).session(session);
     if (!branch || !room || !landlord)
-      throw new AppError(
-        404,
-        "RESOURCE_NOT_FOUND",
-        "Dữ liệu cơ sở, phòng hoặc chủ trọ không còn hoạt động",
-      );
+      throw new AppError("Dữ liệu cơ sở, phòng hoặc chủ trọ không còn hoạt động", 404, "RESOURCE_NOT_FOUND");
     const { contract, reading } = await invoiceInputs(
       req,
       room,
@@ -270,22 +241,14 @@ async function issueInvoice(req) {
       invoice.contractId,
     );
     if (reading.isBilled)
-      throw new AppError(
-        409,
-        "READING_ALREADY_BILLED",
-        "Chỉ số kỳ này đã được lập hóa đơn",
-      );
+      throw new AppError("Chỉ số kỳ này đã được lập hóa đơn", 409, "READING_ALREADY_BILLED");
     const before = invoice.toObject();
     Object.assign(
       invoice,
       calculateInvoice({ branch, room, contract, reading, snapshot: invoice }),
     );
     if (invoice.totalAmount <= 0)
-      throw new AppError(
-        400,
-        "INVOICE_AMOUNT_INVALID",
-        "Hóa đơn phát hành phải có tổng tiền dương",
-      );
+      throw new AppError("Hóa đơn phát hành phải có tổng tiền dương", 400, "INVOICE_AMOUNT_INVALID");
     const roomCode = room.roomNumber.replace(/[^a-zA-Z0-9]/g, "");
     invoice.paymentSyntax = `${invoice.invoiceCode} ${/^P/i.test(roomCode) ? roomCode : `P${roomCode}`}`;
     invoice.bankSnapshot = landlord.bankConfig.toObject
@@ -323,17 +286,32 @@ async function cancelInvoice(req) {
       invoice.paidAmount > 0 ||
       ["PAID", "OVERPAID", "CANCELLED"].includes(invoice.status)
     ) {
-      throw new AppError(
-        409,
-        "INVOICE_CANNOT_CANCEL",
-        "Không thể hủy hóa đơn đã thu tiền hoặc đã hủy",
-      );
+      throw new AppError("Không thể hủy hóa đơn đã thu tiền hoặc đã hủy", 409, "INVOICE_CANNOT_CANCEL");
     }
     const before = invoice.toObject();
+    if (invoice.invoiceType === "SETTLEMENT" || await Contract.exists({
+      _id: invoice.contractId, landlordId: invoice.landlordId, isDeleted: false,
+      "settlement.state": "PREPARED",
+    }).session(session))
+      throw new AppError("Không thể hủy hóa đơn thuộc hợp đồng đang quyết toán", 409, "CONTRACT_SETTLEMENT_PENDING");
+    await Contract.updateOne({ _id: invoice.contractId, landlordId: invoice.landlordId, isDeleted: false },
+      { $inc: { mutationVersion: 1 } }, { session });
     invoice.status = "CANCELLED";
     invoice.cancellationReason = reason;
     invoice.vietQrUrl = undefined;
     await invoice.save({ session });
+    // Unlock the period's reading so it can be corrected and billed by a new invoice.
+    if (invoice.invoiceType === "MONTHLY")
+      await UtilityReading.updateOne(
+        {
+          landlordId: invoice.landlordId,
+          roomId: invoice.roomId,
+          billingPeriod: invoice.billingPeriod,
+          isDeleted: false,
+        },
+        { $set: { isBilled: false } },
+        { session },
+      );
     await recordAudit(
       {
         actor: req.user,
@@ -361,30 +339,30 @@ function maskName(value = "") {
 
 async function publicInvoice(token) {
   if (typeof token !== "string" || !/^[a-f\d]{32}$/i.test(token))
-    throw new AppError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy hóa đơn");
+    throw new AppError("Không tìm thấy hóa đơn", 404, "RESOURCE_NOT_FOUND");
   const invoice = await Invoice.findOne({
     publicAccessToken: token,
     isDeleted: false,
     status: { $in: VISIBLE_STATUSES },
   });
   if (!invoice)
-    throw new AppError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy hóa đơn");
+    throw new AppError("Không tìm thấy hóa đơn", 404, "RESOURCE_NOT_FOUND");
   const [tenant, room, branch] = await Promise.all([
     User.findOne({
       _id: invoice.tenantId,
       landlordId: invoice.landlordId,
       isDeleted: false,
-    }).select("name phoneNumber"),
+    }).select("name phoneNumber").lean(),
     Room.findOne({
       _id: invoice.roomId,
       landlordId: invoice.landlordId,
       isDeleted: false,
-    }).select("roomNumber"),
+    }).select("roomNumber").lean(),
     Branch.findOne({
       _id: invoice.branchId,
       landlordId: invoice.landlordId,
       isDeleted: false,
-    }).select("name"),
+    }).select("name").lean(),
   ]);
   const phone = tenant?.phoneNumber || "";
   const detail = invoice.toObject();
@@ -432,6 +410,7 @@ async function publicInvoice(token) {
     vietQrUrl: invoice.remainingAmount > 0 ? invoice.vietQrUrl : null,
     paymentSyntax: invoice.paymentSyntax,
     bank: invoice.bankSnapshot,
+    paymentSimulator: simulatorEnabled(),
   };
 }
 
@@ -439,6 +418,7 @@ module.exports = {
   getInvoice,
   listInvoices,
   generateInvoices,
+  upsertDraftInvoice,
   issueInvoice,
   cancelInvoice,
   publicInvoice,

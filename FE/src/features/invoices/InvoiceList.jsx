@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { invoiceService } from "../../services/invoiceService";
-import { branchService } from "../../services/branchService";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { InvoiceDetailModal } from "./InvoiceDetailModal";
@@ -14,14 +13,31 @@ import {
   formatBillingPeriod,
   getInvoiceStatusMeta,
 } from "../../utils/formatters";
+import { publicInvoiceUrl, canSharePublicInvoice } from "../../utils/publicLink";
+import { invoicePermissions, PAYABLE_STATUSES } from "../../utils/invoicePermissions";
+
+// Header copy per role: landlords run billing, managers collect at their branches, tenants pay.
+const HEADER = {
+  LANDLORD: {
+    title: "Quản lý Hóa đơn & Thu nợ Tự động",
+    subtitle: "Theo dõi công nợ, phát hành hóa đơn và đối soát các khoản thu trong một quy trình.",
+  },
+  PROPERTY_MANAGER: {
+    title: "Hóa đơn & Thu tiền tại Cơ sở",
+    subtitle: "Xem hóa đơn của các cơ sở được phân công, gửi link cho khách và báo cáo khoản thu tiền mặt để chủ trọ duyệt.",
+  },
+  TENANT: {
+    title: "Hóa đơn của tôi",
+    subtitle: "Xem chi tiết tiền phòng, điện nước hàng tháng và thanh toán nhanh qua VietQR.",
+  },
+};
 
 export function InvoiceList({ externalSearchTerm = "" }) {
-  const { selectedBranchId } = useAuth();
+  const { selectedBranchId, user } = useAuth();
   const { toast } = useToast();
 
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [branches, setBranches] = useState([]);
 
   // Filters & Pagination
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -40,6 +56,26 @@ export function InvoiceList({ externalSearchTerm = "" }) {
   const [cancelInvoiceTarget, setCancelInvoiceTarget] = useState(null);
 
   const activeSearch = externalSearchTerm || "";
+  const perms = invoicePermissions(user?.role);
+  const canGenerateInvoices = perms.canGenerate;
+  const header = HEADER[user?.role] || HEADER.LANDLORD;
+  const statusTabs = [
+    { id: "ALL", label: `Tất cả (${invoices.length})` },
+    { id: "ISSUED", label: "Chờ thanh toán" },
+    { id: "PARTIALLY_PAID", label: "Thu một phần" },
+    { id: "PAID", label: "Đã thanh toán" },
+    ...(perms.canSeeDraftsAndCancelled
+      ? [
+          { id: "DRAFT", label: "Bản nháp" },
+          { id: "CANCELLED", label: "Đã hủy" },
+        ]
+      : []),
+  ];
+  // Tenants pay on the public invoice page (VietQR + transfer syntax).
+  const openPaymentPage = (inv, e) => {
+    e?.stopPropagation();
+    window.open(publicInvoiceUrl(inv.publicAccessToken), "_blank", "noopener");
+  };
 
   const loadInvoices = useCallback(async () => {
     try {
@@ -68,19 +104,11 @@ export function InvoiceList({ externalSearchTerm = "" }) {
   }, [statusFilter, branchFilter, billingPeriodFilter, page, toast]);
 
   useEffect(() => {
-    branchService.getBranches().then((data) => {
-      if (Array.isArray(data)) setBranches(data);
-    });
-  }, []);
-
-  useEffect(() => {
     loadInvoices();
   }, [loadInvoices]);
 
   useEffect(() => {
-    if (selectedBranchId) {
-      setBranchFilter(selectedBranchId);
-    }
+    setBranchFilter(selectedBranchId || "");
   }, [selectedBranchId]);
 
   const filteredInvoices = useMemo(() => {
@@ -130,15 +158,20 @@ export function InvoiceList({ externalSearchTerm = "" }) {
 
   const copyPublicLink = (inv, e) => {
     e?.stopPropagation();
-    const link = `${window.location.origin}/#public/${inv.publicAccessToken}`;
+    if (!canSharePublicInvoice(inv.status)) {
+      toast.info("Chỉ hóa đơn đã phát hành mới có link cho khách thuê. Hãy phát hành hóa đơn trước.");
+      return;
+    }
+    const link = publicInvoiceUrl(inv.publicAccessToken);
     navigator.clipboard.writeText(link);
     toast.success(`Đã sao chép link xem của hóa đơn ${inv.invoiceCode}!`);
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+    <div className="invoice-workspace" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {/* SECTION 1: Header & Operational Actions Bar (Stitch Design) */}
       <div
+        className="invoice-page-header"
         style={{
           display: "flex",
           justifyContent: "space-between",
@@ -154,6 +187,7 @@ export function InvoiceList({ externalSearchTerm = "" }) {
       >
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+            {!perms.isTenant && (
             <span
               style={{
                 display: "inline-flex",
@@ -176,9 +210,10 @@ export function InvoiceList({ externalSearchTerm = "" }) {
                   backgroundColor: "var(--primary)",
                 }}
               />
-              SePay Webhook: Online (Độ trễ ~1.8s)
+              SePay: Theo dõi giao dịch
             </span>
-            <span style={{ color: "var(--neutral-400)", fontSize: "12px" }}>•</span>
+            )}
+            {!perms.isTenant && <span style={{ color: "var(--neutral-400)", fontSize: "12px" }}>•</span>}
             <span style={{ fontSize: "0.82rem", color: "var(--neutral-500)", fontWeight: "500" }}>
               Kỳ kế toán: {formatBillingPeriod(billingPeriodFilter) || "Tất cả kỳ"}
             </span>
@@ -193,10 +228,10 @@ export function InvoiceList({ externalSearchTerm = "" }) {
               margin: 0,
             }}
           >
-            Quản lý Hóa đơn & Thu nợ Tự động
+            {header.title}
           </h1>
           <p style={{ fontSize: "0.85rem", color: "var(--neutral-600)", marginTop: "4px" }}>
-            Hệ thống tự động sinh mã VietQR NAPAS 247 QuickLink, gạch nợ tức thì 2 giây qua SePay Webhook.
+            {header.subtitle}
           </p>
         </div>
 
@@ -206,25 +241,28 @@ export function InvoiceList({ externalSearchTerm = "" }) {
             <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
               sync
             </span>
-            <span>Đối soát SePay</span>
+            <span>Tải lại dữ liệu</span>
           </Button>
 
-          <Button
-            variant="primary"
-            size="md"
-            onClick={() => setIsGenerateOpen(true)}
-            style={{ backgroundColor: "var(--primary-container)" }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
-              note_add
-            </span>
-            <span>+ Tạo hóa đơn kỳ mới</span>
-          </Button>
+          {canGenerateInvoices && (
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => setIsGenerateOpen(true)}
+              style={{ backgroundColor: "var(--primary-container)" }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
+                note_add
+              </span>
+              <span>+ Tạo hóa đơn kỳ mới</span>
+            </Button>
+          )}
         </div>
       </div>
 
       {/* SECTION 2: 4 Operational Metrics Cards with Progress Bars (Stitch Spec) */}
       <div
+        className="invoice-metrics"
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
@@ -246,7 +284,7 @@ export function InvoiceList({ externalSearchTerm = "" }) {
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: "0.75rem", fontWeight: "700", color: "var(--neutral-500)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              TỔNG TIỀN PHÁT HÀNH
+              {perms.isTenant ? "TỔNG TIỀN HÓA ĐƠN" : "TỔNG TIỀN PHÁT HÀNH"}
             </span>
             <div
               style={{
@@ -276,7 +314,7 @@ export function InvoiceList({ externalSearchTerm = "" }) {
               {formatCurrency(stats.totalBilled)}
             </div>
             <div style={{ fontSize: "0.78rem", color: "var(--neutral-500)", marginTop: "4px" }}>
-              {stats.count} hóa đơn trong hệ thống
+              {stats.count} hóa đơn{perms.isTenant ? "" : " trong hệ thống"}
             </div>
           </div>
           <div style={{ width: "100%", height: "6px", backgroundColor: "var(--surface-container)", borderRadius: "9999px", overflow: "hidden" }}>
@@ -352,7 +390,7 @@ export function InvoiceList({ externalSearchTerm = "" }) {
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: "0.75rem", fontWeight: "700", color: "var(--neutral-500)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              CÔNG NỢ TỒN ĐỌNG (UNPAID)
+              {perms.isTenant ? "CÒN PHẢI THANH TOÁN" : "CÔNG NỢ TỒN ĐỌNG (UNPAID)"}
             </span>
             <div
               style={{
@@ -382,7 +420,9 @@ export function InvoiceList({ externalSearchTerm = "" }) {
               {formatCurrency(stats.totalRemaining)}
             </div>
             <div style={{ fontSize: "0.78rem", color: "var(--error-text)", marginTop: "4px" }}>
-              {stats.overdueCount > 0 ? `⚠️ ${stats.overdueCount} phòng quá hạn thanh toán` : "Không có nợ quá hạn"}
+              {stats.overdueCount > 0
+                ? `⚠️ ${stats.overdueCount} ${perms.isTenant ? "hóa đơn" : "phòng"} quá hạn thanh toán`
+                : "Không có nợ quá hạn"}
             </div>
           </div>
           <div style={{ width: "100%", height: "6px", backgroundColor: "var(--surface-container)", borderRadius: "9999px", overflow: "hidden" }}>
@@ -390,7 +430,8 @@ export function InvoiceList({ externalSearchTerm = "" }) {
           </div>
         </div>
 
-        {/* Metric 4: Giao dịch SePay tự động */}
+        {/* Metric 4: Giao dịch SePay tự động (landlord only) */}
+        {perms.isLandlord && (
         <div
           style={{
             backgroundColor: "var(--surface-lowest)",
@@ -435,21 +476,23 @@ export function InvoiceList({ externalSearchTerm = "" }) {
               {formatCurrency(stats.totalCollected)}
             </div>
             <div style={{ fontSize: "0.78rem", color: "var(--neutral-500)", marginTop: "4px" }}>
-              Tốc độ gạch nợ tức thời: <strong>~1.8s</strong>
+              Giao dịch tự động được cập nhật từ hệ thống thanh toán
             </div>
           </div>
           <div style={{ width: "100%", height: "6px", backgroundColor: "var(--surface-container)", borderRadius: "9999px", overflow: "hidden" }}>
             <div style={{ width: "85%", height: "100%", backgroundColor: "var(--secondary)" }} />
           </div>
         </div>
+        )}
       </div>
 
       {/* SECTION 3: Content Split Layout - Bảng danh sách & Panel Drawer VietQR */}
-      <div style={{ display: "grid", gridTemplateColumns: selectedInvoice ? "1fr 380px" : "1fr", gap: "20px", alignItems: "start" }}>
+      <div className="invoice-content-layout" style={{ display: "grid", gridTemplateColumns: selectedInvoice ? "1fr 380px" : "1fr", gap: "20px", alignItems: "start" }}>
         {/* Left Column: Filter Strip & Core Invoice Table */}
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {/* Smart Status Filter & Search Strip */}
           <div
+            className="invoice-filter-panel"
             style={{
               backgroundColor: "var(--surface-lowest)",
               padding: "16px 20px",
@@ -464,14 +507,7 @@ export function InvoiceList({ externalSearchTerm = "" }) {
             {/* Filter Pills */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px", borderBottom: "1px solid var(--border-color)", paddingBottom: "12px" }}>
               <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                {[
-                  { id: "ALL", label: `Tất cả (${invoices.length})` },
-                  { id: "PAID", label: "Đã thanh toán" },
-                  { id: "UNPAID", label: "Chờ thanh toán" },
-                  { id: "PARTIALLY_PAID", label: "Thu một phần" },
-                  { id: "DRAFT", label: "Bản nháp" },
-                  { id: "CANCELLED", label: "Đã hủy" },
-                ].map((tab) => {
+                {statusTabs.map((tab) => {
                   const isActive = statusFilter === tab.id;
                   return (
                     <button
@@ -507,26 +543,13 @@ export function InvoiceList({ externalSearchTerm = "" }) {
                     display: "inline-block",
                   }}
                 />
-                <span style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--primary)" }}>Live</span>
+                <span style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--primary)" }}>Đang theo dõi</span>
               </div>
             </div>
 
             {/* Parametric Filters */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                <select
-                  value={branchFilter}
-                  onChange={(e) => setBranchFilter(e.target.value)}
-                  style={{ width: "180px", padding: "6px 10px" }}
-                >
-                  <option value="">Tất cả cơ sở</option>
-                  {branches.map((b) => (
-                    <option key={b._id || b.id} value={b._id || b.id}>
-                      {b.name || b.branchName || `Cơ sở ${b._id || b.id}`}
-                    </option>
-                  ))}
-                </select>
-
                 <input
                   type="month"
                   value={billingPeriodFilter}
@@ -542,40 +565,43 @@ export function InvoiceList({ externalSearchTerm = "" }) {
           </div>
 
           {/* The Core Invoice Ledger Table */}
-          <div className="table-wrapper">
+          <div className="table-wrapper invoice-table-wrapper">
             <table className="data-table">
               <thead>
                 <tr>
-                  <th style={{ width: "32px" }}>
-                    <input type="checkbox" />
-                  </th>
                   <th>Mã HĐ</th>
-                  <th>Phòng & Khách thuê</th>
+                  <th>{perms.isTenant ? "Phòng" : "Phòng & Khách thuê"}</th>
                   <th style={{ textAlign: "right" }}>Bóc tách chi phí</th>
                   <th style={{ textAlign: "right" }}>Tổng thanh toán</th>
                   <th style={{ textAlign: "center" }}>Trạng thái</th>
-                  <th>Cú pháp SePay</th>
+                  <th>{perms.isTenant ? "Nội dung chuyển khoản" : "Cú pháp SePay"}</th>
                   <th style={{ textAlign: "right" }}>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="8" style={{ textAlign: "center", padding: "40px", color: "var(--neutral-500)" }}>
+                    <td colSpan="7" style={{ textAlign: "center", padding: "40px", color: "var(--neutral-500)" }}>
                       ⏳ Đang nạp dữ liệu hóa đơn...
                     </td>
                   </tr>
                 ) : filteredInvoices.length === 0 ? (
                   <tr>
-                    <td colSpan="8" style={{ textAlign: "center", padding: "48px 20px" }}>
+                    <td colSpan="7" style={{ textAlign: "center", padding: "48px 20px" }}>
                       <div style={{ fontSize: "1.8rem", marginBottom: "8px" }}>📑</div>
                       <div style={{ fontWeight: "600", color: "var(--neutral-700)" }}>
                         Không có hóa đơn nào khớp với bộ lọc
                       </div>
                       <div style={{ marginTop: "12px" }}>
-                        <Button size="sm" variant="primary" onClick={() => setIsGenerateOpen(true)}>
-                          ⚡ Tạo hóa đơn kỳ mới
-                        </Button>
+                        {canGenerateInvoices && (
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={() => setIsGenerateOpen(true)}
+                          >
+                            ⚡ Tạo hóa đơn kỳ mới
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -593,9 +619,6 @@ export function InvoiceList({ externalSearchTerm = "" }) {
                         style={{ cursor: "pointer" }}
                         onClick={() => setSelectedInvoice(inv)}
                       >
-                        <td onClick={(e) => e.stopPropagation()}>
-                          <input type="checkbox" />
-                        </td>
                         <td>
                           <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                             <span style={{ fontWeight: "700", fontFamily: "monospace", color: "var(--primary)" }}>
@@ -625,11 +648,15 @@ export function InvoiceList({ externalSearchTerm = "" }) {
                             >
                               {roomName}
                             </span>
-                            <span style={{ fontWeight: "600", color: "var(--neutral-900)" }}>{tenantName}</span>
+                            {!perms.isTenant && (
+                              <span style={{ fontWeight: "600", color: "var(--neutral-900)" }}>{tenantName}</span>
+                            )}
                           </div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", marginTop: "2px" }}>
-                            {inv.tenantId?.phoneNumber || "Khách thuê"}
-                          </div>
+                          {!perms.isTenant && (
+                            <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", marginTop: "2px" }}>
+                              {inv.tenantId?.phoneNumber || "Khách thuê"}
+                            </div>
+                          )}
                         </td>
                         <td style={{ textAlign: "right", fontSize: "0.78rem" }}>
                           <div>Phòng: {formatCurrency(inv.roomAmount)}</div>
@@ -657,32 +684,51 @@ export function InvoiceList({ externalSearchTerm = "" }) {
                           </code>
                         </td>
                         <td style={{ textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
-                          <div style={{ display: "inline-flex", gap: "4px" }}>
+                          <div className="invoice-row-actions">
                             <Button
                               size="sm"
                               variant="outline"
                               title="Xem chi tiết"
+                              aria-label={`Xem chi tiết ${inv.invoiceCode}`}
                               onClick={() => {
                                 setSelectedInvoice(inv);
                                 setIsDetailOpen(true);
                               }}
                             >
-                              👁️
+                              <span className="material-symbols-outlined invoice-action-icon" aria-hidden="true">
+                                visibility
+                              </span>
                             </Button>
-                            {["ISSUED", "PARTIALLY_PAID", "UNPAID"].includes(inv.status) && (
+                            {perms.canPayOnline && PAYABLE_STATUSES.includes(inv.status) && (
                               <Button
                                 size="sm"
                                 variant="primary"
-                                title="Thu tiền mặt"
+                                title="Thanh toán qua VietQR"
+                                aria-label={`Thanh toán ${inv.invoiceCode}`}
+                                onClick={(e) => openPaymentPage(inv, e)}
+                              >
+                                <span className="material-symbols-outlined invoice-action-icon" aria-hidden="true">
+                                  qr_code_2
+                                </span>
+                              </Button>
+                            )}
+                            {perms.canCollectCash && PAYABLE_STATUSES.includes(inv.status) && (
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                title={perms.cashActionLabel}
                                 onClick={() => {
                                   setCashInvoiceTarget(inv);
                                   setIsCashPaymentOpen(true);
                                 }}
+                                aria-label={`Thu tiền mặt ${inv.invoiceCode}`}
                               >
-                                💵
+                                <span className="material-symbols-outlined invoice-action-icon" aria-hidden="true">
+                                  payments
+                                </span>
                               </Button>
                             )}
-                            {(!inv.paidAmount || inv.paidAmount === 0) && inv.status !== "CANCELLED" && (
+                            {perms.canCancel && (!inv.paidAmount || inv.paidAmount === 0) && inv.status !== "CANCELLED" && (
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -692,18 +738,26 @@ export function InvoiceList({ externalSearchTerm = "" }) {
                                   setCancelInvoiceTarget(inv);
                                   setIsCancelOpen(true);
                                 }}
+                                aria-label={`Hủy hóa đơn ${inv.invoiceCode}`}
                               >
-                                🗑️
+                                <span className="material-symbols-outlined invoice-action-icon" aria-hidden="true">
+                                  delete
+                                </span>
                               </Button>
                             )}
+                            {perms.canShareLink && canSharePublicInvoice(inv.status) && (
                             <Button
                               size="sm"
                               variant="ghost"
                               title="Sao chép link khách"
+                              aria-label={`Sao chép link khách ${inv.invoiceCode}`}
                               onClick={(e) => copyPublicLink(inv, e)}
                             >
-                              🔗
+                              <span className="material-symbols-outlined invoice-action-icon" aria-hidden="true">
+                                link
+                              </span>
                             </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -735,6 +789,7 @@ export function InvoiceList({ externalSearchTerm = "" }) {
         {/* Right Column: Stitch VietQR Quick Drawer Flyout */}
         {selectedInvoice && (
           <div
+            className="invoice-quick-drawer"
             style={{
               backgroundColor: "var(--surface-lowest)",
               borderRadius: "var(--radius-lg)",
@@ -810,7 +865,21 @@ export function InvoiceList({ externalSearchTerm = "" }) {
 
             {/* Quick Actions inside Drawer */}
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {["ISSUED", "PARTIALLY_PAID", "UNPAID"].includes(selectedInvoice.status) && (
+              {perms.canPayOnline && PAYABLE_STATUSES.includes(selectedInvoice.status) && (
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={(e) => openPaymentPage(selectedInvoice, e)}
+                  style={{ width: "100%" }}
+                >
+                  <span className="material-symbols-outlined invoice-action-icon" aria-hidden="true">
+                    qr_code_2
+                  </span>
+                  Mở trang thanh toán VietQR
+                </Button>
+              )}
+
+              {perms.canCollectCash && PAYABLE_STATUSES.includes(selectedInvoice.status) && (
                 <Button
                   variant="primary"
                   size="md"
@@ -820,18 +889,26 @@ export function InvoiceList({ externalSearchTerm = "" }) {
                   }}
                   style={{ width: "100%" }}
                 >
-                  💵 Xác nhận thu tiền mặt
+                  <span className="material-symbols-outlined invoice-action-icon" aria-hidden="true">
+                    payments
+                  </span>
+                  {perms.cashActionLabel}
                 </Button>
               )}
 
-              <Button
-                variant="outline"
-                size="md"
-                onClick={() => copyPublicLink(selectedInvoice)}
-                style={{ width: "100%" }}
-              >
-                🔗 Sao chép link khách xem No-App
-              </Button>
+              {perms.canShareLink && canSharePublicInvoice(selectedInvoice.status) && (
+                <Button
+                  variant="outline"
+                  size="md"
+                  onClick={() => copyPublicLink(selectedInvoice)}
+                  style={{ width: "100%" }}
+                >
+                  <span className="material-symbols-outlined invoice-action-icon" aria-hidden="true">
+                    link
+                  </span>
+                  Sao chép link khách xem No-App
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -852,11 +929,12 @@ export function InvoiceList({ externalSearchTerm = "" }) {
             setIsCancelOpen(true);
           }}
           onInvoiceUpdated={loadInvoices}
+          role={user?.role}
         />
       )}
 
       {/* Batch Generate Modal */}
-      {isGenerateOpen && (
+      {canGenerateInvoices && isGenerateOpen && (
         <InvoiceGenerateModal
           isOpen={isGenerateOpen}
           defaultBranchId={branchFilter}
@@ -866,7 +944,7 @@ export function InvoiceList({ externalSearchTerm = "" }) {
       )}
 
       {/* Cash Payment Modal */}
-      {isCashPaymentOpen && cashInvoiceTarget && (
+      {perms.canCollectCash && isCashPaymentOpen && cashInvoiceTarget && (
         <CashPaymentModal
           isOpen={isCashPaymentOpen}
           invoice={cashInvoiceTarget}
@@ -879,7 +957,7 @@ export function InvoiceList({ externalSearchTerm = "" }) {
       )}
 
       {/* Cancel Modal */}
-      {isCancelOpen && cancelInvoiceTarget && (
+      {perms.canCancel && isCancelOpen && cancelInvoiceTarget && (
         <InvoiceCancelModal
           isOpen={isCancelOpen}
           invoice={cancelInvoiceTarget}

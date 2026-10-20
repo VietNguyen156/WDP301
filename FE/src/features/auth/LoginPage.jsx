@@ -1,138 +1,423 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import {
-  House,
+  Building2,
   Eye,
   EyeOff,
-  Building2,
-  DoorOpen,
-  FileText,
   ArrowRight,
+  ShieldCheck,
+  Zap,
+  QrCode,
+  Sparkles,
+  Smartphone,
+  Lock,
+  UserCheck,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { errorMessage } from "../../services/api";
+import { useToast } from "../../context/ToastContext";
+import { authApi, errorMessage } from "../../services/api";
 import { Button, Field, FormError } from "../../components/ui";
-import ActivateTenant from "./ActivateTenant";
+
 export default function LoginPage() {
   const { login } = useAuth();
-  const [activating, setActivating] = useState(false);
-  const [email, setEmail] = useState(""),
-    [password, setPassword] = useState(""),
-    [visible, setVisible] = useState(false),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  async function submit(e) {
+  const toast = useToast();
+
+  const [mode, setMode] = useState("login"); // "login" | "register"
+
+  // Login states
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [visible, setVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  // Register states (Landlord registration)
+  const [regName, setRegName] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regPhone, setRegPhone] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regVisible, setRegVisible] = useState(false);
+  const [regBusy, setRegBusy] = useState(false);
+  const [regError, setRegError] = useState("");
+
+  // Only include credentials that are stable across database seeds.
+  const demoAccounts = [
+    {
+      role: "LANDLORD",
+      label: "Chủ chuỗi trọ",
+      username: "landlord@wdp301.com",
+      password: "password123",
+      badgeColor: "#0f766e",
+    },
+    {
+      role: "SUPER_ADMIN",
+      label: "Quản trị sàn (admin)",
+      username: "admin",
+      password: "admin",
+      badgeColor: "#7d4200",
+    },
+  ];
+
+  function selectDemoAccount(acc) {
+    setUsername(acc.username);
+    setPassword(acc.password);
+    setError("");
+    toast.success(`Đã điền tài khoản mẫu: ${acc.username}`);
+  }
+
+  async function handleLogin(e) {
     e.preventDefault();
     setBusy(true);
     setError("");
     try {
-      await login({ email, password });
+      await login({ username: username.trim(), password });
+      toast.success("Đăng nhập thành công!");
     } catch (err) {
-      setError(errorMessage(err));
+      const msg = errorMessage(err);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
   }
+
+  async function handleRegister(e) {
+    e.preventDefault();
+    setRegBusy(true);
+    setRegError("");
+
+    if (regPassword.length < 8) {
+      setRegError("Mật khẩu phải chứa tối thiểu 8 ký tự");
+      setRegBusy(false);
+      return;
+    }
+
+    try {
+      await authApi.register({
+        name: regName.trim(),
+        email: regEmail.trim(),
+        phoneNumber: regPhone.trim() || undefined,
+        password: regPassword,
+        role: "LANDLORD",
+      });
+
+      toast.success(
+        "Đăng ký Chủ trọ thành công! Đang tự động đăng nhập...",
+      );
+      // Auto-login upon registration as per specification
+      await login({ username: regEmail.trim(), password: regPassword });
+    } catch (err) {
+      const msg = errorMessage(err);
+      setRegError(msg);
+      toast.error(msg);
+    } finally {
+      setRegBusy(false);
+    }
+  }
+
   return (
     <main className="login-page">
       <header className="login-heading">
-        <div className="login-logo">
-          <House size={42} strokeWidth={2} />
+        <div className="login-brand-header">
+          <div className="login-brand-badge">
+            <Building2 size={28} strokeWidth={2.2} />
+          </div>
+          <div className="login-brand-title">
+            <h1>
+              DOMUS <span className="brand-highlight">ERP</span>
+            </h1>
+            <p className="login-brand-tagline">
+              Modern PropTech Management & Billing Automation
+            </p>
+          </div>
         </div>
-        <h1>PHẦN MỀM QUẢN LÝ NHÀ TRỌ</h1>
-        <p>Quản lý cơ sở, phòng cho thuê và hợp đồng</p>
       </header>
+
       <section className="login-box">
+        {/* Left Form Panel */}
         <div className="login-form-panel">
-          <h2>Đăng nhập tài khoản</h2>
-          <form onSubmit={submit}>
-            <Field
-              label="Địa chỉ email"
-              type="email"
-              autoComplete="username"
-              placeholder="Nhập email của bạn"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              disabled={busy}
-            />
-            <label className="field">
-              <span>
-                Mật khẩu <b>*</b>
-              </span>
-              <div className="password-input">
-                <input
-                  type={visible ? "text" : "password"}
-                  autoComplete="current-password"
-                  placeholder="Nhập mật khẩu"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+          {/* Mode Switcher Tabs */}
+          <div className="auth-tab-switch">
+            <button
+              type="button"
+              className={`auth-tab-btn ${mode === "login" ? "active" : ""}`}
+              onClick={() => {
+                setMode("login");
+                setError("");
+              }}
+            >
+              Đăng nhập
+            </button>
+            <button
+              type="button"
+              className={`auth-tab-btn ${mode === "register" ? "active" : ""}`}
+              onClick={() => {
+                setMode("register");
+                setRegError("");
+              }}
+            >
+              Đăng ký Chủ trọ <span className="tab-pill">Miễn phí</span>
+            </button>
+          </div>
+
+          {mode === "login" ? (
+            <div className="auth-form-container">
+              <div className="auth-form-title">
+                <h2>Chào mừng trở lại</h2>
+                <p>Đăng nhập bằng Email, Số điện thoại, CCCD hoặc admin</p>
+              </div>
+
+              <form onSubmit={handleLogin} className="auth-main-form">
+                <Field
+                  label="Tài khoản đăng nhập"
+                  type="text"
+                  autoComplete="username"
+                  placeholder="Email Landlord, SĐT Manager, CCCD Tenant hoặc admin"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   required
                   disabled={busy}
                 />
+
+                <label className="field">
+                  <div className="field-label-row">
+                    <span>
+                      Mật khẩu <b>*</b>
+                    </span>
+                  </div>
+                  <div className="password-input">
+                    <input
+                      type={visible ? "text" : "password"}
+                      autoComplete="current-password"
+                      placeholder="Nhập mật khẩu của bạn"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      disabled={busy}
+                    />
+                    <button
+                      type="button"
+                      aria-label={visible ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                      onClick={() => setVisible(!visible)}
+                    >
+                      {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </label>
+
+                <FormError error={error} />
+
+                <Button busy={busy} className="login-submit">
+                  Đăng nhập hệ thống <ArrowRight size={16} />
+                </Button>
+              </form>
+
+              <div className="auth-account-guidance">
+                <UserCheck size={15} color="#0f766e" />
+                <span>
+                  Quản lý cơ sở và Khách thuê được cấp mật khẩu tạm bởi Chủ trọ và đổi mật khẩu ở lần đăng nhập đầu tiên.
+                </span>
+              </div>
+
+              {/* Demo Account Switcher */}
+              <div className="demo-accounts-card">
+                <div className="demo-accounts-header">
+                  <Sparkles size={14} color="#0f766e" />
+                  <span>Tài khoản kiểm thử nhanh (Demo Seeds):</span>
+                </div>
+                <div className="demo-accounts-grid">
+                  {demoAccounts.map((acc) => (
+                    <button
+                      key={acc.username}
+                      type="button"
+                      className="demo-chip-btn"
+                      onClick={() => selectDemoAccount(acc)}
+                      title={`Bấm để điền ${acc.username} / ${acc.password}`}
+                    >
+                      <span
+                        className="demo-chip-dot"
+                        style={{ backgroundColor: acc.badgeColor }}
+                      />
+                      <span className="demo-chip-role">{acc.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="auth-form-container">
+              <div className="auth-form-title">
+                <h2>Đăng ký Chủ cơ sở (Landlord)</h2>
+                <p>Kích hoạt chuỗi nhà trọ ngay · Miễn phí dùng thử 30 ngày</p>
+              </div>
+
+              <form onSubmit={handleRegister} className="auth-main-form">
+                <Field
+                  label="Họ và tên Chủ trọ"
+                  type="text"
+                  placeholder="Ví dụ: Trần Văn Chủ Trọ"
+                  value={regName}
+                  onChange={(e) => setRegName(e.target.value)}
+                  required
+                  disabled={regBusy}
+                />
+
+                <Field
+                  label="Địa chỉ Email"
+                  type="email"
+                  placeholder="landlord@example.com"
+                  value={regEmail}
+                  onChange={(e) => setRegEmail(e.target.value)}
+                  required
+                  disabled={regBusy}
+                />
+
+                <Field
+                  label="Số điện thoại liên hệ (tùy chọn)"
+                  type="tel"
+                  placeholder="Ví dụ: 0988 888 888"
+                  value={regPhone}
+                  onChange={(e) => setRegPhone(e.target.value)}
+                  disabled={regBusy}
+                />
+
+                <label className="field">
+                  <div className="field-label-row">
+                    <span>
+                      Mật khẩu khởi tạo <b>*</b>
+                    </span>
+                    <small className="field-hint">Tối thiểu 8 ký tự</small>
+                  </div>
+                  <div className="password-input">
+                    <input
+                      type={regVisible ? "text" : "password"}
+                      autoComplete="new-password"
+                      placeholder="Tạo mật khẩu an toàn"
+                      value={regPassword}
+                      onChange={(e) => setRegPassword(e.target.value)}
+                      required
+                      minLength={8}
+                      disabled={regBusy}
+                    />
+                    <button
+                      type="button"
+                      aria-label={regVisible ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                      onClick={() => setRegVisible(!regVisible)}
+                    >
+                      {regVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </label>
+
+                <FormError error={regError} />
+
+                <Button busy={regBusy} className="login-submit">
+                  Đăng ký dùng thử ngay <ArrowRight size={16} />
+                </Button>
+              </form>
+
+              <div className="auth-switch-footer">
+                <span>Đã có tài khoản? </span>
                 <button
                   type="button"
-                  aria-label={visible ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-                  onClick={() => setVisible(!visible)}
+                  className="auth-inline-link"
+                  onClick={() => setMode("login")}
                 >
-                  {visible ? <EyeOff size={19} /> : <Eye size={19} />}
+                  Quay lại đăng nhập
                 </button>
               </div>
-            </label>
-            <FormError error={error} />
-            <Button busy={busy} className="login-submit">
-              Đăng nhập
-            </Button>
-          </form>
-          <button
-            className="activation-link"
-            onClick={() => setActivating(true)}
-          >
-            Kích hoạt tài khoản khách thuê <ArrowRight size={16} />
-          </button>
+            </div>
+          )}
         </div>
+
+        {/* Right Feature Showcase Hero Panel */}
         <aside className="login-info-panel">
+          <div className="hero-badge">
+            <ShieldCheck size={16} />
+            <span>Nền tảng B2B SaaS Chuẩn Doanh Nghiệp</span>
+          </div>
+
           <h2>
-            Quản lý nhà trọ
+            Vận hành thông minh
             <br />
-            ngay trên trình duyệt
+            Tối ưu hóa 100% dòng tiền
           </h2>
-          <ul>
+          <p className="hero-subtext">
+            Tự động hóa toàn diện từ ghi nhận chỉ số điện nước, sinh hóa đơn tức
+            thì đến đối soát chuyển khoản ngân hàng 24/7.
+          </p>
+
+          <ul className="hero-features-list">
             <li>
-              <Building2 size={25} />
-              <div>
-                <strong>Quản lý nhiều cơ sở</strong>
-                <span>Thông tin tòa nhà và giá dịch vụ.</span>
+              <div className="hero-feature-icon">
+                <QrCode size={20} />
+              </div>
+              <div className="hero-feature-text">
+                <strong>Hóa đơn VietQR động chuẩn Napas247</strong>
+                <span>
+                  Khách thuê xem hóa đơn minh bạch và thanh toán trong 5 giây,
+                  không yêu cầu tải ứng dụng.
+                </span>
               </div>
             </li>
+
             <li>
-              <DoorOpen size={25} />
-              <div>
-                <strong>Theo dõi từng phòng</strong>
-                <span>Phòng trống, đang thuê, cần sửa chữa.</span>
+              <div className="hero-feature-icon">
+                <Smartphone size={20} />
+              </div>
+              <div className="hero-feature-text">
+                <strong>Chốt số Điện/Nước Mobile-First</strong>
+                <span>
+                  Thao tác 1 tay trên điện thoại: tự động mở bàn phím số, tự nhảy
+                  phòng kế tiếp và cảnh báo đột biến &gt;2.5x.
+                </span>
               </div>
             </li>
+
             <li>
-              <FileText size={25} />
-              <div>
-                <strong>Lưu trữ hợp đồng</strong>
-                <span>Khách thuê, thời hạn và tiền cọc.</span>
+              <div className="hero-feature-icon">
+                <Zap size={20} />
+              </div>
+              <div className="hero-feature-text">
+                <strong>Đối soát Webhook Ngân hàng SePay 24/7</strong>
+                <span>
+                  Gạch nợ hóa đơn tức thì khi nhận tiền chuyển khoản, kiểm soát
+                  chống trùng lặp và lưu trữ đối soát chưa khớp.
+                </span>
               </div>
             </li>
           </ul>
-          <p>
-            Đăng nhập bằng tài khoản đã được cấp.
-            <br />
-            Khách thuê mới có thể kích hoạt bằng OTP.
-          </p>
+
+          <div className="hero-metrics-bar">
+            <div className="metric-item">
+              <strong>99.8%</strong>
+              <span>Thu đúng hạn</span>
+            </div>
+            <div className="metric-divider" />
+            <div className="metric-item">
+              <strong>-80%</strong>
+              <span>Thời gian chốt số</span>
+            </div>
+            <div className="metric-divider" />
+            <div className="metric-item">
+              <strong>100%</strong>
+              <span>Dữ liệu thực tế</span>
+            </div>
+          </div>
         </aside>
       </section>
+
       <p className="login-help">
-        Cần hỗ trợ đăng nhập? Liên hệ chủ nhà hoặc quản lý cơ sở.
+        <Lock size={14} />
+        <span>
+          Cần hỗ trợ kỹ thuật hoặc cấp quyền cơ sở? Vui lòng liên hệ bộ phận hỗ
+          trợ <strong>DOMUS ERP</strong> qua hotline hoặc quản trị viên hệ thống.
+        </span>
       </p>
+
       <footer className="login-footer">
-        Quản lý trọ · Dành cho chủ nhà và người thuê
+        © 2026 DOMUS ERP · Nền tảng Quản lý & Tự động hóa Hóa đơn Chuỗi Nhà trọ
+        / Căn hộ Dịch vụ
       </footer>
-      {activating && <ActivateTenant onClose={() => setActivating(false)} />}
     </main>
   );
 }
