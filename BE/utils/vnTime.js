@@ -21,11 +21,22 @@ function periodRange(billingPeriod) {
 // "YYYY-MM-DD HH:mm:ss" as sent by SePay / banks (Vietnam local time); null for anything else,
 // including impossible dates such as 2026-02-30 (callers then fall back to strict validation).
 function parseVnDateTime(value) {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value)) return null;
+  if (
+    typeof value !== "string" ||
+    !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value)
+  )
+    return null;
   const parsed = new Date(`${value.replace(" ", "T")}+07:00`);
   if (!Number.isFinite(parsed.getTime())) return null;
   // JS rolls 2026-02-30 over to March; reject instead of accepting a different day.
   return vnDate(parsed) === value.slice(0, 10) ? parsed : null;
 }
 
-module.exports = { VN_OFFSET_MS, DAY_MS, vnDate, currentPeriod, periodRange, parseVnDateTime };
+module.exports = {
+  VN_OFFSET_MS,
+  DAY_MS,
+  vnDate,
+  currentPeriod,
+  periodRange,
+  parseVnDateTime,
+};

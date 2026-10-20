@@ -68,7 +68,8 @@ export default function UtilityReadingsPage() {
 
   // Resource for reading list
   const readingResource = useResource(
-    () => (branchId ? utilityReadingApi.list(branchId, { billingPeriod }) : null),
+    () =>
+      branchId ? utilityReadingApi.list(branchId, { billingPeriod }) : null,
     [branchId, billingPeriod],
   );
 
@@ -90,7 +91,8 @@ export default function UtilityReadingsPage() {
   // Filtered items based on filterStatus
   const filteredItems = useMemo(() => {
     if (filterStatus === "PENDING") return items.filter((i) => !i.reading);
-    if (filterStatus === "RECORDED") return items.filter((i) => Boolean(i.reading));
+    if (filterStatus === "RECORDED")
+      return items.filter((i) => Boolean(i.reading));
     return items;
   }, [items, filterStatus]);
 
@@ -128,14 +130,14 @@ export default function UtilityReadingsPage() {
         local.electricNewIndex !== undefined
           ? local.electricNewIndex
           : item.reading?.newElectricIndex !== undefined
-          ? item.reading.newElectricIndex
-          : "",
+            ? item.reading.newElectricIndex
+            : "",
       waterNewIndex:
         local.waterNewIndex !== undefined
           ? local.waterNewIndex
           : item.reading?.newWaterIndex !== undefined
-          ? item.reading.newWaterIndex
-          : "",
+            ? item.reading.newWaterIndex
+            : "",
       electricImage:
         local.electricImage !== undefined
           ? local.electricImage
@@ -159,7 +161,9 @@ export default function UtilityReadingsPage() {
 
     const isMeterWater = item.waterBillingType === "METER";
     if (isMeterWater && vals.waterNewIndex === "") {
-      toast.error("Phòng tính nước theo đồng hồ, vui lòng nhập chỉ số nước mới.");
+      toast.error(
+        "Phòng tính nước theo đồng hồ, vui lòng nhập chỉ số nước mới.",
+      );
       return;
     }
 
@@ -202,7 +206,10 @@ export default function UtilityReadingsPage() {
       }
     } catch (err) {
       const resp = err.response?.data;
-      if (err.response?.status === 409 && resp?.errorCode === "READING_ABNORMAL_INCREASE") {
+      if (
+        err.response?.status === 409 &&
+        resp?.errorCode === "READING_ABNORMAL_INCREASE"
+      ) {
         // Show abnormal modal
         setAbnormalWarning({
           item,
@@ -230,7 +237,11 @@ export default function UtilityReadingsPage() {
         <ErrorState message={options.error} retry={options.reload} />
       ) : !options.data.length ? (
         <EmptyState
-          title={user?.role === "LANDLORD" ? "Bạn chưa có cơ sở nào" : "Bạn chưa được phân công cơ sở nào"}
+          title={
+            user?.role === "LANDLORD"
+              ? "Bạn chưa có cơ sở nào"
+              : "Bạn chưa được phân công cơ sở nào"
+          }
           description={
             user?.role === "LANDLORD"
               ? "Tạo cơ sở đầu tiên để bắt đầu chốt số điện nước."
@@ -275,7 +286,9 @@ export default function UtilityReadingsPage() {
 
             <div className="util-header-controls">
               {/* Period Dropdown */}
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "6px" }}
+              >
                 <Calendar size={16} color="var(--util-text-muted)" />
                 <select
                   className="util-period-select"
@@ -308,13 +321,16 @@ export default function UtilityReadingsPage() {
                     padding: "6px 10px",
                     borderRadius: "6px",
                     border: "none",
-                    background: viewMode === "wizard" ? "#ffffff" : "transparent",
+                    background:
+                      viewMode === "wizard" ? "#ffffff" : "transparent",
                     color:
                       viewMode === "wizard"
                         ? "var(--util-primary-container)"
                         : "var(--util-text-muted)",
                     boxShadow:
-                      viewMode === "wizard" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                      viewMode === "wizard"
+                        ? "0 1px 3px rgba(0,0,0,0.1)"
+                        : "none",
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
@@ -332,13 +348,16 @@ export default function UtilityReadingsPage() {
                     padding: "6px 10px",
                     borderRadius: "6px",
                     border: "none",
-                    background: viewMode === "table" ? "#ffffff" : "transparent",
+                    background:
+                      viewMode === "table" ? "#ffffff" : "transparent",
                     color:
                       viewMode === "table"
                         ? "var(--util-primary-container)"
                         : "var(--util-text-muted)",
                     boxShadow:
-                      viewMode === "table" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                      viewMode === "table"
+                        ? "0 1px 3px rgba(0,0,0,0.1)"
+                        : "none",
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
@@ -396,8 +415,10 @@ export default function UtilityReadingsPage() {
                 {stats.recorded}
               </div>
               <div className="util-kpi-sub">
-                {stats.total ? Math.round((stats.recorded / stats.total) * 100) : 0}%
-                tiến độ hoàn thành
+                {stats.total
+                  ? Math.round((stats.recorded / stats.total) * 100)
+                  : 0}
+                % tiến độ hoàn thành
               </div>
             </div>
 
@@ -561,7 +582,12 @@ export default function UtilityReadingsPage() {
                       </span>
                     )}
                   </div>
-                  <span style={{ fontSize: "13px", color: "var(--util-text-muted)" }}>
+                  <span
+                    style={{
+                      fontSize: "13px",
+                      color: "var(--util-text-muted)",
+                    }}
+                  >
                     Phòng {currentIndex + 1} / {filteredItems.length}
                   </span>
                 </div>
@@ -572,7 +598,9 @@ export default function UtilityReadingsPage() {
                     variant="secondary"
                     compact
                     disabled={currentIndex === 0}
-                    onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+                    onClick={() =>
+                      setCurrentIndex((prev) => Math.max(0, prev - 1))
+                    }
                   >
                     <ChevronLeft size={16} /> Phòng trước
                   </Button>
@@ -630,8 +658,8 @@ export default function UtilityReadingsPage() {
                                 elecDiff >= 0 ? "positive" : "warning"
                               }`}
                             >
-                              Tiêu thụ: {elecDiff >= 0 ? `+${elecDiff}` : elecDiff}{" "}
-                              kWh
+                              Tiêu thụ:{" "}
+                              {elecDiff >= 0 ? `+${elecDiff}` : elecDiff} kWh
                             </span>
                           )}
                         </div>
@@ -714,7 +742,8 @@ export default function UtilityReadingsPage() {
                                 }`}
                               >
                                 Tiêu thụ:{" "}
-                                {waterDiff >= 0 ? `+${waterDiff}` : waterDiff} m³
+                                {waterDiff >= 0 ? `+${waterDiff}` : waterDiff}{" "}
+                                m³
                               </span>
                             )
                           ) : (
@@ -738,13 +767,17 @@ export default function UtilityReadingsPage() {
                           <>
                             <div className="util-index-row">
                               <div className="util-index-box">
-                                <span className="util-index-label">Chỉ số cũ</span>
+                                <span className="util-index-label">
+                                  Chỉ số cũ
+                                </span>
                                 <div className="util-old-val">
                                   {activeItem.previousWaterIndex}
                                 </div>
                               </div>
                               <div className="util-index-box">
-                                <span className="util-index-label">Chỉ số mới</span>
+                                <span className="util-index-label">
+                                  Chỉ số mới
+                                </span>
                                 <input
                                   type="number"
                                   min={activeItem.previousWaterIndex}
@@ -764,7 +797,10 @@ export default function UtilityReadingsPage() {
                             </div>
 
                             <div className="util-image-field">
-                              <Camera size={16} color="var(--util-text-muted)" />
+                              <Camera
+                                size={16}
+                                color="var(--util-text-muted)"
+                              />
                               <input
                                 type="url"
                                 placeholder="Link ảnh công tơ nước (http://...)"
@@ -827,7 +863,12 @@ export default function UtilityReadingsPage() {
                         borderTop: "1px solid var(--util-border)",
                       }}
                     >
-                      <div style={{ fontSize: "13px", color: "var(--util-text-muted)" }}>
+                      <div
+                        style={{
+                          fontSize: "13px",
+                          color: "var(--util-text-muted)",
+                        }}
+                      >
                         {isLocked ? (
                           <span style={{ color: "#7c3aed" }}>
                             Bản chốt số này đã lập hóa đơn, không thể chỉnh sửa.
@@ -915,7 +956,11 @@ export default function UtilityReadingsPage() {
                                 fontWeight: 600,
                               }}
                             >
-                              Đã chốt ({item.reading.readingDate ? item.reading.readingDate.slice(0, 10) : "Đạt"})
+                              Đã chốt (
+                              {item.reading.readingDate
+                                ? item.reading.readingDate.slice(0, 10)
+                                : "Đạt"}
+                              )
                             </span>
                           ) : (
                             <span
@@ -949,7 +994,9 @@ export default function UtilityReadingsPage() {
                               {item.reading.consumedElectric} kWh
                             </strong>
                           ) : (
-                            <span style={{ color: "var(--util-text-muted)" }}>—</span>
+                            <span style={{ color: "var(--util-text-muted)" }}>
+                              —
+                            </span>
                           )}
                         </td>
                         <td>
@@ -982,7 +1029,9 @@ export default function UtilityReadingsPage() {
                               {item.reading.consumedWater} m³
                             </strong>
                           ) : (
-                            <span style={{ color: "var(--util-text-muted)" }}>—</span>
+                            <span style={{ color: "var(--util-text-muted)" }}>
+                              —
+                            </span>
                           )}
                         </td>
                         <td>
@@ -1057,16 +1106,24 @@ export default function UtilityReadingsPage() {
                   <AlertTriangle size={20} />
                   Phát hiện mức tăng vượt quá 2.5 lần trung bình 3 kỳ gần nhất
                 </div>
-                <p style={{ fontSize: "13px", color: "#475569", margin: "0 0 12px 0" }}>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#475569",
+                    margin: "0 0 12px 0",
+                  }}
+                >
                   Hệ thống nhận thấy mức tiêu thụ phòng{" "}
-                  <strong>{abnormalWarning.item?.room?.roomNumber}</strong> cao đột
-                  biến. Vui lòng kiểm tra lại công tơ trước khi xác nhận.
+                  <strong>{abnormalWarning.item?.room?.roomNumber}</strong> cao
+                  đột biến. Vui lòng kiểm tra lại công tơ trước khi xác nhận.
                 </p>
 
                 {abnormalWarning.details.warnings?.map((w, i) => (
                   <div className="util-abnormal-item" key={i}>
                     <span>
-                      {w.type === "ELECTRIC" ? "⚡ Điện năng:" : "💧 Nước sạch:"}
+                      {w.type === "ELECTRIC"
+                        ? "⚡ Điện năng:"
+                        : "💧 Nước sạch:"}
                     </span>
                     <span>
                       Tiêu thụ: <strong>{w.consumed}</strong> | Trung bình:{" "}

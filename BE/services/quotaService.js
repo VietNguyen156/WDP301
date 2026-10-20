@@ -37,7 +37,9 @@ function countUsed(landlordId, resource, session = null) {
 }
 async function usage(landlordId) {
   const [branches, rooms, managers] = await Promise.all(
-    ["branch", "room", "manager"].map((resource) => countUsed(landlordId, resource)),
+    ["branch", "room", "manager"].map((resource) =>
+      countUsed(landlordId, resource),
+    ),
   );
   return { branches, rooms, managers };
 }
@@ -57,7 +59,10 @@ async function guard({ landlordId, resource, count = 1, session }) {
   const subscription = await currentSubscription(landlordId, session);
   const [, key] = resources[resource];
   const plan = subscription?.planId;
-  if (subscription && String(owner.subscriptionId) !== String(subscription._id)) {
+  if (
+    subscription &&
+    String(owner.subscriptionId) !== String(subscription._id)
+  ) {
     owner.subscriptionId = subscription._id;
     await owner.save({ session });
   }

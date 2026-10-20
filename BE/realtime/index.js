@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const authService = require("../services/authService");
 const Invoice = require("../models/Invoice");
 const { invoiceScope } = require("../services/invoiceService");
+const { clientUrl } = require("../utils/appUrls");
 
 // Socket rooms (PROJECT_RULES §16):
 //   landlord:<landlordId>  revenue and paid invoices, joined automatically by the landlord
@@ -16,7 +17,7 @@ const fail = (callback, message) => ack(callback, { ok: false, message });
 
 function attach(httpServer, app) {
   io = new Server(httpServer, {
-    cors: { origin: process.env.CLIENT_URL || "http://localhost:5173", credentials: true },
+    cors: { origin: clientUrl(), credentials: true },
   });
   if (app) app.set("io", io);
 

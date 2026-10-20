@@ -7,7 +7,6 @@ import {
   ShieldCheck,
   Zap,
   QrCode,
-  Sparkles,
   Smartphone,
   Lock,
   UserCheck,
@@ -39,30 +38,6 @@ export default function LoginPage() {
   const [regBusy, setRegBusy] = useState(false);
   const [regError, setRegError] = useState("");
 
-  // Only include credentials that are stable across database seeds.
-  const demoAccounts = [
-    {
-      role: "LANDLORD",
-      label: "Chủ chuỗi trọ",
-      username: "landlord@wdp301.com",
-      password: "password123",
-      badgeColor: "#0f766e",
-    },
-    {
-      role: "SUPER_ADMIN",
-      label: "Quản trị sàn (admin)",
-      username: "admin",
-      password: "admin",
-      badgeColor: "#7d4200",
-    },
-  ];
-
-  function selectDemoAccount(acc) {
-    setUsername(acc.username);
-    setPassword(acc.password);
-    setError("");
-    toast.success(`Đã điền tài khoản mẫu: ${acc.username}`);
-  }
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -218,30 +193,6 @@ export default function LoginPage() {
                 </span>
               </div>
 
-              {/* Demo Account Switcher */}
-              <div className="demo-accounts-card">
-                <div className="demo-accounts-header">
-                  <Sparkles size={14} color="#0f766e" />
-                  <span>Tài khoản kiểm thử nhanh (Demo Seeds):</span>
-                </div>
-                <div className="demo-accounts-grid">
-                  {demoAccounts.map((acc) => (
-                    <button
-                      key={acc.username}
-                      type="button"
-                      className="demo-chip-btn"
-                      onClick={() => selectDemoAccount(acc)}
-                      title={`Bấm để điền ${acc.username} / ${acc.password}`}
-                    >
-                      <span
-                        className="demo-chip-dot"
-                        style={{ backgroundColor: acc.badgeColor }}
-                      />
-                      <span className="demo-chip-role">{acc.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           ) : (
             <div className="auth-form-container">
@@ -387,22 +338,6 @@ export default function LoginPage() {
             </li>
           </ul>
 
-          <div className="hero-metrics-bar">
-            <div className="metric-item">
-              <strong>99.8%</strong>
-              <span>Thu đúng hạn</span>
-            </div>
-            <div className="metric-divider" />
-            <div className="metric-item">
-              <strong>-80%</strong>
-              <span>Thời gian chốt số</span>
-            </div>
-            <div className="metric-divider" />
-            <div className="metric-item">
-              <strong>100%</strong>
-              <span>Dữ liệu thực tế</span>
-            </div>
-          </div>
         </aside>
       </section>
 

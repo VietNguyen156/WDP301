@@ -110,7 +110,9 @@ export default function StaffPage() {
     }
 
     try {
-      const res = await staffApi.resetPassword(staffMember._id || staffMember.id);
+      const res = await staffApi.resetPassword(
+        staffMember._id || staffMember.id,
+      );
       toast.success("Đã cấp lại mật khẩu tạm thời thành công!");
       if (res?.credentials) {
         setIssuedCreds({
@@ -257,7 +259,9 @@ export default function StaffPage() {
                             Chờ đổi mật khẩu
                           </span>
                         ) : (
-                          <span className="badge-active-pill">Đang hoạt động</span>
+                          <span className="badge-active-pill">
+                            Đang hoạt động
+                          </span>
                         )}
                       </td>
                       <td style={{ textAlign: "right" }}>
@@ -327,7 +331,14 @@ export default function StaffPage() {
               </div>
 
               <div className="span-2">
-                <label className="field-label" style={{ display: "block", marginBottom: "8px", fontWeight: 600 }}>
+                <label
+                  className="field-label"
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    fontWeight: 600,
+                  }}
+                >
                   Phân quyền Cơ sở quản lý:
                 </label>
                 {branches.length === 0 ? (
@@ -372,9 +383,7 @@ export default function StaffPage() {
               >
                 Hủy
               </Button>
-              <Button busy={busy}>
-                Cấp tài khoản & Nhận mật khẩu tạm
-              </Button>
+              <Button busy={busy}>Cấp tài khoản & Nhận mật khẩu tạm</Button>
             </footer>
           </form>
         </Modal>

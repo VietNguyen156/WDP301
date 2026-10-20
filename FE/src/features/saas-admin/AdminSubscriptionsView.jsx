@@ -12,7 +12,14 @@ import {
 import { adminApi, errorMessage } from "../../services/api";
 import { money } from "../../utils/format";
 import { useToast } from "../../context/ToastContext";
-import { LoadingState, ErrorState, EmptyState, Button, Modal, Pagination } from "../../components/ui";
+import {
+  LoadingState,
+  ErrorState,
+  EmptyState,
+  Button,
+  Modal,
+  Pagination,
+} from "../../components/ui";
 
 export function AdminSubscriptionsView() {
   const toast = useToast();
@@ -85,14 +92,18 @@ export function AdminSubscriptionsView() {
         setForm((prev) => ({ ...prev, landlordId: lRes.items[0]._id }));
       }
     } catch (err) {
-      toast.error("Không thể tải danh sách Chủ trọ hoặc Gói cước: " + errorMessage(err));
+      toast.error(
+        "Không thể tải danh sách Chủ trọ hoặc Gói cước: " + errorMessage(err),
+      );
     }
   }
 
   function openCreate() {
     loadCreateOptions();
     const today = new Date().toISOString().slice(0, 10);
-    const monthLater = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+    const monthLater = new Date(Date.now() + 30 * 86400000)
+      .toISOString()
+      .slice(0, 10);
     setForm({
       landlordId: landlordsList[0]?._id || "",
       planId: plansList[0]?._id || "",
@@ -138,7 +149,7 @@ export function AdminSubscriptionsView() {
           endDate: form.endDate,
         });
         toast.success(
-          "Tạo thuê bao thành công! Đã tự động xuất hóa đơn SaaS (PlatformInvoice) chờ thanh toán."
+          "Tạo thuê bao thành công! Đã tự động xuất hóa đơn SaaS (PlatformInvoice) chờ thanh toán.",
         );
         setIsCreateOpen(false);
       } else {
@@ -147,16 +158,22 @@ export function AdminSubscriptionsView() {
           startDate: form.startDate,
           endDate: form.endDate,
         });
-        toast.success("Đã cập nhật thuê bao chờ thanh toán & làm mới hóa đơn tương ứng!");
+        toast.success(
+          "Đã cập nhật thuê bao chờ thanh toán & làm mới hóa đơn tương ứng!",
+        );
         setEditingSub(null);
       }
       fetchSubscriptions();
     } catch (err) {
       const msg = errorMessage(err);
       if (msg.includes("PLAN_QUOTA_BELOW_USAGE")) {
-        toast.error("Hạ gói thất bại: Số cơ sở, phòng hoặc nhân sự hiện tại của Chủ trọ vượt quá hạn ngạch gói mới.");
+        toast.error(
+          "Hạ gói thất bại: Số cơ sở, phòng hoặc nhân sự hiện tại của Chủ trọ vượt quá hạn ngạch gói mới.",
+        );
       } else if (msg.includes("SUBSCRIPTION_PENDING_EXISTS")) {
-        toast.error("Chủ trọ này đã có một thuê bao chờ thanh toán. Vui lòng xử lý hoặc hủy thuê bao chờ cũ trước.");
+        toast.error(
+          "Chủ trọ này đã có một thuê bao chờ thanh toán. Vui lòng xử lý hoặc hủy thuê bao chờ cũ trước.",
+        );
       } else {
         toast.error(msg);
       }
@@ -169,8 +186,12 @@ export function AdminSubscriptionsView() {
     if (!cancellingSub) return;
     setSubmitting(true);
     try {
-      await adminApi.updateSubscription(cancellingSub._id, { status: "CANCELLED" });
-      toast.success("Đã hủy thuê bao thành công. Các hóa đơn chưa thanh toán liên quan đã được hủy.");
+      await adminApi.updateSubscription(cancellingSub._id, {
+        status: "CANCELLED",
+      });
+      toast.success(
+        "Đã hủy thuê bao thành công. Các hóa đơn chưa thanh toán liên quan đã được hủy.",
+      );
       setCancellingSub(null);
       fetchSubscriptions();
     } catch (err) {
@@ -301,21 +322,39 @@ export function AdminSubscriptionsView() {
                   return (
                     <tr key={sub._id}>
                       <td>
-                        <div style={{ display: "flex", flexDirection: "column" }}>
-                          <strong style={{ color: "#0f172a" }}>{owner?.name || "Chủ trọ"}</strong>
+                        <div
+                          style={{ display: "flex", flexDirection: "column" }}
+                        >
+                          <strong style={{ color: "#0f172a" }}>
+                            {owner?.name || "Chủ trọ"}
+                          </strong>
                           <span style={{ fontSize: 12, color: "#64748b" }}>
-                            {owner?.email || owner?.phoneNumber || sub.landlordId}
+                            {owner?.email ||
+                              owner?.phoneNumber ||
+                              sub.landlordId}
                           </span>
                         </div>
                       </td>
                       <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span className="plan-code-badge pro">{plan?.code || "PLAN"}</span>
-                          <span style={{ fontWeight: 600 }}>{plan?.name || "Gói SaaS"}</span>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <span className="plan-code-badge pro">
+                            {plan?.code || "PLAN"}
+                          </span>
+                          <span style={{ fontWeight: 600 }}>
+                            {plan?.name || "Gói SaaS"}
+                          </span>
                         </div>
                       </td>
                       <td>
-                        <div style={{ display: "flex", flexDirection: "column" }}>
+                        <div
+                          style={{ display: "flex", flexDirection: "column" }}
+                        >
                           <strong style={{ color: "#005c55" }}>
                             {money(sub.quotedPrice || 0)}
                           </strong>
@@ -325,17 +364,30 @@ export function AdminSubscriptionsView() {
                         </div>
                       </td>
                       <td>
-                        <strong style={{ color: sub.pricePaid > 0 ? "#047857" : "#64748b" }}>
+                        <strong
+                          style={{
+                            color: sub.pricePaid > 0 ? "#047857" : "#64748b",
+                          }}
+                        >
                           {money(sub.pricePaid || 0)}
                         </strong>
                       </td>
                       <td>
                         <div style={{ fontSize: 12.5, color: "#334155" }}>
-                          <span>{new Date(sub.startDate).toLocaleDateString("vi-VN")}</span>
-                          <span style={{ color: "#94a3b8", margin: "0 4px" }}>→</span>
+                          <span>
+                            {new Date(sub.startDate).toLocaleDateString(
+                              "vi-VN",
+                            )}
+                          </span>
+                          <span style={{ color: "#94a3b8", margin: "0 4px" }}>
+                            →
+                          </span>
                           <strong
                             style={{
-                              color: displayStatus === "EXPIRED" ? "#dc2626" : "inherit",
+                              color:
+                                displayStatus === "EXPIRED"
+                                  ? "#dc2626"
+                                  : "inherit",
                             }}
                           >
                             {new Date(sub.endDate).toLocaleDateString("vi-VN")}
@@ -409,7 +461,12 @@ export function AdminSubscriptionsView() {
             </table>
           </div>
 
-          <Pagination page={page} total={total} limit={20} onChange={(p) => setPage(p)} />
+          <Pagination
+            page={page}
+            total={total}
+            limit={20}
+            onChange={(p) => setPage(p)}
+          />
         </>
       )}
 
@@ -421,7 +478,11 @@ export function AdminSubscriptionsView() {
             setIsCreateOpen(false);
             setEditingSub(null);
           }}
-          title={editingSub ? "Sửa thuê bao chờ thanh toán" : "Cấp mới / Gia hạn Thuê bao SaaS"}
+          title={
+            editingSub
+              ? "Sửa thuê bao chờ thanh toán"
+              : "Cấp mới / Gia hạn Thuê bao SaaS"
+          }
           subtitle="Tạo kỳ thuê bao và tự động phát hành hóa đơn PlatformInvoice tương ứng"
           maxWidth="560px"
           footer={
@@ -437,7 +498,9 @@ export function AdminSubscriptionsView() {
                 Hủy bỏ
               </Button>
               <Button onClick={handleSaveSubscription} busy={submitting}>
-                {editingSub ? "Cập nhật thuê bao" : "Tạo thuê bao & Xuất hóa đơn"}
+                {editingSub
+                  ? "Cập nhật thuê bao"
+                  : "Tạo thuê bao & Xuất hóa đơn"}
               </Button>
             </>
           }
@@ -446,7 +509,10 @@ export function AdminSubscriptionsView() {
             <div className="admin-alert-banner info">
               <FileText size={20} style={{ flexShrink: 0 }} />
               <div>
-                Hệ thống sẽ tạo thuê bao ở trạng thái <strong>PENDING_PAYMENT</strong> và tự động sinh hóa đơn SaaS (PlatformInvoice). Sau khi xác nhận đã nhận thanh toán, thuê bao sẽ chuyển sang <strong>ACTIVE</strong>.
+                Hệ thống sẽ tạo thuê bao ở trạng thái{" "}
+                <strong>PENDING_PAYMENT</strong> và tự động sinh hóa đơn SaaS
+                (PlatformInvoice). Sau khi xác nhận đã nhận thanh toán, thuê bao
+                sẽ chuyển sang <strong>ACTIVE</strong>.
               </div>
             </div>
 
@@ -459,7 +525,9 @@ export function AdminSubscriptionsView() {
                 required
                 disabled={!!editingSub}
                 value={form.landlordId}
-                onChange={(e) => setForm({ ...form, landlordId: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, landlordId: e.target.value })
+                }
               >
                 <option value="">-- Chọn Chủ trọ nhận thuê bao --</option>
                 {landlordsList.map((l) => (
@@ -513,7 +581,9 @@ export function AdminSubscriptionsView() {
                   required
                   className="admin-input"
                   value={form.startDate}
-                  onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, startDate: e.target.value })
+                  }
                 />
               </div>
 
@@ -526,7 +596,9 @@ export function AdminSubscriptionsView() {
                   required
                   className="admin-input"
                   value={form.endDate}
-                  onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, endDate: e.target.value })
+                  }
                 />
               </div>
             </div>
@@ -550,7 +622,11 @@ export function AdminSubscriptionsView() {
               >
                 Đóng
               </Button>
-              <Button variant="danger" onClick={handleCancelSubscription} busy={submitting}>
+              <Button
+                variant="danger"
+                onClick={handleCancelSubscription}
+                busy={submitting}
+              >
                 Xác nhận hủy thuê bao
               </Button>
             </>
@@ -563,7 +639,8 @@ export function AdminSubscriptionsView() {
               <strong>{cancellingSub.landlordId?.name || "Chủ trọ"}</strong>?
               <br />
               <small>
-                Mọi hóa đơn chưa trả liên quan sẽ được tự động hủy; các hóa đơn đã thanh toán trước đó vẫn được bảo toàn chứng từ.
+                Mọi hóa đơn chưa trả liên quan sẽ được tự động hủy; các hóa đơn
+                đã thanh toán trước đó vẫn được bảo toàn chứng từ.
               </small>
             </div>
           </div>

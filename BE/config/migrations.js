@@ -5,8 +5,16 @@ const { DEFAULT_FLAGS } = require("../utils/planFeatures");
 // global payment references and the invoice index that kept cancelled invoices blocking a period.
 const LEGACY_INDEXES = [
   ["payments", (index) => index.name === "referenceCode_1" && index.unique],
-  ["unmatchedpayments", (index) => index.name === "referenceCode_1" && index.unique],
-  ["invoices", (index) => index.name === "landlordId_1_roomId_1_contractId_1_billingPeriod_1_invoiceType_1"],
+  [
+    "unmatchedpayments",
+    (index) => index.name === "referenceCode_1" && index.unique,
+  ],
+  [
+    "invoices",
+    (index) =>
+      index.name ===
+      "landlordId_1_roomId_1_contractId_1_billingPeriod_1_invoiceType_1",
+  ],
   [
     "platforminvoices",
     (index) =>
@@ -28,10 +36,11 @@ async function migrateFinanceIndexes(db = mongoose.connection.db) {
   }
   // Receipts used to store the bank/cash reference as _id only.
   if (await db.listCollections({ name: "paymentreceipts" }).hasNext())
-    await db.collection("paymentreceipts").updateMany(
-      { referenceCode: { $exists: false } },
-      [{ $set: { referenceCode: "$_id" } }],
-    );
+    await db
+      .collection("paymentreceipts")
+      .updateMany({ referenceCode: { $exists: false } }, [
+        { $set: { referenceCode: "$_id" } },
+      ]);
 }
 
 // Give the standard plans their feature flags once. Custom plans stay unset (all features)
@@ -39,10 +48,12 @@ async function migrateFinanceIndexes(db = mongoose.connection.db) {
 async function backfillPlanFeatureFlags(db = mongoose.connection.db) {
   if (!(await db.listCollections({ name: "saasplans" }).hasNext())) return;
   for (const [code, featureFlags] of Object.entries(DEFAULT_FLAGS))
-    await db.collection("saasplans").updateOne(
-      { code, featureFlags: { $exists: false } },
-      { $set: { featureFlags } },
-    );
+    await db
+      .collection("saasplans")
+      .updateOne(
+        { code, featureFlags: { $exists: false } },
+        { $set: { featureFlags } },
+      );
 }
 
 module.exports = { migrateFinanceIndexes, backfillPlanFeatureFlags };

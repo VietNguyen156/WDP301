@@ -7,14 +7,21 @@ import { useToast } from "../../context/ToastContext";
 import { useAuth } from "../../context/AuthContext";
 import { formatCurrency, generateReceiptNumber } from "../../utils/formatters";
 
-export function CashPaymentModal({ isOpen, onClose, invoice, onPaymentSuccess }) {
+export function CashPaymentModal({
+  isOpen,
+  onClose,
+  invoice,
+  onPaymentSuccess,
+}) {
   const { toast } = useToast();
   const { user } = useAuth();
   const isManagerReport = user?.role === "PROPERTY_MANAGER";
   const [amount, setAmount] = useState(0);
   const [receiptNumber, setReceiptNumber] = useState("");
   const [payerName, setPayerName] = useState("");
-  const [cashCollectionPoint, setCashCollectionPoint] = useState("Văn phòng Ban quản lý");
+  const [cashCollectionPoint, setCashCollectionPoint] = useState(
+    "Văn phòng Ban quản lý",
+  );
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -31,7 +38,7 @@ export function CashPaymentModal({ isOpen, onClose, invoice, onPaymentSuccess })
         invoice.tenantId?.name ||
           invoice.tenantName ||
           invoice.payerName ||
-          (typeof invoice.tenantId === "string" ? "Khách thuê" : "")
+          (typeof invoice.tenantId === "string" ? "Khách thuê" : ""),
       );
       setCashCollectionPoint("Văn phòng Ban quản lý cơ sở");
       setNote(`Thu tiền mặt hóa đơn ${invoice.invoiceCode || ""}`);
@@ -54,7 +61,9 @@ export function CashPaymentModal({ isOpen, onClose, invoice, onPaymentSuccess })
     e.preventDefault();
 
     if (invoice.status === "PAID") {
-      toast.warning("Hóa đơn này đã được thanh toán đủ (PAID). Không thể thu thêm.");
+      toast.warning(
+        "Hóa đơn này đã được thanh toán đủ (PAID). Không thể thu thêm.",
+      );
       return;
     }
     if (invoice.status === "CANCELLED") {
@@ -84,9 +93,10 @@ export function CashPaymentModal({ isOpen, onClose, invoice, onPaymentSuccess })
       setSubmitting(true);
       const res = await paymentService.recordCashPayment(payload);
       toast.success(
-        res?.message || (isManagerReport
-          ? `Đã gửi báo cáo thu tiền mặt ${formatCurrency(numAmount)} chờ Chủ trọ duyệt.`
-          : `Đã xác nhận thu tiền mặt ${formatCurrency(numAmount)} thành công!`)
+        res?.message ||
+          (isManagerReport
+            ? `Đã gửi báo cáo thu tiền mặt ${formatCurrency(numAmount)} chờ Chủ trọ duyệt.`
+            : `Đã xác nhận thu tiền mặt ${formatCurrency(numAmount)} thành công!`),
       );
       onPaymentSuccess?.(res?.data || res);
       onClose();
@@ -101,21 +111,37 @@ export function CashPaymentModal({ isOpen, onClose, invoice, onPaymentSuccess })
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isManagerReport ? "Báo cáo Thu tiền mặt" : "Xác nhận Thu tiền mặt (Cash Payment)"}
+      title={
+        isManagerReport
+          ? "Báo cáo Thu tiền mặt"
+          : "Xác nhận Thu tiền mặt (Cash Payment)"
+      }
       subtitle={`Hóa đơn ${invoice.invoiceCode || ""} • Khách thuê nộp tiền trực tiếp`}
       maxWidth="560px"
       footer={
-        <div style={{ display: "flex", gap: "10px", width: "100%", justifyContent: "flex-end" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            width: "100%",
+            justifyContent: "flex-end",
+          }}
+        >
           <Button variant="outline" onClick={onClose} disabled={submitting}>
             Hủy bỏ
           </Button>
           <Button variant="primary" loading={submitting} onClick={handleSubmit}>
-            {isManagerReport ? "Gửi báo cáo thu tiền" : "💰 Xác nhận đã nhận tiền mặt"}
+            {isManagerReport
+              ? "Gửi báo cáo thu tiền"
+              : "💰 Xác nhận đã nhận tiền mặt"}
           </Button>
         </div>
       }
     >
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <form
+        onSubmit={handleSubmit}
+        style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+      >
         {/* Invoice Brief Card */}
         <div
           style={{
@@ -129,28 +155,50 @@ export function CashPaymentModal({ isOpen, onClose, invoice, onPaymentSuccess })
           }}
         >
           <div>
-            <div style={{ fontSize: "0.8rem", color: "var(--neutral-500)" }}>Tổng hóa đơn:</div>
-            <div style={{ fontWeight: "700", fontSize: "1rem" }} className="tnum">
+            <div style={{ fontSize: "0.8rem", color: "var(--neutral-500)" }}>
+              Tổng hóa đơn:
+            </div>
+            <div
+              style={{ fontWeight: "700", fontSize: "1rem" }}
+              className="tnum"
+            >
               {formatCurrency(invoice.totalAmount)}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "0.8rem", color: "var(--neutral-500)" }}>Đã thanh toán trước:</div>
-            <div style={{ fontWeight: "600", fontSize: "1rem", color: "var(--success)" }} className="tnum">
+            <div style={{ fontSize: "0.8rem", color: "var(--neutral-500)" }}>
+              Đã thanh toán trước:
+            </div>
+            <div
+              style={{
+                fontWeight: "600",
+                fontSize: "1rem",
+                color: "var(--success)",
+              }}
+              className="tnum"
+            >
               {formatCurrency(invoice.paidAmount)}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "0.8rem", color: "var(--neutral-500)" }}>Còn nợ hiện tại:</div>
+            <div style={{ fontSize: "0.8rem", color: "var(--neutral-500)" }}>
+              Còn nợ hiện tại:
+            </div>
             <div
-              style={{ fontWeight: "700", fontSize: "1.05rem", color: "var(--error)" }}
+              style={{
+                fontWeight: "700",
+                fontSize: "1.05rem",
+                color: "var(--error)",
+              }}
               className="tnum"
             >
               {formatCurrency(currentRemaining)}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "0.8rem", color: "var(--neutral-500)" }}>Còn lại sau khi thu:</div>
+            <div style={{ fontSize: "0.8rem", color: "var(--neutral-500)" }}>
+              Còn lại sau khi thu:
+            </div>
             <div
               style={{
                 fontWeight: "700",
@@ -159,7 +207,9 @@ export function CashPaymentModal({ isOpen, onClose, invoice, onPaymentSuccess })
               }}
               className="tnum"
             >
-              {isOverpaid ? `Thừa +${formatCurrency(numAmount - currentRemaining)}` : formatCurrency(newRemaining)}
+              {isOverpaid
+                ? `Thừa +${formatCurrency(numAmount - currentRemaining)}`
+                : formatCurrency(newRemaining)}
             </div>
           </div>
         </div>
@@ -198,7 +248,13 @@ export function CashPaymentModal({ isOpen, onClose, invoice, onPaymentSuccess })
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "12px",
+          }}
+        >
           <Input
             label="Mã biên nhận (Unique Receipt)"
             required
@@ -215,7 +271,13 @@ export function CashPaymentModal({ isOpen, onClose, invoice, onPaymentSuccess })
           />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "12px",
+          }}
+        >
           <Input
             label="Địa điểm thu tiền"
             value={cashCollectionPoint}
@@ -241,9 +303,18 @@ export function CashPaymentModal({ isOpen, onClose, invoice, onPaymentSuccess })
             color: "var(--warning-text)",
           }}
         >
-          {isManagerReport
-            ? <>Báo cáo sẽ ở trạng thái <strong>CHỜ CHỦ TRỌ XÁC NHẬN</strong>. Hệ thống chưa cộng tiền vào hóa đơn cho đến khi Landlord duyệt.</>
-            : <>Giao dịch thu tiền mặt sẽ tạo bản ghi <strong>Payment (CASH)</strong>, cập nhật hóa đơn và ghi nhận vào <strong>AuditLog</strong>.</>}
+          {isManagerReport ? (
+            <>
+              Báo cáo sẽ ở trạng thái <strong>CHỜ CHỦ TRỌ XÁC NHẬN</strong>. Hệ
+              thống chưa cộng tiền vào hóa đơn cho đến khi Landlord duyệt.
+            </>
+          ) : (
+            <>
+              Giao dịch thu tiền mặt sẽ tạo bản ghi{" "}
+              <strong>Payment (CASH)</strong>, cập nhật hóa đơn và ghi nhận vào{" "}
+              <strong>AuditLog</strong>.
+            </>
+          )}
         </div>
       </form>
     </Modal>

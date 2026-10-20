@@ -39,7 +39,9 @@ export function PaymentHistoryList() {
       const list = Array.isArray(res) ? res : res?.data || [];
       setPayments(list);
     } catch (err) {
-      toast.error(err.message || "Không thể tải danh sách giao dịch thanh toán");
+      toast.error(
+        err.message || "Không thể tải danh sách giao dịch thanh toán",
+      );
       setPayments([]);
     } finally {
       setLoading(false);
@@ -75,7 +77,7 @@ export function PaymentHistoryList() {
         p.referenceCode?.toLowerCase().includes(term) ||
         p.invoiceCode?.toLowerCase().includes(term) ||
         p.payerName?.toLowerCase().includes(term) ||
-        p.content?.toLowerCase().includes(term)
+        p.content?.toLowerCase().includes(term),
     );
   }, [payments, searchTerm]);
 
@@ -101,10 +103,21 @@ export function PaymentHistoryList() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {/* Top Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+          gap: "12px",
+        }}
+      >
         <div>
           <h2>Sổ quỹ & Đối soát Thu tiền (Finance & Cash Ledger)</h2>
-          <p>Đối soát dòng tiền thu từ VietQR tự động, tiền mặt tại chỗ và xử lý chuyển khoản chưa khớp</p>
+          <p>
+            Đối soát dòng tiền thu từ VietQR tự động, tiền mặt tại chỗ và xử lý
+            chuyển khoản chưa khớp
+          </p>
         </div>
 
         {/* Sub-tab navigation */}
@@ -125,9 +138,14 @@ export function PaymentHistoryList() {
               borderRadius: "6px",
               fontSize: "0.85rem",
               fontWeight: activeSubTab === "ledger" ? "600" : "500",
-              backgroundColor: activeSubTab === "ledger" ? "#ffffff" : "transparent",
-              color: activeSubTab === "ledger" ? "var(--primary)" : "var(--neutral-600)",
-              boxShadow: activeSubTab === "ledger" ? "var(--shadow-sm)" : "none",
+              backgroundColor:
+                activeSubTab === "ledger" ? "#ffffff" : "transparent",
+              color:
+                activeSubTab === "ledger"
+                  ? "var(--primary)"
+                  : "var(--neutral-600)",
+              boxShadow:
+                activeSubTab === "ledger" ? "var(--shadow-sm)" : "none",
               border: "none",
               cursor: "pointer",
             }}
@@ -135,23 +153,28 @@ export function PaymentHistoryList() {
             📋 Sổ quỹ đã khớp ({payments.length})
           </button>
           {canReviewUnmatched && (
-          <button
-            type="button"
-            onClick={() => setActiveSubTab("unmatched")}
-            style={{
-              padding: "6px 14px",
-              borderRadius: "6px",
-              fontSize: "0.85rem",
-              fontWeight: activeSubTab === "unmatched" ? "600" : "500",
-              backgroundColor: activeSubTab === "unmatched" ? "#ffffff" : "transparent",
-              color: activeSubTab === "unmatched" ? "var(--warning-text)" : "var(--neutral-600)",
-              boxShadow: activeSubTab === "unmatched" ? "var(--shadow-sm)" : "none",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            ⚡ Chuyển khoản chưa khớp (SePay)
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab("unmatched")}
+              style={{
+                padding: "6px 14px",
+                borderRadius: "6px",
+                fontSize: "0.85rem",
+                fontWeight: activeSubTab === "unmatched" ? "600" : "500",
+                backgroundColor:
+                  activeSubTab === "unmatched" ? "#ffffff" : "transparent",
+                color:
+                  activeSubTab === "unmatched"
+                    ? "var(--warning-text)"
+                    : "var(--neutral-600)",
+                boxShadow:
+                  activeSubTab === "unmatched" ? "var(--shadow-sm)" : "none",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              ⚡ Chuyển khoản chưa khớp (SePay)
+            </button>
           )}
         </div>
       </div>
@@ -169,7 +192,13 @@ export function PaymentHistoryList() {
             }}
           >
             <Card>
-              <div style={{ fontSize: "0.82rem", color: "var(--neutral-500)", fontWeight: "600" }}>
+              <div
+                style={{
+                  fontSize: "0.82rem",
+                  color: "var(--neutral-500)",
+                  fontWeight: "600",
+                }}
+              >
                 TỔNG DÒNG TIỀN THỰC THU
               </div>
               <div
@@ -190,7 +219,13 @@ export function PaymentHistoryList() {
             </Card>
 
             <Card>
-              <div style={{ fontSize: "0.82rem", color: "var(--neutral-500)", fontWeight: "600" }}>
+              <div
+                style={{
+                  fontSize: "0.82rem",
+                  color: "var(--neutral-500)",
+                  fontWeight: "600",
+                }}
+              >
                 💵 THU TIỀN MẶT TẠI CHỖ (CASH)
               </div>
               <div
@@ -211,7 +246,13 @@ export function PaymentHistoryList() {
             </Card>
 
             <Card>
-              <div style={{ fontSize: "0.82rem", color: "var(--neutral-500)", fontWeight: "600" }}>
+              <div
+                style={{
+                  fontSize: "0.82rem",
+                  color: "var(--neutral-500)",
+                  fontWeight: "600",
+                }}
+              >
                 📱 QUA VIETQR TỰ ĐỘNG
               </div>
               <div
@@ -232,7 +273,13 @@ export function PaymentHistoryList() {
             </Card>
 
             <Card>
-              <div style={{ fontSize: "0.82rem", color: "var(--neutral-500)", fontWeight: "600" }}>
+              <div
+                style={{
+                  fontSize: "0.82rem",
+                  color: "var(--neutral-500)",
+                  fontWeight: "600",
+                }}
+              >
                 🏦 CHUYỂN KHOẢN TRỰC TIẾP
               </div>
               <div
@@ -264,10 +311,23 @@ export function PaymentHistoryList() {
                 gap: "12px",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                }}
+              >
                 {/* Payment Method Filter */}
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span style={{ fontSize: "0.85rem", color: "var(--neutral-600)" }}>Kênh thu:</span>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                >
+                  <span
+                    style={{ fontSize: "0.85rem", color: "var(--neutral-600)" }}
+                  >
+                    Kênh thu:
+                  </span>
                   <select
                     value={methodFilter}
                     onChange={(e) => setMethodFilter(e.target.value)}
@@ -279,11 +339,12 @@ export function PaymentHistoryList() {
                     <option value="BANK_TRANSFER">Chuyển khoản thường</option>
                   </select>
                 </div>
-
               </div>
 
               {/* Search box & Refresh */}
-              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <div
+                style={{ display: "flex", gap: "8px", alignItems: "center" }}
+              >
                 <input
                   type="text"
                   placeholder="🔍 Tìm mã giao dịch, mã hóa đơn..."
@@ -291,7 +352,12 @@ export function PaymentHistoryList() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   style={{ minWidth: "240px" }}
                 />
-                <Button variant="outline" size="sm" onClick={loadPayments} loading={loading}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadPayments}
+                  loading={loading}
+                >
                   🔄
                 </Button>
               </div>
@@ -316,19 +382,43 @@ export function PaymentHistoryList() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="8" style={{ textAlign: "center", padding: "40px", color: "var(--neutral-500)" }}>
+                    <td
+                      colSpan="8"
+                      style={{
+                        textAlign: "center",
+                        padding: "40px",
+                        color: "var(--neutral-500)",
+                      }}
+                    >
                       ⏳ Đang tải dữ liệu sổ quỹ từ máy chủ...
                     </td>
                   </tr>
                 ) : filteredPayments.length === 0 ? (
                   <tr>
-                    <td colSpan="8" style={{ textAlign: "center", padding: "48px 20px" }}>
-                      <div style={{ fontSize: "1.8rem", marginBottom: "8px" }}>📭</div>
-                      <div style={{ fontWeight: "600", color: "var(--neutral-700)" }}>
+                    <td
+                      colSpan="8"
+                      style={{ textAlign: "center", padding: "48px 20px" }}
+                    >
+                      <div style={{ fontSize: "1.8rem", marginBottom: "8px" }}>
+                        📭
+                      </div>
+                      <div
+                        style={{
+                          fontWeight: "600",
+                          color: "var(--neutral-700)",
+                        }}
+                      >
                         Chưa có giao dịch thu tiền nào
                       </div>
-                      <div style={{ fontSize: "0.85rem", color: "var(--neutral-500)", marginTop: "4px" }}>
-                        Các giao dịch thanh toán qua VietQR hoặc thu tiền mặt sẽ tự động hiển thị tại đây.
+                      <div
+                        style={{
+                          fontSize: "0.85rem",
+                          color: "var(--neutral-500)",
+                          marginTop: "4px",
+                        }}
+                      >
+                        Các giao dịch thanh toán qua VietQR hoặc thu tiền mặt sẽ
+                        tự động hiển thị tại đây.
                       </div>
                     </td>
                   </tr>
@@ -337,7 +427,13 @@ export function PaymentHistoryList() {
                     const methodMeta = getPaymentMethodMeta(p.paymentMethod);
                     return (
                       <tr key={p._id || p.id}>
-                        <td style={{ fontWeight: "700", fontFamily: "monospace", color: "var(--neutral-900)" }}>
+                        <td
+                          style={{
+                            fontWeight: "700",
+                            fontFamily: "monospace",
+                            color: "var(--neutral-900)",
+                          }}
+                        >
                           {p.referenceCode}
                         </td>
                         <td>
@@ -355,7 +451,9 @@ export function PaymentHistoryList() {
                           </span>
                         </td>
                         <td>
-                          <Badge variant={methodMeta.className.replace("badge-", "")}>
+                          <Badge
+                            variant={methodMeta.className.replace("badge-", "")}
+                          >
                             {methodMeta.label}
                           </Badge>
                         </td>
@@ -363,9 +461,16 @@ export function PaymentHistoryList() {
                           {formatDate(p.transactionDate || p.createdAt, true)}
                         </td>
                         <td>
-                          <div style={{ fontWeight: "500" }}>{p.payerName || "Khách thuê"}</div>
+                          <div style={{ fontWeight: "500" }}>
+                            {p.payerName || "Khách thuê"}
+                          </div>
                           {p.note && (
-                            <div style={{ fontSize: "0.78rem", color: "var(--neutral-500)" }}>
+                            <div
+                              style={{
+                                fontSize: "0.78rem",
+                                color: "var(--neutral-500)",
+                              }}
+                            >
                               {p.note}
                             </div>
                           )}
@@ -387,23 +492,37 @@ export function PaymentHistoryList() {
                           +{formatCurrency(p.amount)}
                         </td>
                         <td>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                            <Badge variant={p.status === "SUCCESS" ? "success" : "neutral"}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <Badge
+                              variant={
+                                p.status === "SUCCESS" ? "success" : "neutral"
+                              }
+                            >
                               {p.status === "SUCCESS"
                                 ? "Thành công"
                                 : p.status === "PENDING_CONFIRMATION"
                                   ? "Chờ Chủ trọ duyệt"
                                   : p.status}
                             </Badge>
-                            {canReviewCashReports && p.status === "PENDING_CONFIRMATION" && (
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                onClick={() => approveCashReport(p._id || p.id)}
-                              >
-                                Duyệt thu tiền
-                              </Button>
-                            )}
+                            {canReviewCashReports &&
+                              p.status === "PENDING_CONFIRMATION" && (
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={() =>
+                                    approveCashReport(p._id || p.id)
+                                  }
+                                >
+                                  Duyệt thu tiền
+                                </Button>
+                              )}
                           </div>
                         </td>
                       </tr>

@@ -23,87 +23,12 @@ import { useToast } from "../../context/ToastContext";
 import { planApi, errorMessage } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 
-const FALLBACK_PLANS = [
-  {
-    code: "FREE_TRIAL",
-    name: "Gói Dùng Thử",
-    price: 0,
-    trialDays: 30,
-    maxBranches: 1,
-    maxRooms: 5,
-    maxManagers: 1,
-    features: [
-      "Quản lý 1 cơ sở, tối đa 5 phòng",
-      "1 Quản lý cơ sở phân quyền",
-      "Chốt số điện nước Mobile-first",
-      "Xuất hóa đơn & sinh mã VietQR",
-      "Gửi link hóa đơn No-App cho khách",
-    ],
-    selectable: false,
-  },
-  {
-    code: "STARTER",
-    name: "Gói Starter (Chuỗi nhỏ)",
-    price: 199000,
-    billingCycle: "MONTHLY",
-    maxBranches: 1,
-    maxRooms: 20,
-    maxManagers: 2,
-    features: [
-      "Quản lý 1 cơ sở, tối đa 20 phòng",
-      "2 Quản lý cơ sở phân quyền",
-      "Tự động hóa tính toán tiền phòng",
-      "Mã VietQR động gạch nợ tức thì",
-      "Đối soát ngân hàng SePay Webhook",
-      "Báo cáo công nợ & nhắc nợ Zalo",
-    ],
-    selectable: true,
-  },
-  {
-    code: "PRO",
-    name: "Gói Chuyên Nghiệp (Pro)",
-    price: 499000,
-    billingCycle: "MONTHLY",
-    maxBranches: 5,
-    maxRooms: 100,
-    maxManagers: 5,
-    features: [
-      "Quản lý tới 5 cơ sở, 100 phòng",
-      "5 Quản lý cơ sở phân quyền",
-      "Tất cả tính năng của gói Starter",
-      "Quản lý sự cố & bảo trì hiện trường",
-      "3-Second Dashboard dòng tiền realtime",
-      "Phân quyền RBAC & Quản lý nhân sự",
-      "Bảo toàn dữ liệu tài chính & Xóa mềm",
-    ],
-    selectable: true,
-  },
-  {
-    code: "ENTERPRISE",
-    name: "Gói Doanh Nghiệp",
-    price: 999000,
-    billingCycle: "MONTHLY",
-    maxBranches: 999,
-    maxRooms: 9999,
-    maxManagers: 99,
-    features: [
-      "Không giới hạn số cơ sở & số phòng",
-      "Không giới hạn tài khoản nhân viên",
-      "Tất cả tính năng của gói Pro",
-      "Hỗ trợ kỹ thuật ưu tiên 24/7 (SLA 99.9%)",
-      "Tích hợp đồng hồ thông minh IoT",
-      "Xuất báo cáo thuế & kế toán chuyên sâu",
-    ],
-    selectable: true,
-  },
-];
 
 export function SaaSPlansModal({
   isOpen,
   onClose,
   currentPlan,
   branchesCount = 0,
-  user,
 }) {
   const toast = useToast();
   const { refreshUser } = useAuth();
@@ -242,7 +167,7 @@ export function SaaSPlansModal({
   const pendingSub = plansData?.pending;
   const upgradeRequest = plansData?.upgradeRequest;
   const usage = plansData?.usage;
-  const rawItems = plansData?.items?.length ? plansData.items : FALLBACK_PLANS;
+  const rawItems = plansData?.items || [];
 
   // Enhance items with flags
   const items = rawItems.map((item) => {

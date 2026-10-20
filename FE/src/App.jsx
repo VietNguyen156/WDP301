@@ -184,19 +184,11 @@ function Workspace() {
       };
     }
     // LANDLORD
-    const code = user.subscription?.plan?.code || user.subscriptionPlan || "FREE_TRIAL";
-    const name =
-      user.subscription?.plan?.name ||
-      (code === "PRO"
-        ? "Gói Chuyên Nghiệp (Pro)"
-        : code === "STARTER"
-        ? "Gói Khởi Nghiệp (Starter)"
-        : code === "ENTERPRISE"
-        ? "Gói Doanh Nghiệp Max"
-        : "Gói Dùng Thử (Free Trial)");
+    const code = user.subscription?.plan?.code || user.subscriptionPlan || "";
+    const name = user.subscription?.plan?.name || "Chưa có gói đang hiệu lực";
     const expiryText = user.subscription?.endDate
       ? `Hạn dùng: ${new Date(user.subscription.endDate).toLocaleDateString("vi-VN")}`
-      : "30 ngày trải nghiệm";
+      : "Chọn gói để tiếp tục sử dụng";
     const connectedText = branches.length > 0 ? `Đã kết nối ${branches.length} cơ sở` : "Hệ thống sẵn sàng";
     return { code, name, expiryText, connectedText };
   }, [user, branches]);

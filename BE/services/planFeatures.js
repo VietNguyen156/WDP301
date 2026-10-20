@@ -1,9 +1,14 @@
 const { ForbiddenError } = require("../utils/errors");
 const { currentSubscription } = require("./quotaService");
-const { PLAN_FEATURES, FEATURE_KEYS, DEFAULT_FLAGS } = require("../utils/planFeatures");
+const {
+  PLAN_FEATURES,
+  FEATURE_KEYS,
+  DEFAULT_FLAGS,
+} = require("../utils/planFeatures");
 
 // Plans saved before flags existed (featureFlags unset) keep every feature.
-const planHas = (plan, feature) => !Array.isArray(plan?.featureFlags) || plan.featureFlags.includes(feature);
+const planHas = (plan, feature) =>
+  !Array.isArray(plan?.featureFlags) || plan.featureFlags.includes(feature);
 
 async function hasFeature(landlordId, feature, session = null) {
   const subscription = await currentSubscription(landlordId, session);
@@ -18,4 +23,11 @@ async function requireFeature(landlordId, feature, session = null) {
     );
 }
 
-module.exports = { PLAN_FEATURES, FEATURE_KEYS, DEFAULT_FLAGS, planHas, hasFeature, requireFeature };
+module.exports = {
+  PLAN_FEATURES,
+  FEATURE_KEYS,
+  DEFAULT_FLAGS,
+  planHas,
+  hasFeature,
+  requireFeature,
+};

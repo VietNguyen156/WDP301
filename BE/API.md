@@ -27,7 +27,7 @@ Response thành công `{ success: true, data, message }`; lỗi `{ success: fals
 - **LANDLORD:** tự đăng ký bằng email và mật khẩu; trạng thái `ACTIVE` ngay, không chờ duyệt/OTP/email verification. Nếu gói `FREE_TRIAL` đang hoạt động và miễn phí, được cấp thuê bao theo `trialDays` do Admin cấu hình (mặc định 30 ngày). Khi chưa có gói này, backend tạo cấu hình dùng thử: 1 cơ sở, 5 phòng, 1 manager.
 - **PROPERTY_MANAGER:** chỉ Landlord cấp; username là số điện thoại Việt Nam 10 chữ số (chuẩn hóa `+84` về `0`), mật khẩu ngẫu nhiên, bắt buộc đổi lần đầu.
 - **TENANT:** chỉ Landlord cấp; username là CCCD dạng chuỗi 12 chữ số, giữ số 0 đầu. Mật khẩu ngẫu nhiên, bắt buộc đổi lần đầu. Tự động cấp khi Landlord tạo hợp đồng cho khách mới; không có API cấp Tenant độc lập.
-- **SUPER_ADMIN:** backend tạo sẵn `admin / admin` nếu chưa tồn tại. Mật khẩu lưu bằng bcrypt. Admin seed cũ `admin@wdp301.com` chưa có username được chuyển một lần sang `admin / admin`; tài khoản đã có username `admin` không bị reset khi restart. Không có API công khai tạo admin.
+- **SUPER_ADMIN:** backend **không** tự tạo tài khoản admin hay dữ liệu mẫu; tài khoản SUPER_ADMIN phải có sẵn trong DB (mật khẩu băm bcrypt). Không có API công khai tạo admin.
 - Email của Manager/Tenant là tùy chọn. Username và email đã sử dụng không được cấp cho tài khoản khác, kể cả tài khoản xóa mềm. Tenant hiện vẫn thuộc một Landlord theo mô hình dữ liệu của dự án.
 - Mật khẩu do người dùng tự đặt: từ 8 ký tự, tối đa 72 byte UTF-8. Mật khẩu mới phải khác mật khẩu hiện tại. Ngoại lệ mật khẩu khởi tạo `admin` là yêu cầu cụ thể của chủ dự án.
 
@@ -198,7 +198,7 @@ Response vẫn là contract trong `data`; **chỉ khi tạo mới Tenant** mới
 5. Tạo hợp đồng với Tenant mới: chỉ response tạo trả mật khẩu tạm. Tạo hợp đồng khác liên kết Tenant đã có không reset mật khẩu.
 6. Đổi/cấp lại mật khẩu: mật khẩu cũ, access token cũ và refresh token cũ đều không dùng được. Landlord khác không cấp lại được.
 7. Khóa Landlord: Manager/Tenant bị chặn đồng nhất ở Property Core và Finance.
-8. Kiểm tra admin/admin ở DB mới; restart không đổi password đã lưu. Kiểm tra hash trong DB và không có password trong JSON/audit.
+8. Kiểm tra mật khẩu lưu dạng hash trong DB và không xuất hiện trong JSON/audit.
 9. Kiểm tra cookie refresh/logout trên cả `/api/v1/auth` và alias `/api/auth`; logout vô hiệu hóa access token cùng session.
 
 Đã bổ sung `tests/auth.test.js` và cập nhật test hợp đồng sang luồng mật khẩu tạm. Không thực thi automated tests; chủ dự án kiểm thử và nghiệm thu.
@@ -1187,7 +1187,7 @@ Audit `CONFIRM_PLATFORM_PAYMENT` do cổng tạo có `actorRole: SYSTEM` và kh�
 
 ## 10. Admin nền tảng SaaS
 
-Prefix `/api/v1/admin`. Tất cả endpoint yêu cầu Bearer token có role `SUPER_ADMIN`; Landlord/Manager/Tenant bị từ chối 403. Tài khoản khởi tạo `admin/admin` theo [mục Auth & cấp tài khoản](#auth).
+Prefix `/api/v1/admin`. Tất cả endpoint yêu cầu Bearer token có role `SUPER_ADMIN`; Landlord/Manager/Tenant bị từ chối 403. Tài khoản SUPER_ADMIN phải có sẵn trong DB, xem [mục Auth & cấp tài khoản](#auth).
 
 Admin chỉ xem tài khoản cơ bản, cấu hình gói, thuê bao, hóa đơn SaaS và số lượng tài nguyên tổng hợp. Không trả mật khẩu, bankConfig, hóa đơn tiền phòng hoặc giao dịch nội bộ của Landlord. Không có API tạo Admin hoặc sửa role.
 

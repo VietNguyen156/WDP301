@@ -11,7 +11,10 @@ router.post("/ipn", webhookLimiter, verifyBankHubIpn, c.ipn);
 router.post("/events", webhookLimiter, verifyBankHubEvent, c.event);
 // Landlord endpoints.
 router.use(authenticate, authorize("LANDLORD"));
-router.use((req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
+router.use((req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
 router.get("/", c.status);
 router.post("/link-token", c.createLinkToken);
 router.post("/sync", c.sync);

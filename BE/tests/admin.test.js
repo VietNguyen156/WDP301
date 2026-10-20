@@ -8,7 +8,6 @@ process.env.JWT_SECRET = "admin-test-secret-at-least-32-characters";
 const app = require("../app");
 const models = require("../models");
 const fixture = require("./fixture");
-const { ensureAdmin } = require("../seeds/admin");
 let db, f, adminToken, ownerToken, managerToken, plan, subscription, invoice;
 const api = (method, path, token = adminToken) => {
   const call = request(app)[method](`/api/v1/admin${path}`);
@@ -24,8 +23,7 @@ before(async () => {
   await mongoose.connect(db.getUri(), { dbName: "admin_tests" });
   for (const model of Object.values(models)) await model.init();
   f = await fixture();
-  await ensureAdmin();
-  adminToken = await login("admin", "admin");
+  adminToken = await login("admin@test.local", "password123");
   ownerToken = await login("owner@test.local", "password123");
   managerToken = await login("manager@test.local", "password123");
 }, { timeout: 180000 });

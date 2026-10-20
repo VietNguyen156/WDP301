@@ -266,7 +266,9 @@ export default function TenantsPage() {
                           Chờ đổi mật khẩu
                         </span>
                       ) : (
-                        <span className="badge-active-pill">Đang hoạt động</span>
+                        <span className="badge-active-pill">
+                          Đang hoạt động
+                        </span>
                       )}
                     </td>
                     <td style={{ textAlign: "right" }}>
@@ -365,9 +367,7 @@ export default function TenantsPage() {
               >
                 Hủy
               </Button>
-              <Button busy={busy}>
-                Cấp tài khoản & Nhận mật khẩu tạm
-              </Button>
+              <Button busy={busy}>Cấp tài khoản & Nhận mật khẩu tạm</Button>
             </footer>
           </form>
         </Modal>

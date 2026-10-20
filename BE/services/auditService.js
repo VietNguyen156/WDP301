@@ -15,9 +15,9 @@ async function log({
       {
         actorId: req.user._id,
         actorRole: req.user.role,
-        landlordId: landlordId ?? (
-          req.user.role === "LANDLORD" ? req.user._id : req.user.landlordId
-        ),
+        landlordId:
+          landlordId ??
+          (req.user.role === "LANDLORD" ? req.user._id : req.user.landlordId),
         action,
         entityType,
         entityId,

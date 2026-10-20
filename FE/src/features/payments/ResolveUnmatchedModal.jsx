@@ -6,7 +6,12 @@ import { paymentService } from "../../services/paymentService";
 import { useToast } from "../../context/ToastContext";
 import { formatCurrency, formatDate } from "../../utils/formatters";
 
-export function ResolveUnmatchedModal({ isOpen, onClose, unmatchedPayment, onResolved }) {
+export function ResolveUnmatchedModal({
+  isOpen,
+  onClose,
+  unmatchedPayment,
+  onResolved,
+}) {
   const { toast } = useToast();
   const [invoiceId, setInvoiceId] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -24,15 +29,21 @@ export function ResolveUnmatchedModal({ isOpen, onClose, unmatchedPayment, onRes
 
     try {
       setSubmitting(true);
-      const res = await paymentService.resolveUnmatched(unmatchedId, invoiceId.trim());
+      const res = await paymentService.resolveUnmatched(
+        unmatchedId,
+        invoiceId.trim(),
+      );
       toast.success(
         res?.message ||
-          `Đã đối soát và gán thành công giao dịch ${unmatchedPayment.referenceCode} vào hóa đơn!`
+          `Đã đối soát và gán thành công giao dịch ${unmatchedPayment.referenceCode} vào hóa đơn!`,
       );
       onResolved?.();
       onClose();
     } catch (err) {
-      toast.error(err.message || "Gán giao dịch thất bại. Vui lòng kiểm tra lại ID hóa đơn.");
+      toast.error(
+        err.message ||
+          "Gán giao dịch thất bại. Vui lòng kiểm tra lại ID hóa đơn.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -46,17 +57,31 @@ export function ResolveUnmatchedModal({ isOpen, onClose, unmatchedPayment, onRes
       subtitle={`Mã tham chiếu ngân hàng: ${unmatchedPayment.referenceCode}`}
       maxWidth="550px"
       footer={
-        <div style={{ display: "flex", gap: "10px", width: "100%", justifyContent: "flex-end" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            width: "100%",
+            justifyContent: "flex-end",
+          }}
+        >
           <Button variant="outline" onClick={onClose} disabled={submitting}>
             Hủy bỏ
           </Button>
-          <Button variant="primary" loading={submitting} onClick={handleResolve}>
+          <Button
+            variant="primary"
+            loading={submitting}
+            onClick={handleResolve}
+          >
             🔗 Xác nhận gán vào hóa đơn
           </Button>
         </div>
       }
     >
-      <form onSubmit={handleResolve} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <form
+        onSubmit={handleResolve}
+        style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+      >
         {/* Unmatched Transaction Info Card */}
         <div
           style={{
@@ -70,21 +95,45 @@ export function ResolveUnmatchedModal({ isOpen, onClose, unmatchedPayment, onRes
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "0.82rem", color: "var(--neutral-500)" }}>Số tiền chuyển:</span>
-            <span style={{ fontWeight: "700", color: "var(--primary)", fontSize: "1.05rem" }} className="tnum">
+            <span style={{ fontSize: "0.82rem", color: "var(--neutral-500)" }}>
+              Số tiền chuyển:
+            </span>
+            <span
+              style={{
+                fontWeight: "700",
+                color: "var(--primary)",
+                fontSize: "1.05rem",
+              }}
+              className="tnum"
+            >
               +{formatCurrency(unmatchedPayment.amount)}
             </span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "0.82rem", color: "var(--neutral-500)" }}>Ngân hàng / Cổng:</span>
-            <span style={{ fontWeight: "600" }}>{unmatchedPayment.gateway || "Chuyển khoản"}</span>
+            <span style={{ fontSize: "0.82rem", color: "var(--neutral-500)" }}>
+              Ngân hàng / Cổng:
+            </span>
+            <span style={{ fontWeight: "600" }}>
+              {unmatchedPayment.gateway || "Chuyển khoản"}
+            </span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "0.82rem", color: "var(--neutral-500)" }}>Thời gian giao dịch:</span>
+            <span style={{ fontSize: "0.82rem", color: "var(--neutral-500)" }}>
+              Thời gian giao dịch:
+            </span>
             <span>{formatDate(unmatchedPayment.transactionDate, true)}</span>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginTop: "4px" }}>
-            <span style={{ fontSize: "0.82rem", color: "var(--neutral-500)" }}>Nội dung chuyển khoản thô:</span>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "2px",
+              marginTop: "4px",
+            }}
+          >
+            <span style={{ fontSize: "0.82rem", color: "var(--neutral-500)" }}>
+              Nội dung chuyển khoản thô:
+            </span>
             <code
               style={{
                 backgroundColor: "var(--white)",
@@ -120,7 +169,9 @@ export function ResolveUnmatchedModal({ isOpen, onClose, unmatchedPayment, onRes
             color: "var(--info-text)",
           }}
         >
-          💡 Sau khi gán, hệ thống sẽ tự động tạo bản ghi thanh toán chính thức, cập nhật số tiền đã nộp trên hóa đơn và đổi trạng thái giao dịch này thành <strong>RESOLVED</strong>.
+          💡 Sau khi gán, hệ thống sẽ tự động tạo bản ghi thanh toán chính thức,
+          cập nhật số tiền đã nộp trên hóa đơn và đổi trạng thái giao dịch này
+          thành <strong>RESOLVED</strong>.
         </div>
       </form>
     </Modal>

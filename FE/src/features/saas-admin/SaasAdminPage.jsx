@@ -56,7 +56,8 @@ export default function SaasAdminPage({ initialTab = "analytics" }) {
           <div className="admin-header-titles">
             <h1>DOMUS ERP · Nền Tảng Quản Trị Hệ Thống SaaS</h1>
             <p>
-              Bảng điều hành toàn sàn, kế toán thuê bao MRR & cấu hình hạn ngạch dành riêng cho SUPER_ADMIN
+              Bảng điều hành toàn sàn, kế toán thuê bao MRR & cấu hình hạn ngạch
+              dành riêng cho SUPER_ADMIN
             </p>
           </div>
         </div>
@@ -89,11 +90,19 @@ export default function SaasAdminPage({ initialTab = "analytics" }) {
       </div>
 
       {/* 3. Tab Views */}
-      {activeTab === "analytics" && <AdminAnalyticsView onNavigateTab={handleTabChange} />}
+      {activeTab === "analytics" && (
+        <AdminAnalyticsView onNavigateTab={handleTabChange} />
+      )}
       {activeTab === "plans" && <AdminPlansView />}
-      {activeTab === "landlords" && <AdminLandlordsView onNavigateTab={handleTabChange} />}
-      {activeTab === "subscriptions" && <AdminSubscriptionsView onNavigateTab={handleTabChange} />}
-      {activeTab === "upgrade-requests" && <AdminUpgradeRequestsView onNavigateTab={handleTabChange} />}
+      {activeTab === "landlords" && (
+        <AdminLandlordsView onNavigateTab={handleTabChange} />
+      )}
+      {activeTab === "subscriptions" && (
+        <AdminSubscriptionsView onNavigateTab={handleTabChange} />
+      )}
+      {activeTab === "upgrade-requests" && (
+        <AdminUpgradeRequestsView onNavigateTab={handleTabChange} />
+      )}
       {activeTab === "invoices" && <AdminInvoicesView />}
       {activeTab === "security" && <AdminSecurityView />}
     </div>

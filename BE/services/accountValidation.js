@@ -14,9 +14,14 @@ function email(value, required = false) {
 function phone(value, required = false) {
   if (!required && (value === undefined || value === "")) return undefined;
   v.text(value, "Số điện thoại");
-  const normalized = value.trim().replace(/[\s.-]/g, "").replace(/^\+84/, "0");
+  const normalized = value
+    .trim()
+    .replace(/[\s.-]/g, "")
+    .replace(/^\+84/, "0");
   if (!/^0\d{9}$/.test(normalized))
-    throw new ValidationError("Số điện thoại phải có 10 chữ số, bắt đầu bằng 0");
+    throw new ValidationError(
+      "Số điện thoại phải có 10 chữ số, bắt đầu bằng 0",
+    );
   return normalized;
 }
 
@@ -30,7 +35,9 @@ function citizenId(value) {
 function password(value) {
   v.text(value, "Mật khẩu");
   if (value.length < 8 || Buffer.byteLength(value, "utf8") > 72)
-    throw new ValidationError("Mật khẩu phải từ 8 ký tự và không vượt quá 72 byte UTF-8");
+    throw new ValidationError(
+      "Mật khẩu phải từ 8 ký tự và không vượt quá 72 byte UTF-8",
+    );
   return value;
 }
 

@@ -51,7 +51,10 @@ function validateCreate(body) {
       throw new ValidationError("Tối đa 30 số lượng dịch vụ");
     for (const [name, quantity] of Object.entries(body.serviceQuantities)) {
       v.text(name, "Tên dịch vụ");
-      if (/[.$]/.test(name) || ["__proto__", "prototype", "constructor"].includes(name))
+      if (
+        /[.$]/.test(name) ||
+        ["__proto__", "prototype", "constructor"].includes(name)
+      )
         throw new ValidationError("Tên dịch vụ không hợp lệ");
       v.number(quantity, "Số lượng dịch vụ");
     }
@@ -103,7 +106,8 @@ async function enrich(items) {
     {
       path: "roomId",
       select:
-        "roomNumber floor currentElectricIndex currentWaterIndex" + OWNED_FIELDS,
+        "roomNumber floor currentElectricIndex currentWaterIndex" +
+        OWNED_FIELDS,
       match: owned,
     },
   ]);
@@ -171,7 +175,10 @@ async function create(req) {
     }).session(session);
     if (!room) throw new NotFoundError("Không tìm thấy phòng trong cơ sở");
     for (const service of room.services || branch.defaultServices || []) {
-      if (service.billingType === "PER_UNIT" && body.serviceQuantities?.[service.name] === undefined)
+      if (
+        service.billingType === "PER_UNIT" &&
+        body.serviceQuantities?.[service.name] === undefined
+      )
         throw new ValidationError(`Thiếu số lượng dịch vụ ${service.name}`);
     }
     if (
@@ -195,7 +202,11 @@ async function create(req) {
         "Chỉ số bàn giao không được nhỏ hơn chỉ số hiện tại",
         "READING_LOWER_THAN_PREVIOUS",
       );
-    const { user: tenant, credentials } = await accounts.tenantForContract(req, body.tenant, session);
+    const { user: tenant, credentials } = await accounts.tenantForContract(
+      req,
+      body.tenant,
+      session,
+    );
     const { tenant: _tenant, ...input } = body;
     const [contract] = await Contract.create(
       [
@@ -225,7 +236,9 @@ async function create(req) {
     return { id: String(contract._id), credentials };
   });
   const contract = await get(req, result.id);
-  return result.credentials ? { ...contract, tenantCredentials: result.credentials } : contract;
+  return result.credentials
+    ? { ...contract, tenantCredentials: result.credentials }
+    : contract;
 }
 async function terminate(req) {
   await settlementService.terminate(req);

@@ -9,7 +9,6 @@ process.env.JWT_SECRET = "auth-test-secret-at-least-32-characters";
 const app = require("../app");
 const models = require("../models");
 const fixture = require("./fixture");
-const { ensureAdmin } = require("../seeds/admin");
 let db, f, ownerToken, otherToken, adminToken, manager, tenant;
 const endpoint = (method, path, token) => {
   const call = request(app)[method](`/api/v1${path}`);
@@ -22,10 +21,9 @@ before(async () => {
   await mongoose.connect(db.getUri(), { dbName: "auth_tests" });
   for (const model of Object.values(models)) await model.init();
   f = await fixture();
-  await ensureAdmin();
   ownerToken = (await login("owner@test.local", "password123").expect(200)).body.data.token;
   otherToken = (await login("other@test.local", "password123").expect(200)).body.data.token;
-  adminToken = (await login("admin", "admin").expect(200)).body.data.token;
+  adminToken = (await login("admin@test.local", "password123").expect(200)).body.data.token;
 }, { timeout: 180000 });
 
 after(async () => {
@@ -156,7 +154,7 @@ test("password reset is landlord-scoped, revokes tokens, and excludes credential
 
 test("alias cookie supports refresh/logout and JWT validation is consistent", async () => {
   const agent = request.agent(app);
-  const logged = await agent.post("/api/auth/login").send({ username: "admin", password: "admin" }).expect(200);
+  const logged = await agent.post("/api/auth/login").send({ username: "admin@test.local", password: "password123" }).expect(200);
   const token = logged.body.data.token;
   assert.ok(logged.headers["set-cookie"].some((cookie) => /Path=\/api;/.test(cookie) && cookie.includes("HttpOnly")));
   await agent.post("/api/auth/refresh").expect(200);
@@ -169,9 +167,4 @@ test("alias cookie supports refresh/logout and JWT validation is consistent", as
   await agent.post("/api/auth/refresh").expect(401);
   await endpoint("get", "/auth/me", token).expect(401);
   await endpoint("post", "/auth/otp/request").send({}).expect(410);
-  const before = await models.User.findOne({ username: "admin" }).select("+password");
-  await ensureAdmin();
-  const after = await models.User.findOne({ username: "admin" }).select("+password");
-  assert.equal(after.password, before.password);
-  assert.equal(await models.User.countDocuments({ username: "admin" }), 1);
 });

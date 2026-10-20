@@ -9,7 +9,10 @@ async function authenticateAccount(req, res, next) {
 async function authenticate(req, res, next) {
   await authenticateAccount(req, res, () => {});
   if (req.user.mustChangePassword)
-    throw new ForbiddenError("Bạn phải đổi mật khẩu trước khi sử dụng hệ thống", "PASSWORD_CHANGE_REQUIRED");
+    throw new ForbiddenError(
+      "Bạn phải đổi mật khẩu trước khi sử dụng hệ thống",
+      "PASSWORD_CHANGE_REQUIRED",
+    );
   next();
 }
 const authorize =

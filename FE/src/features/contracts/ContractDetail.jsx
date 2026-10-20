@@ -47,8 +47,16 @@ export default function ContractDetail({ id, onClose, onSaved }) {
 
   return (
     <Modal
-      title={settling ? "Quyết toán & Thanh lý hợp đồng thuê phòng" : "Hồ sơ Hợp đồng Thuê phòng"}
-      subtitle={c ? `${c.contractCode} · Phòng ${c.roomId?.roomNumber || ""} (${c.branchId?.name || ""})` : "Chi tiết hợp đồng"}
+      title={
+        settling
+          ? "Quyết toán & Thanh lý hợp đồng thuê phòng"
+          : "Hồ sơ Hợp đồng Thuê phòng"
+      }
+      subtitle={
+        c
+          ? `${c.contractCode} · Phòng ${c.roomId?.roomNumber || ""} (${c.branchId?.name || ""})`
+          : "Chi tiết hợp đồng"
+      }
       onClose={onClose}
       busy={saving}
       maxWidth="840px"
@@ -65,18 +73,58 @@ export default function ContractDetail({ id, onClose, onSaved }) {
           onBusyChange={setSaving}
         />
       ) : (
-        <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
+        <div
+          style={{
+            padding: "16px 20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+          }}
+        >
           {/* Header Summary Banner */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 14 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: 10,
+              padding: 14,
+            }}
+          >
             <div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--contracts-primary)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "var(--contracts-primary)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.03em",
+                }}
+              >
                 HỢP ĐỒNG THUÊ PHÒNG NỘI BỘ
               </span>
-              <h2 style={{ fontFamily: "var(--font-heading, 'Plus Jakarta Sans')", fontSize: 20, fontWeight: 700, margin: "2px 0 4px", color: "var(--contracts-on-surface)" }}>
+              <h2
+                style={{
+                  fontFamily: "var(--font-heading, 'Plus Jakarta Sans')",
+                  fontSize: 20,
+                  fontWeight: 700,
+                  margin: "2px 0 4px",
+                  color: "var(--contracts-on-surface)",
+                }}
+              >
                 Phòng {c.roomId?.roomNumber || "—"} · {c.branchId?.name || "—"}
               </h2>
-              <span style={{ fontSize: 12, color: "#64748b", fontFamily: "monospace" }}>
-                Mã HĐ: <strong>{c.contractCode}</strong> · Ký ngày: {date(c.createdAt)}
+              <span
+                style={{
+                  fontSize: 12,
+                  color: "#64748b",
+                  fontFamily: "monospace",
+                }}
+              >
+                Mã HĐ: <strong>{c.contractCode}</strong> · Ký ngày:{" "}
+                {date(c.createdAt)}
               </span>
             </div>
 
@@ -104,20 +152,47 @@ export default function ContractDetail({ id, onClose, onSaved }) {
           {/* Section 1: Đại diện thuê & Thời hạn (Bento 2-Col) */}
           <div className="form-grid-2col">
             {/* Đại diện thuê */}
-            <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 14 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", color: "#475569", display: "block", marginBottom: 8 }}>
+            <div
+              style={{
+                background: "#ffffff",
+                border: "1px solid #e2e8f0",
+                borderRadius: 10,
+                padding: 14,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  color: "#475569",
+                  display: "block",
+                  marginBottom: 8,
+                }}
+              >
                 Khách thuê đại diện
               </span>
               <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <div className="tenant-avatar-chip" style={{ width: 44, height: 44, fontSize: 15 }}>
+                <div
+                  className="tenant-avatar-chip"
+                  style={{ width: 44, height: 44, fontSize: 15 }}
+                >
                   {c.tenantId?.name?.slice(0, 2).toUpperCase() || "KT"}
                 </div>
                 <div>
-                  <strong style={{ fontSize: 15, color: "var(--contracts-on-surface)" }}>
+                  <strong
+                    style={{
+                      fontSize: 15,
+                      color: "var(--contracts-on-surface)",
+                    }}
+                  >
                     {c.tenantId?.name || "Khách thuê"}
                   </strong>
                   <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
-                    CCCD: <strong style={{ fontFamily: "monospace" }}>{c.tenantId?.citizenId || "—"}</strong>
+                    CCCD:{" "}
+                    <strong style={{ fontFamily: "monospace" }}>
+                      {c.tenantId?.citizenId || "—"}
+                    </strong>
                   </div>
                   <div style={{ fontSize: 12, color: "#64748b" }}>
                     SĐT: {c.tenantId?.phoneNumber || "Chưa có SĐT"}
@@ -125,15 +200,39 @@ export default function ContractDetail({ id, onClose, onSaved }) {
                 </div>
               </div>
               {c.tenantId?.hometown && (
-                <div style={{ fontSize: 12, color: "#64748b", marginTop: 8, paddingTop: 6, borderTop: "1px dashed #f1f5f9" }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "#64748b",
+                    marginTop: 8,
+                    paddingTop: 6,
+                    borderTop: "1px dashed #f1f5f9",
+                  }}
+                >
                   Quê quán / HK: <strong>{c.tenantId.hometown}</strong>
                 </div>
               )}
             </div>
 
             {/* Thời hạn thuê */}
-            <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 14 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", color: "#475569", display: "block", marginBottom: 8 }}>
+            <div
+              style={{
+                background: "#ffffff",
+                border: "1px solid #e2e8f0",
+                borderRadius: 10,
+                padding: 14,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  color: "#475569",
+                  display: "block",
+                  marginBottom: 8,
+                }}
+              >
                 Thời hạn hợp đồng
               </span>
               <div style={{ fontSize: 13, lineHeight: 1.6 }}>
@@ -145,7 +244,8 @@ export default function ContractDetail({ id, onClose, onSaved }) {
                 </div>
                 {c.actualEndDate && (
                   <div style={{ color: "#b45309" }}>
-                    Ngày trả phòng thực tế: <strong>{date(c.actualEndDate)}</strong>
+                    Ngày trả phòng thực tế:{" "}
+                    <strong>{date(c.actualEndDate)}</strong>
                   </div>
                 )}
               </div>
@@ -154,17 +254,57 @@ export default function ContractDetail({ id, onClose, onSaved }) {
 
           {/* Section 2: Tài chính & Tiền cọc */}
           <div className="form-grid-3col">
-            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 12 }}>
-              <span style={{ fontSize: 11.5, color: "#64748b", display: "block" }}>Giá thuê thỏa thuận:</span>
-              <div style={{ fontFamily: "var(--font-heading)", fontSize: 18, fontWeight: 700, color: "var(--contracts-on-surface)", marginTop: 4 }}>
+            <div
+              style={{
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: 10,
+                padding: 12,
+              }}
+            >
+              <span
+                style={{ fontSize: 11.5, color: "#64748b", display: "block" }}
+              >
+                Giá thuê thỏa thuận:
+              </span>
+              <div
+                style={{
+                  fontFamily: "var(--font-heading)",
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: "var(--contracts-on-surface)",
+                  marginTop: 4,
+                }}
+              >
                 {money(c.rentalPrice)}
               </div>
-              <span style={{ fontSize: 11, color: "#64748b" }}>Thu kỳ đầu tháng</span>
+              <span style={{ fontSize: 11, color: "#64748b" }}>
+                Thu kỳ đầu tháng
+              </span>
             </div>
 
-            <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: 12 }}>
-              <span style={{ fontSize: 11.5, color: "#166534", display: "block" }}>Tiền cọc đảm bảo:</span>
-              <div style={{ fontFamily: "var(--font-heading)", fontSize: 18, fontWeight: 700, color: "#065f46", marginTop: 4 }}>
+            <div
+              style={{
+                background: "#f0fdf4",
+                border: "1px solid #bbf7d0",
+                borderRadius: 10,
+                padding: 12,
+              }}
+            >
+              <span
+                style={{ fontSize: 11.5, color: "#166534", display: "block" }}
+              >
+                Tiền cọc đảm bảo:
+              </span>
+              <div
+                style={{
+                  fontFamily: "var(--font-heading)",
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: "#065f46",
+                  marginTop: 4,
+                }}
+              >
                 {money(c.depositAmount)}
               </div>
               <span style={{ fontSize: 11, color: "#059669" }}>
@@ -172,50 +312,118 @@ export default function ContractDetail({ id, onClose, onSaved }) {
               </span>
             </div>
 
-            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 12 }}>
-              <span style={{ fontSize: 11.5, color: "#64748b", display: "block" }}>Chỉ số bàn giao ban đầu:</span>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--contracts-on-surface)", marginTop: 4 }}>
+            <div
+              style={{
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: 10,
+                padding: 12,
+              }}
+            >
+              <span
+                style={{ fontSize: 11.5, color: "#64748b", display: "block" }}
+              >
+                Chỉ số bàn giao ban đầu:
+              </span>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "var(--contracts-on-surface)",
+                  marginTop: 4,
+                }}
+              >
                 ⚡ {c.initialElectricIndex} kWh · 💧 {c.initialWaterIndex} m³
               </div>
-              <span style={{ fontSize: 11, color: "#64748b" }}>Được ghi nhận tại ngày ký</span>
+              <span style={{ fontSize: 11, color: "#64748b" }}>
+                Được ghi nhận tại ngày ký
+              </span>
             </div>
           </div>
 
           {/* Section 3: Dịch vụ số lượng & Thành viên ở cùng */}
-          {c.serviceQuantities && Object.keys(c.serviceQuantities).length > 0 && (
-            <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 14 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", color: "#475569", display: "block", marginBottom: 6 }}>
-                Dịch vụ theo số lượng (PER_UNIT)
-              </span>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {Object.entries(c.serviceQuantities).map(([k, v]) => (
-                  <span
-                    key={k}
-                    style={{
-                      background: "#f1f5f9",
-                      padding: "4px 10px",
-                      borderRadius: 6,
-                      fontSize: 12,
-                      fontFamily: "monospace",
-                      border: "1px solid #cbd5e1",
-                    }}
-                  >
-                    {k}: <strong>{v}</strong>
-                  </span>
-                ))}
+          {c.serviceQuantities &&
+            Object.keys(c.serviceQuantities).length > 0 && (
+              <div
+                style={{
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 10,
+                  padding: 14,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    color: "#475569",
+                    display: "block",
+                    marginBottom: 6,
+                  }}
+                >
+                  Dịch vụ theo số lượng (PER_UNIT)
+                </span>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {Object.entries(c.serviceQuantities).map(([k, v]) => (
+                    <span
+                      key={k}
+                      style={{
+                        background: "#f1f5f9",
+                        padding: "4px 10px",
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontFamily: "monospace",
+                        border: "1px solid #cbd5e1",
+                      }}
+                    >
+                      {k}: <strong>{v}</strong>
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           {/* Người ở cùng */}
           {c.roommates && c.roommates.length > 0 && (
-            <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 14 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", color: "#475569", display: "block", marginBottom: 8 }}>
+            <div
+              style={{
+                background: "#ffffff",
+                border: "1px solid #e2e8f0",
+                borderRadius: 10,
+                padding: 14,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  color: "#475569",
+                  display: "block",
+                  marginBottom: 8,
+                }}
+              >
                 Thành viên ở cùng ({c.roommates.length} người)
               </span>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 8,
+                }}
+              >
                 {c.roommates.map((r, i) => (
-                  <div key={i} style={{ padding: "6px 10px", background: "#f8fafc", borderRadius: 6, fontSize: 12, border: "1px solid #f1f5f9" }}>
+                  <div
+                    key={i}
+                    style={{
+                      padding: "6px 10px",
+                      background: "#f8fafc",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      border: "1px solid #f1f5f9",
+                    }}
+                  >
                     <strong>{r.fullName}</strong>
                     <div style={{ fontSize: 11, color: "#64748b" }}>
                       CCCD: {r.citizenId || "—"} · SĐT: {r.phoneNumber || "—"}
@@ -228,19 +436,38 @@ export default function ContractDetail({ id, onClose, onSaved }) {
 
           {/* Ghi chú */}
           {c.notes && (
-            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, fontSize: 12.5, color: "#475569" }}>
+            <div
+              style={{
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: 10,
+                padding: 12,
+                fontSize: 12.5,
+                color: "#475569",
+              }}
+            >
               <strong>Ghi chú:</strong> {c.notes}
             </div>
           )}
 
           {/* Biên bản quyết toán nếu đã PREPARED hoặc TERMINATED */}
           {c.settlement?.state === "PREPARED" && c.status !== "TERMINATED" && (
-            <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: 14 }}>
+            <div
+              style={{
+                background: "#fffbeb",
+                border: "1px solid #fde68a",
+                borderRadius: 10,
+                padding: 14,
+              }}
+            >
               <h4 style={{ color: "#b45309", margin: "0 0 4px" }}>
                 Biên bản quyết toán đang được lập (Chưa hoàn tất thanh lý)
               </h4>
-              <p style={{ fontSize: 12.5, color: "#92400e", margin: "0 0 10px" }}>
-                Hợp đồng đã lập phiếu quyết toán và cấn trừ tiền cọc. Vui lòng hoàn tất thu nợ hoặc hoàn tiền cọc để thanh lý phòng.
+              <p
+                style={{ fontSize: 12.5, color: "#92400e", margin: "0 0 10px" }}
+              >
+                Hợp đồng đã lập phiếu quyết toán và cấn trừ tiền cọc. Vui lòng
+                hoàn tất thu nợ hoặc hoàn tiền cọc để thanh lý phòng.
               </p>
               {isLandlord && (
                 <Button onClick={() => setSettling(true)}>
@@ -251,34 +478,72 @@ export default function ContractDetail({ id, onClose, onSaved }) {
           )}
 
           {c.status === "TERMINATED" && (
-            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 14 }}>
+            <div
+              style={{
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: 10,
+                padding: 14,
+              }}
+            >
               <h4 style={{ color: "#334155", margin: "0 0 8px" }}>
                 Biên bản Quyết toán Hoàn tất · Ngày {date(c.actualEndDate)}
               </h4>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 12.5 }}>
-                <div>Tiền điện cuối kỳ: <strong>{money(c.settlement?.electricAmount)}</strong></div>
-                <div>Tiền nước cuối kỳ: <strong>{money(c.settlement?.waterAmount)}</strong></div>
-                <div>Khấu trừ vật tư hư hại: <strong>{money(c.settlement?.deductionAmount)}</strong></div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 8,
+                  fontSize: 12.5,
+                }}
+              >
+                <div>
+                  Tiền điện cuối kỳ:{" "}
+                  <strong>{money(c.settlement?.electricAmount)}</strong>
+                </div>
+                <div>
+                  Tiền nước cuối kỳ:{" "}
+                  <strong>{money(c.settlement?.waterAmount)}</strong>
+                </div>
+                <div>
+                  Khấu trừ vật tư hư hại:{" "}
+                  <strong>{money(c.settlement?.deductionAmount)}</strong>
+                </div>
                 <div style={{ color: "#059669" }}>
-                  Tiền cọc hoàn trả: <strong>{money(c.refundedDepositAmount || c.settlement?.refundedDepositAmount)}</strong>
+                  Tiền cọc hoàn trả:{" "}
+                  <strong>
+                    {money(
+                      c.refundedDepositAmount ||
+                        c.settlement?.refundedDepositAmount,
+                    )}
+                  </strong>
                 </div>
               </div>
             </div>
           )}
 
           {/* Footer Actions */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 14, borderTop: "1px solid #e2e8f0" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              paddingTop: 14,
+              borderTop: "1px solid #e2e8f0",
+            }}
+          >
             <Button variant="secondary" onClick={() => window.print()}>
               <Printer size={15} />
               <span>In bản Hợp đồng (PDF)</span>
             </Button>
 
             <div style={{ display: "flex", gap: 8 }}>
-              {isLandlord && ["ACTIVE", "EXPIRING_SOON", "EXPIRED"].includes(c.status) && (
-                <Button variant="danger" onClick={() => setSettling(true)}>
-                  <span>Quyết toán & Thanh lý Hợp đồng</span>
-                </Button>
-              )}
+              {isLandlord &&
+                ["ACTIVE", "EXPIRING_SOON", "EXPIRED"].includes(c.status) && (
+                  <Button variant="danger" onClick={() => setSettling(true)}>
+                    <span>Quyết toán & Thanh lý Hợp đồng</span>
+                  </Button>
+                )}
               <Button variant="secondary" onClick={onClose}>
                 Đóng
               </Button>
@@ -295,12 +560,15 @@ function SettlementWorkflow({ contract, onCancel, onSaved, onBusyChange }) {
 
   const [body, setBody] = useState({
     actualEndDate: today(),
-    finalElectricIndex: contract.roomId?.currentElectricIndex || contract.initialElectricIndex,
-    finalWaterIndex: contract.roomId?.currentWaterIndex || contract.initialWaterIndex,
+    finalElectricIndex:
+      contract.roomId?.currentElectricIndex || contract.initialElectricIndex,
+    finalWaterIndex:
+      contract.roomId?.currentWaterIndex || contract.initialWaterIndex,
     electricImage: "",
     waterImage: "",
     deductions: [],
-    settlementNotes: "Biên bản trả phòng và nghiệm thu vật tư đã được hai bên kiểm tra và xác nhận.",
+    settlementNotes:
+      "Biên bản trả phòng và nghiệm thu vật tư đã được hai bên kiểm tra và xác nhận.",
     confirmedByBothParties: true,
   });
 
@@ -336,7 +604,8 @@ function SettlementWorkflow({ contract, onCancel, onSaved, onBusyChange }) {
   const change = (key) => (e) =>
     setBody({
       ...body,
-      [key]: e.target.type === "number" ? Number(e.target.value) : e.target.value,
+      [key]:
+        e.target.type === "number" ? Number(e.target.value) : e.target.value,
     });
 
   async function handleCreateSettlement(e) {
@@ -409,7 +678,7 @@ function SettlementWorkflow({ contract, onCancel, onSaved, onBusyChange }) {
     try {
       await contractApi.terminate(contract._id, {});
       toast.success(
-        `Đã hoàn tất thanh lý hợp đồng ${contract.contractCode}. Phòng chuyển sang Dọn dẹp (CLEANING).`
+        `Đã hoàn tất thanh lý hợp đồng ${contract.contractCode}. Phòng chuyển sang Dọn dẹp (CLEANING).`,
       );
       onSaved?.();
     } catch (err) {
@@ -423,7 +692,10 @@ function SettlementWorkflow({ contract, onCancel, onSaved, onBusyChange }) {
   function addDeduction() {
     setBody({
       ...body,
-      deductions: [...body.deductions, { reason: "", amount: 0, evidenceImage: "" }],
+      deductions: [
+        ...body.deductions,
+        { reason: "", amount: 0, evidenceImage: "" },
+      ],
     });
   }
 
@@ -439,20 +711,48 @@ function SettlementWorkflow({ contract, onCancel, onSaved, onBusyChange }) {
   }
 
   return (
-    <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+    <div
+      style={{
+        padding: "16px 20px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+      }}
+    >
       {error && <FormError message={error} />}
 
       {/* Settlement Formula Banner (PROJECT_RULES Section 11) */}
-      <div style={{ padding: "12px 14px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: 12.5, color: "#334155" }}>
+      <div
+        style={{
+          padding: "12px 14px",
+          background: "#f8fafc",
+          border: "1px solid #cbd5e1",
+          borderRadius: 8,
+          fontSize: 12.5,
+          color: "#334155",
+        }}
+      >
         <strong>Công thức quyết toán tiền cọc minh bạch:</strong>
-        <div style={{ fontFamily: "monospace", margin: "4px 0", color: "var(--contracts-primary)", fontWeight: 700 }}>
-          Tiền cọc hoàn trả = Tiền cọc - (Nợ cũ + Điện nước cuối kỳ + Phí hư hại vật tư)
+        <div
+          style={{
+            fontFamily: "monospace",
+            margin: "4px 0",
+            color: "var(--contracts-primary)",
+            fontWeight: 700,
+          }}
+        >
+          Tiền cọc hoàn trả = Tiền cọc - (Nợ cũ + Điện nước cuối kỳ + Phí hư hại
+          vật tư)
         </div>
-        Phòng sẽ tự động chuyển trạng thái Cần dọn dẹp (<code>CLEANING</code>) sau khi thanh lý.
+        Phòng sẽ tự động chuyển trạng thái Cần dọn dẹp (<code>CLEANING</code>)
+        sau khi thanh lý.
       </div>
 
       {!settlementData ? (
-        <form onSubmit={handleCreateSettlement} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <form
+          onSubmit={handleCreateSettlement}
+          style={{ display: "flex", flexDirection: "column", gap: 14 }}
+        >
           {/* Ngày trả phòng & Chỉ số cuối */}
           <div className="form-grid-3col">
             <Field
@@ -479,24 +779,56 @@ function SettlementWorkflow({ contract, onCancel, onSaved, onBusyChange }) {
           </div>
 
           {/* Nghiệm thu vật tư / Hư hại */}
-          <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div
+            style={{
+              background: "#ffffff",
+              border: "1px solid #e2e8f0",
+              borderRadius: 10,
+              padding: 12,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
               <div>
-                <strong style={{ fontSize: 13, color: "var(--contracts-on-surface)" }}>
-                  Khấu trừ Hư hại Vật tư / Bồi thường ({body.deductions.length} mục)
+                <strong
+                  style={{ fontSize: 13, color: "var(--contracts-on-surface)" }}
+                >
+                  Khấu trừ Hư hại Vật tư / Bồi thường ({body.deductions.length}{" "}
+                  mục)
                 </strong>
-                <span style={{ fontSize: 11, color: "#64748b", display: "block" }}>
+                <span
+                  style={{ fontSize: 11, color: "#64748b", display: "block" }}
+                >
                   Ghi nhận các hư hại thiết bị phát sinh trong quá trình ở
                 </span>
               </div>
-              <button type="button" className="contracts-btn-outline" onClick={addDeduction}>
+              <button
+                type="button"
+                className="contracts-btn-outline"
+                onClick={addDeduction}
+              >
                 <Plus size={13} />
                 <span>+ Thêm mục trừ</span>
               </button>
             </div>
 
             {body.deductions.map((d, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 28px", gap: 8, alignItems: "center", marginTop: 6 }}>
+              <div
+                key={i}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "2fr 1fr 28px",
+                  gap: 8,
+                  alignItems: "center",
+                  marginTop: 6,
+                }}
+              >
                 <input
                   type="text"
                   className="contracts-search-input"
@@ -537,16 +869,37 @@ function SettlementWorkflow({ contract, onCancel, onSaved, onBusyChange }) {
             onChange={change("settlementNotes")}
           />
 
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
             <input
               type="checkbox"
               checked={body.confirmedByBothParties}
-              onChange={(e) => setBody({ ...body, confirmedByBothParties: e.target.checked })}
+              onChange={(e) =>
+                setBody({ ...body, confirmedByBothParties: e.target.checked })
+              }
             />
-            <span>Hai bên (Chủ trọ và Khách thuê) đã cùng kiểm tra hiện trường và đồng thuận các chỉ số trên.</span>
+            <span>
+              Hai bên (Chủ trọ và Khách thuê) đã cùng kiểm tra hiện trường và
+              đồng thuận các chỉ số trên.
+            </span>
           </label>
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: "1px solid #e2e8f0" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              paddingTop: 10,
+              borderTop: "1px solid #e2e8f0",
+            }}
+          >
             <Button variant="secondary" onClick={onCancel} disabled={busy}>
               Quay lại
             </Button>
@@ -560,36 +913,55 @@ function SettlementWorkflow({ contract, onCancel, onSaved, onBusyChange }) {
         /* Kết quả Quyết toán & Các bước thanh lý */
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div className="settlement-card-box">
-            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--contracts-on-surface)", display: "block", marginBottom: 8 }}>
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: "var(--contracts-on-surface)",
+                display: "block",
+                marginBottom: 8,
+              }}
+            >
               Chi tiết Cấn trừ Tài chính (Settlement Balance)
             </span>
 
             <div className="settlement-calc-row">
               <span>Tiền cọc hợp đồng ban đầu:</span>
-              <strong style={{ color: "#065f46" }}>+ {money(settlementData.initialDeposit || contract.depositAmount)}</strong>
+              <strong style={{ color: "#065f46" }}>
+                +{" "}
+                {money(settlementData.initialDeposit || contract.depositAmount)}
+              </strong>
             </div>
 
             <div className="settlement-calc-row">
               <span>Tiền điện cuối kỳ:</span>
-              <strong style={{ color: "#b91c1c" }}>- {money(settlementData.electricAmount)}</strong>
+              <strong style={{ color: "#b91c1c" }}>
+                - {money(settlementData.electricAmount)}
+              </strong>
             </div>
 
             <div className="settlement-calc-row">
               <span>Tiền nước cuối kỳ:</span>
-              <strong style={{ color: "#b91c1c" }}>- {money(settlementData.waterAmount)}</strong>
+              <strong style={{ color: "#b91c1c" }}>
+                - {money(settlementData.waterAmount)}
+              </strong>
             </div>
 
             {settlementData.deductionAmount > 0 && (
               <div className="settlement-calc-row">
                 <span>Khấu trừ hư hại thiết bị:</span>
-                <strong style={{ color: "#b91c1c" }}>- {money(settlementData.deductionAmount)}</strong>
+                <strong style={{ color: "#b91c1c" }}>
+                  - {money(settlementData.deductionAmount)}
+                </strong>
               </div>
             )}
 
             {settlementData.unpaidInvoicesTotal > 0 && (
               <div className="settlement-calc-row">
                 <span>Nợ hóa đơn cũ chưa đóng:</span>
-                <strong style={{ color: "#b91c1c" }}>- {money(settlementData.unpaidInvoicesTotal)}</strong>
+                <strong style={{ color: "#b91c1c" }}>
+                  - {money(settlementData.unpaidInvoicesTotal)}
+                </strong>
               </div>
             )}
 
@@ -597,12 +969,16 @@ function SettlementWorkflow({ contract, onCancel, onSaved, onBusyChange }) {
             {settlementData.refundedDepositAmount > 0 ? (
               <div className="settlement-final-highlight refund">
                 <span>Chủ trọ hoàn trả lại tiền cọc thừa cho khách:</span>
-                <span style={{ fontSize: 18 }}>{money(settlementData.refundedDepositAmount)}</span>
+                <span style={{ fontSize: 18 }}>
+                  {money(settlementData.refundedDepositAmount)}
+                </span>
               </div>
             ) : settlementData.remainingDebtAmount > 0 ? (
               <div className="settlement-final-highlight debt">
                 <span>Khách thuê còn thiếu (Cần thanh toán thêm):</span>
-                <span style={{ fontSize: 18 }}>{money(settlementData.remainingDebtAmount)}</span>
+                <span style={{ fontSize: 18 }}>
+                  {money(settlementData.remainingDebtAmount)}
+                </span>
               </div>
             ) : (
               <div className="settlement-final-highlight refund">
@@ -613,39 +989,83 @@ function SettlementWorkflow({ contract, onCancel, onSaved, onBusyChange }) {
           </div>
 
           {/* Hóa đơn phát sinh cần thanh toán nếu có nợ */}
-          {settlementInvoices.length > 0 && settlementData.remainingDebtAmount > 0 && (
-            <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: 12 }}>
-              <strong style={{ fontSize: 13, color: "#b45309", display: "block", marginBottom: 6 }}>
-                Hóa đơn quyết toán cần thu trước khi thanh lý:
-              </strong>
-              {settlementInvoices.map((inv) => (
-                <div key={inv._id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px dashed #fef3c7", fontSize: 12.5 }}>
-                  <div>
-                    <span>Mã: <strong>{inv.invoiceCode}</strong> · Còn thiếu: <strong style={{ color: "#b91c1c" }}>{money(inv.remainingAmount)}</strong></span>
-                  </div>
-                  <button
-                    type="button"
-                    className="contracts-btn-primary"
-                    style={{ padding: "4px 10px", fontSize: 12 }}
-                    onClick={() => handlePayCash(inv._id, inv.remainingAmount)}
-                    disabled={payingInvoiceId === inv._id}
+          {settlementInvoices.length > 0 &&
+            settlementData.remainingDebtAmount > 0 && (
+              <div
+                style={{
+                  background: "#fffbeb",
+                  border: "1px solid #fde68a",
+                  borderRadius: 10,
+                  padding: 12,
+                }}
+              >
+                <strong
+                  style={{
+                    fontSize: 13,
+                    color: "#b45309",
+                    display: "block",
+                    marginBottom: 6,
+                  }}
+                >
+                  Hóa đơn quyết toán cần thu trước khi thanh lý:
+                </strong>
+                {settlementInvoices.map((inv) => (
+                  <div
+                    key={inv._id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "6px 0",
+                      borderBottom: "1px dashed #fef3c7",
+                      fontSize: 12.5,
+                    }}
                   >
-                    <Banknote size={13} />
-                    <span>Thu tiền mặt</span>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+                    <div>
+                      <span>
+                        Mã: <strong>{inv.invoiceCode}</strong> · Còn thiếu:{" "}
+                        <strong style={{ color: "#b91c1c" }}>
+                          {money(inv.remainingAmount)}
+                        </strong>
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="contracts-btn-primary"
+                      style={{ padding: "4px 10px", fontSize: 12 }}
+                      onClick={() =>
+                        handlePayCash(inv._id, inv.remainingAmount)
+                      }
+                      disabled={payingInvoiceId === inv._id}
+                    >
+                      <Banknote size={13} />
+                      <span>Thu tiền mặt</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
           {/* Bottom Actions */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: "1px solid #e2e8f0" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              paddingTop: 10,
+              borderTop: "1px solid #e2e8f0",
+            }}
+          >
             <Button variant="secondary" onClick={onCancel} disabled={busy}>
               Đóng
             </Button>
 
             <div style={{ display: "flex", gap: 10 }}>
-              <Button variant="secondary" onClick={handleRefreshBalance} disabled={busy}>
+              <Button
+                variant="secondary"
+                onClick={handleRefreshBalance}
+                disabled={busy}
+              >
                 <RefreshCw size={14} />
                 <span>Cập nhật số dư</span>
               </Button>

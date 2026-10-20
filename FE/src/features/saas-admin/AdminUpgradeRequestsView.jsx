@@ -11,7 +11,14 @@ import {
 import { adminApi, errorMessage } from "../../services/api";
 import { money } from "../../utils/format";
 import { useToast } from "../../context/ToastContext";
-import { LoadingState, ErrorState, EmptyState, Button, Modal, Pagination } from "../../components/ui";
+import {
+  LoadingState,
+  ErrorState,
+  EmptyState,
+  Button,
+  Modal,
+  Pagination,
+} from "../../components/ui";
 
 const STATUS_FILTERS = [
   { value: "PENDING", label: "Chờ duyệt", icon: Clock },
@@ -28,7 +35,9 @@ const STATUS_PILLS = {
 };
 
 const localDate = (date) =>
-  new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 10);
 
 // Same default as the backend: from today for one billing cycle of the requested plan.
 function defaultPeriod(plan) {
@@ -40,16 +49,26 @@ function defaultPeriod(plan) {
 }
 
 const formatDateTime = (value) =>
-  value ? new Date(value).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" }) : "—";
+  value
+    ? new Date(value).toLocaleString("vi-VN", {
+        dateStyle: "short",
+        timeStyle: "short",
+      })
+    : "—";
 
 function PlanCell({ plan, muted }) {
-  if (!plan) return <span style={{ fontSize: 12, color: "#94a3b8" }}>Chưa có gói</span>;
+  if (!plan)
+    return <span style={{ fontSize: 12, color: "#94a3b8" }}>Chưa có gói</span>;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <strong style={{ color: muted ? "#475569" : "#0f172a", fontSize: 13 }}>{plan.name}</strong>
+      <strong style={{ color: muted ? "#475569" : "#0f172a", fontSize: 13 }}>
+        {plan.name}
+      </strong>
       <span style={{ fontSize: 11.5, color: "#64748b" }}>
         {plan.code} · {money(plan.price || 0)}
-        {plan.billingCycle ? ` / ${plan.billingCycle === "YEARLY" ? "năm" : "tháng"}` : ""}
+        {plan.billingCycle
+          ? ` / ${plan.billingCycle === "YEARLY" ? "năm" : "tháng"}`
+          : ""}
       </span>
     </div>
   );
@@ -74,7 +93,11 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await adminApi.listUpgradeRequests({ status: statusFilter, page, limit: 20 });
+      const res = await adminApi.listUpgradeRequests({
+        status: statusFilter,
+        page,
+        limit: 20,
+      });
       setRequests(res?.items || []);
       setTotal(res?.total || 0);
     } catch (err) {
@@ -112,16 +135,20 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
       toast.success(
         `Đã duyệt yêu cầu của ${approving.landlordId?.name || "chủ trọ"}. Hóa đơn SaaS ${
           res?.invoice?.invoiceCode || ""
-        } đang chờ thanh toán.`
+        } đang chờ thanh toán.`,
       );
       setApproving(null);
       fetchRequests();
     } catch (err) {
       const msg = errorMessage(err);
       if (msg.includes("PLAN_QUOTA_BELOW_USAGE")) {
-        toast.error("Không thể duyệt: tài nguyên chủ trọ đang dùng vượt hạn ngạch của gói được yêu cầu.");
+        toast.error(
+          "Không thể duyệt: tài nguyên chủ trọ đang dùng vượt hạn ngạch của gói được yêu cầu.",
+        );
       } else if (msg.includes("SUBSCRIPTION_PENDING_EXISTS")) {
-        toast.error("Chủ trọ đang có một thuê bao chờ thanh toán. Hãy xử lý hoặc hủy thuê bao đó trước.");
+        toast.error(
+          "Chủ trọ đang có một thuê bao chờ thanh toán. Hãy xử lý hoặc hủy thuê bao đó trước.",
+        );
       } else {
         toast.error(msg);
       }
@@ -138,8 +165,12 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
     }
     setSubmitting(true);
     try {
-      await adminApi.rejectUpgradeRequest(rejecting._id, { reason: reason.trim() });
-      toast.success(`Đã từ chối yêu cầu của ${rejecting.landlordId?.name || "chủ trọ"}.`);
+      await adminApi.rejectUpgradeRequest(rejecting._id, {
+        reason: reason.trim(),
+      });
+      toast.success(
+        `Đã từ chối yêu cầu của ${rejecting.landlordId?.name || "chủ trọ"}.`,
+      );
       setRejecting(null);
       setReason("");
       fetchRequests();
@@ -180,9 +211,10 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
         <div className="admin-alert-banner info" style={{ marginBottom: 16 }}>
           <Info size={20} style={{ flexShrink: 0 }} />
           <div>
-            Duyệt yêu cầu sẽ tạo <strong>thuê bao chờ thanh toán</strong> và <strong>hóa đơn SaaS</strong>{" "}
-            cho chủ trọ. Gói mới chỉ có hiệu lực sau khi hóa đơn được thanh toán (qua cổng SePay hoặc xác
-            nhận thủ công ở tab Hóa đơn).
+            Duyệt yêu cầu sẽ tạo <strong>thuê bao chờ thanh toán</strong> và{" "}
+            <strong>hóa đơn SaaS</strong> cho chủ trọ. Gói mới chỉ có hiệu lực
+            sau khi hóa đơn được thanh toán (qua cổng SePay hoặc xác nhận thủ
+            công ở tab Hóa đơn).
           </div>
         </div>
       )}
@@ -219,58 +251,113 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
                 {requests.map((request) => {
                   const landlord = request.landlordId;
                   const plan = request.planId;
-                  const pill = STATUS_PILLS[request.status] || STATUS_PILLS.PENDING;
+                  const pill =
+                    STATUS_PILLS[request.status] || STATUS_PILLS.PENDING;
                   const PillIcon = pill.icon;
                   const isRenewal =
-                    request.currentPlanId && plan && String(request.currentPlanId._id) === String(plan._id);
+                    request.currentPlanId &&
+                    plan &&
+                    String(request.currentPlanId._id) === String(plan._id);
                   return (
                     <tr key={request._id}>
                       <td>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          <strong style={{ color: "#0f172a", fontSize: 13 }}>{landlord?.name || "—"}</strong>
-                          <span style={{ fontSize: 11.5, color: "#64748b" }}>{landlord?.email}</span>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 2,
+                          }}
+                        >
+                          <strong style={{ color: "#0f172a", fontSize: 13 }}>
+                            {landlord?.name || "—"}
+                          </strong>
+                          <span style={{ fontSize: 11.5, color: "#64748b" }}>
+                            {landlord?.email}
+                          </span>
                           {landlord?.phoneNumber && (
-                            <span style={{ fontSize: 11.5, color: "#64748b" }}>{landlord.phoneNumber}</span>
+                            <span style={{ fontSize: 11.5, color: "#64748b" }}>
+                              {landlord.phoneNumber}
+                            </span>
                           )}
                           {landlord?.status && landlord.status !== "ACTIVE" && (
-                            <span className="status-pill suspended" style={{ width: "fit-content" }}>
+                            <span
+                              className="status-pill suspended"
+                              style={{ width: "fit-content" }}
+                            >
                               {landlord.status}
                             </span>
                           )}
                         </div>
                       </td>
                       <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
                           <PlanCell plan={request.currentPlanId} muted />
-                          <ArrowRight size={14} color="#94a3b8" style={{ flexShrink: 0 }} />
+                          <ArrowRight
+                            size={14}
+                            color="#94a3b8"
+                            style={{ flexShrink: 0 }}
+                          />
                           <PlanCell plan={plan} />
                         </div>
                         {isRenewal && (
-                          <span style={{ fontSize: 11.5, color: "#0f766e", fontWeight: 600 }}>Gia hạn gói đang dùng</span>
+                          <span
+                            style={{
+                              fontSize: 11.5,
+                              color: "#0f766e",
+                              fontWeight: 600,
+                            }}
+                          >
+                            Gia hạn gói đang dùng
+                          </span>
                         )}
                       </td>
                       <td>
                         {plan ? (
                           <span style={{ fontSize: 12, color: "#475569" }}>
-                            {plan.maxBranches} cơ sở · {plan.maxRooms} phòng · {plan.maxManagers} quản lý
+                            {plan.maxBranches} cơ sở · {plan.maxRooms} phòng ·{" "}
+                            {plan.maxManagers} quản lý
                           </span>
                         ) : (
                           "—"
                         )}
                       </td>
                       <td style={{ maxWidth: 220 }}>
-                        <span style={{ fontSize: 12.5, color: "#334155" }}>{request.note || "—"}</span>
-                        {request.status === "REJECTED" && request.rejectReason && (
-                          <div style={{ fontSize: 11.5, color: "#dc2626", marginTop: 4 }}>
-                            Lý do từ chối: {request.rejectReason}
-                          </div>
-                        )}
+                        <span style={{ fontSize: 12.5, color: "#334155" }}>
+                          {request.note || "—"}
+                        </span>
+                        {request.status === "REJECTED" &&
+                          request.rejectReason && (
+                            <div
+                              style={{
+                                fontSize: 11.5,
+                                color: "#dc2626",
+                                marginTop: 4,
+                              }}
+                            >
+                              Lý do từ chối: {request.rejectReason}
+                            </div>
+                          )}
                       </td>
                       <td>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 2,
+                            fontSize: 12,
+                          }}
+                        >
                           <span>Gửi: {formatDateTime(request.createdAt)}</span>
                           {request.handledAt && (
-                            <span style={{ color: "#64748b" }}>Xử lý: {formatDateTime(request.handledAt)}</span>
+                            <span style={{ color: "#64748b" }}>
+                              Xử lý: {formatDateTime(request.handledAt)}
+                            </span>
                           )}
                         </div>
                       </td>
@@ -324,7 +411,12 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
             </table>
           </div>
 
-          <Pagination page={page} total={total} limit={20} onChange={(p) => setPage(p)} />
+          <Pagination
+            page={page}
+            total={total}
+            limit={20}
+            onChange={(p) => setPage(p)}
+          />
         </>
       )}
 
@@ -338,7 +430,11 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
           maxWidth="540px"
           footer={
             <>
-              <Button variant="secondary" onClick={() => setApproving(null)} disabled={submitting}>
+              <Button
+                variant="secondary"
+                onClick={() => setApproving(null)}
+                disabled={submitting}
+              >
                 Hủy bỏ
               </Button>
               <Button onClick={handleApprove} busy={submitting}>
@@ -351,9 +447,11 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
             <div className="admin-alert-banner info">
               <Receipt size={20} style={{ flexShrink: 0 }} />
               <div>
-                Hệ thống sẽ tạo thuê bao <strong>{approving.planId?.name}</strong> ở trạng thái{" "}
-                <strong>chờ thanh toán</strong> và hóa đơn SaaS <strong>{money(approving.planId?.price || 0)}</strong>.
-                Chủ trọ vẫn dùng gói hiện tại cho tới khi hóa đơn được thanh toán.
+                Hệ thống sẽ tạo thuê bao{" "}
+                <strong>{approving.planId?.name}</strong> ở trạng thái{" "}
+                <strong>chờ thanh toán</strong> và hóa đơn SaaS{" "}
+                <strong>{money(approving.planId?.price || 0)}</strong>. Chủ trọ
+                vẫn dùng gói hiện tại cho tới khi hóa đơn được thanh toán.
               </div>
             </div>
 
@@ -367,7 +465,9 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
                   required
                   className="admin-input"
                   value={period.startDate}
-                  onChange={(e) => setPeriod({ ...period, startDate: e.target.value })}
+                  onChange={(e) =>
+                    setPeriod({ ...period, startDate: e.target.value })
+                  }
                 />
               </div>
               <div className="admin-form-group">
@@ -379,13 +479,18 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
                   required
                   className="admin-input"
                   value={period.endDate}
-                  onChange={(e) => setPeriod({ ...period, endDate: e.target.value })}
+                  onChange={(e) =>
+                    setPeriod({ ...period, endDate: e.target.value })
+                  }
                 />
               </div>
             </div>
             <small className="admin-form-help">
               Mặc định từ hôm nay đến hết một chu kỳ của gói (
-              {approving.planId?.billingCycle === "YEARLY" ? "1 năm" : "1 tháng"}).
+              {approving.planId?.billingCycle === "YEARLY"
+                ? "1 năm"
+                : "1 tháng"}
+              ).
             </small>
           </form>
         </Modal>
@@ -401,7 +506,11 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
           maxWidth="520px"
           footer={
             <>
-              <Button variant="secondary" onClick={() => setRejecting(null)} disabled={submitting}>
+              <Button
+                variant="secondary"
+                onClick={() => setRejecting(null)}
+                disabled={submitting}
+              >
                 Hủy bỏ
               </Button>
               <Button variant="danger" onClick={handleReject} busy={submitting}>
@@ -413,7 +522,10 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
           <form className="admin-form" onSubmit={handleReject}>
             <div className="admin-alert-banner warning">
               <Info size={20} style={{ flexShrink: 0 }} />
-              <div>Chủ trọ sẽ thấy lý do này trong lịch sử yêu cầu và có thể gửi lại yêu cầu mới.</div>
+              <div>
+                Chủ trọ sẽ thấy lý do này trong lịch sử yêu cầu và có thể gửi
+                lại yêu cầu mới.
+              </div>
             </div>
             <div className="admin-form-group">
               <label>

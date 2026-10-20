@@ -2,7 +2,8 @@ const crypto = require("node:crypto");
 const { AppError } = require("../utils/errors");
 const { limiter } = require("./rateLimit");
 
-const perMinute = (limit) => limiter({ windowMs: 60_000, limit, errorCode: "RATE_LIMITED" });
+const perMinute = (limit) =>
+  limiter({ windowMs: 60_000, limit, errorCode: "RATE_LIMITED" });
 
 function equalSecret(actual, expected) {
   const a = Buffer.from(actual);
@@ -37,7 +38,11 @@ function verifyWebhook(req, res, next) {
     }
   } else {
     return next(
-      new AppError("Chưa cấu hình xác thực webhook", 503, "WEBHOOK_NOT_CONFIGURED"),
+      new AppError(
+        "Chưa cấu hình xác thực webhook",
+        503,
+        "WEBHOOK_NOT_CONFIGURED",
+      ),
     );
   }
   next(
@@ -47,20 +52,41 @@ function verifyWebhook(req, res, next) {
 
 // SePay Bank Hub sends a fixed credential: "Authorization: Apikey <key>" for balance IPN,
 // "X-Secret-Key: <secret>" for link/unlink events. Unset credential -> endpoint disabled.
-const verifyHeader = (header, envName, prefix = "") => (req, res, next) => {
-  const secret = process.env[envName];
-  if (!secret)
-    return next(new AppError("Chưa cấu hình xác thực SePay Bank Hub", 503, "WEBHOOK_NOT_CONFIGURED"));
-  if (equalSecret(req.get(header) || "", `${prefix}${secret}`)) return next();
-  next(new AppError("Xác thực webhook không hợp lệ", 401, "WEBHOOK_UNAUTHORIZED"));
-};
+const verifyHeader =
+  (header, envName, prefix = "") =>
+  (req, res, next) => {
+    const secret = process.env[envName];
+    if (!secret)
+      return next(
+        new AppError(
+          "Chưa cấu hình xác thực SePay Bank Hub",
+          503,
+          "WEBHOOK_NOT_CONFIGURED",
+        ),
+      );
+    if (equalSecret(req.get(header) || "", `${prefix}${secret}`)) return next();
+    next(
+      new AppError(
+        "Xác thực webhook không hợp lệ",
+        401,
+        "WEBHOOK_UNAUTHORIZED",
+      ),
+    );
+  };
 
 module.exports = {
   publicInvoiceLimiter: perMinute(60),
   webhookLimiter: perMinute(120),
   verifyWebhook,
-  verifyBankHubIpn: verifyHeader("Authorization", "SEPAY_BANKHUB_IPN_API_KEY", "Apikey "),
-  verifyBankHubEvent: verifyHeader("X-Secret-Key", "SEPAY_BANKHUB_WEBHOOK_SECRET"),
+  verifyBankHubIpn: verifyHeader(
+    "Authorization",
+    "SEPAY_BANKHUB_IPN_API_KEY",
+    "Apikey ",
+  ),
+  verifyBankHubEvent: verifyHeader(
+    "X-Secret-Key",
+    "SEPAY_BANKHUB_WEBHOOK_SECRET",
+  ),
   // Payment gateway IPN with auth type SECRET_KEY configured in my.sepay.vn.
   verifySePayPgIpn: verifyHeader("X-Secret-Key", "SEPAY_PG_IPN_SECRET"),
 };

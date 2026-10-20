@@ -26,6 +26,11 @@ router.use("/dashboard", require("./dashboardRoutes"));
 
 // Admin User Management
 router.use("/admin", require("./adminRoutes"));
-router.use("/users", authenticate, authorize("SUPER_ADMIN"), require("./userRoutes"));
+router.use(
+  "/users",
+  authenticate,
+  authorize("SUPER_ADMIN"),
+  require("./userRoutes"),
+);
 
 module.exports = router;

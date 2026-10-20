@@ -336,9 +336,7 @@ async function applySubscription(req, body, creating, session) {
     ? v.date(body.endDate, "Ngày kết thúc")
     : sub.endDate;
   if (endDate <= startDate || endDate <= new Date())
-    throw new ValidationError(
-      "Thời hạn thuê bao phải hợp lệ và chưa hết hạn",
-    );
+    throw new ValidationError("Thời hạn thuê bao phải hợp lệ và chưa hết hạn");
   if (
     await Subscription.exists({
       landlordId: owner._id,
@@ -572,4 +570,3 @@ module.exports = {
   settlePlatformInvoice,
   listAuditLogs,
 };
-
