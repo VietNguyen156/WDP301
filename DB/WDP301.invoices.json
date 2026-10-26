@@ -1,0 +1,264 @@
+[{
+  "_id": {
+    "$oid": "6ac06ad1bb60d80b939ef236"
+  },
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "branchId": {
+    "$oid": "6ac06ad0bb60d80b939ef226"
+  },
+  "roomId": {
+    "$oid": "6ac06ad0bb60d80b939ef22a"
+  },
+  "contractId": {
+    "$oid": "6ac06ad1bb60d80b939ef22f"
+  },
+  "tenantId": {
+    "$oid": "6ac06ad0bb60d80b939ef223"
+  },
+  "invoiceCode": "HD1001",
+  "billingPeriod": "2026-09",
+  "month": 9,
+  "year": 2026,
+  "dueDate": {
+    "$date": "2026-09-05T00:00:00.000Z"
+  },
+  "roomAmount": 3500000,
+  "electricDetail": {
+    "oldIndex": 120,
+    "newIndex": 195,
+    "consumed": 75,
+    "unitPrice": 3800,
+    "amount": 285000
+  },
+  "waterDetail": {
+    "billingType": "METER",
+    "oldIndex": 45,
+    "newIndex": 52,
+    "consumed": 7,
+    "unitPrice": 30000,
+    "amount": 210000,
+    "headCount": 1
+  },
+  "servicesDetail": [
+    {
+      "serviceName": "Rác & Vệ sinh",
+      "unitPrice": 30000,
+      "quantity": 1,
+      "amount": 30000,
+      "_id": {
+        "$oid": "6ac06ad1bb60d80b939ef237"
+      }
+    },
+    {
+      "serviceName": "Internet Cáp quang",
+      "unitPrice": 50000,
+      "quantity": 1,
+      "amount": 50000,
+      "_id": {
+        "$oid": "6ac06ad1bb60d80b939ef238"
+      }
+    }
+  ],
+  "discount": {
+    "reason": "",
+    "amount": 0
+  },
+  "totalAmount": 4075000,
+  "paidAmount": 4075000,
+  "remainingAmount": 0,
+  "overpaidAmount": 0,
+  "vietQrUrl": "https://img.vietqr.io/image/MB-0988888888-compact2.png?amount=4075000&addInfo=HD1001%20P101&accountName=TRAN%20VAN%20CHU%20TRO",
+  "paymentSyntax": "HD1001 P101",
+  "status": "PAID",
+  "isDeleted": false,
+  "additionalFees": [],
+  "publicAccessToken": "91b5d39955ebfb405ddfffb6983077b0",
+  "createdAt": {
+    "$date": "2026-10-03T02:39:13.431Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:13.431Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6ac06ad1bb60d80b939ef239"
+  },
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "branchId": {
+    "$oid": "6ac06ad0bb60d80b939ef226"
+  },
+  "roomId": {
+    "$oid": "6ac06ad0bb60d80b939ef22b"
+  },
+  "contractId": {
+    "$oid": "6ac06ad1bb60d80b939ef231"
+  },
+  "tenantId": {
+    "$oid": "6ac06ad0bb60d80b939ef224"
+  },
+  "invoiceCode": "HD1002",
+  "billingPeriod": "2026-09",
+  "month": 9,
+  "year": 2026,
+  "dueDate": {
+    "$date": "2026-10-06T02:39:13.483Z"
+  },
+  "roomAmount": 3200000,
+  "electricDetail": {
+    "oldIndex": 85,
+    "newIndex": 140,
+    "consumed": 55,
+    "unitPrice": 3800,
+    "amount": 209000
+  },
+  "waterDetail": {
+    "billingType": "METER",
+    "oldIndex": 30,
+    "newIndex": 35,
+    "consumed": 5,
+    "unitPrice": 30000,
+    "amount": 150000,
+    "headCount": 1
+  },
+  "servicesDetail": [
+    {
+      "serviceName": "Rác & Vệ sinh",
+      "unitPrice": 30000,
+      "quantity": 1,
+      "amount": 30000,
+      "_id": {
+        "$oid": "6ac06ad1bb60d80b939ef23a"
+      }
+    },
+    {
+      "serviceName": "Internet Cáp quang",
+      "unitPrice": 50000,
+      "quantity": 1,
+      "amount": 50000,
+      "_id": {
+        "$oid": "6ac06ad1bb60d80b939ef23b"
+      }
+    }
+  ],
+  "discount": {
+    "reason": "",
+    "amount": 0
+  },
+  "totalAmount": 3639000,
+  "paidAmount": 0,
+  "remainingAmount": 3639000,
+  "overpaidAmount": 0,
+  "vietQrUrl": "https://img.vietqr.io/image/MB-0988888888-compact2.png?amount=3639000&addInfo=HD1002%20P102&accountName=TRAN%20VAN%20CHU%20TRO",
+  "paymentSyntax": "HD1002 P102",
+  "status": "ISSUED",
+  "isDeleted": false,
+  "additionalFees": [],
+  "publicAccessToken": "498e23285597376164e613d2afab86d9",
+  "createdAt": {
+    "$date": "2026-10-03T02:39:13.484Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:13.484Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6ac06ad1bb60d80b939ef23c"
+  },
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "branchId": {
+    "$oid": "6ac06ad0bb60d80b939ef226"
+  },
+  "roomId": {
+    "$oid": "6ac06ad1bb60d80b939ef22c"
+  },
+  "contractId": {
+    "$oid": "6ac06ad1bb60d80b939ef232"
+  },
+  "tenantId": {
+    "$oid": "6ac06ad0bb60d80b939ef225"
+  },
+  "invoiceCode": "HD1003",
+  "billingPeriod": "2026-09",
+  "month": 9,
+  "year": 2026,
+  "dueDate": {
+    "$date": "2026-09-05T00:00:00.000Z"
+  },
+  "roomAmount": 4000000,
+  "electricDetail": {
+    "oldIndex": 210,
+    "newIndex": 305,
+    "consumed": 95,
+    "unitPrice": 3800,
+    "amount": 361000
+  },
+  "waterDetail": {
+    "billingType": "METER",
+    "oldIndex": 60,
+    "newIndex": 68,
+    "consumed": 8,
+    "unitPrice": 30000,
+    "amount": 240000,
+    "headCount": 1
+  },
+  "servicesDetail": [
+    {
+      "serviceName": "Rác & Vệ sinh",
+      "unitPrice": 30000,
+      "quantity": 1,
+      "amount": 30000,
+      "_id": {
+        "$oid": "6ac06ad1bb60d80b939ef23d"
+      }
+    },
+    {
+      "serviceName": "Internet Cáp quang",
+      "unitPrice": 50000,
+      "quantity": 1,
+      "amount": 50000,
+      "_id": {
+        "$oid": "6ac06ad1bb60d80b939ef23e"
+      }
+    },
+    {
+      "serviceName": "Gửi xe máy",
+      "unitPrice": 100000,
+      "quantity": 1,
+      "amount": 100000,
+      "_id": {
+        "$oid": "6ac06ad1bb60d80b939ef23f"
+      }
+    }
+  ],
+  "discount": {
+    "reason": "",
+    "amount": 0
+  },
+  "totalAmount": 4781000,
+  "paidAmount": 0,
+  "remainingAmount": 4781000,
+  "overpaidAmount": 0,
+  "vietQrUrl": "https://img.vietqr.io/image/MB-0988888888-compact2.png?amount=4781000&addInfo=HD1003%20P201&accountName=TRAN%20VAN%20CHU%20TRO",
+  "paymentSyntax": "HD1003 P201",
+  "status": "ISSUED",
+  "isDeleted": false,
+  "additionalFees": [],
+  "publicAccessToken": "c346af815ef02051d7d4ddbc878966e2",
+  "createdAt": {
+    "$date": "2026-10-03T02:39:13.530Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:13.530Z"
+  },
+  "__v": 0
+}]

@@ -1,0 +1,26 @@
+[{
+  "_id": {
+    "$oid": "6ac06ad0bb60d80b939ef221"
+  },
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "planId": {
+    "$oid": "6ac06acfbb60d80b939ef21d"
+  },
+  "startDate": {
+    "$date": "2026-10-03T02:39:12.303Z"
+  },
+  "endDate": {
+    "$date": "2027-10-03T02:39:12.303Z"
+  },
+  "pricePaid": 5988000,
+  "status": "ACTIVE",
+  "createdAt": {
+    "$date": "2026-10-03T02:39:12.304Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:12.304Z"
+  },
+  "__v": 0
+}]

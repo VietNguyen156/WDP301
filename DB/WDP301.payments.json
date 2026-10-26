@@ -1,0 +1,34 @@
+[{
+  "_id": {
+    "$oid": "6ac06ad1bb60d80b939ef240"
+  },
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "branchId": {
+    "$oid": "6ac06ad0bb60d80b939ef226"
+  },
+  "invoiceId": {
+    "$oid": "6ac06ad1bb60d80b939ef236"
+  },
+  "invoiceCode": "HD1001",
+  "amount": 4075000,
+  "paymentMethod": "VIETQR",
+  "referenceCode": "FT26253198716",
+  "gateway": "MBBank",
+  "transactionDate": {
+    "$date": "2026-09-03T03:15:30.000Z"
+  },
+  "content": "HD1001 P101 chuyen tien phong thang 9",
+  "senderAccountNumber": "0123456789",
+  "senderBank": "VCB",
+  "status": "SUCCESS",
+  "isDeleted": false,
+  "createdAt": {
+    "$date": "2026-10-03T02:39:13.573Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:13.573Z"
+  },
+  "__v": 0
+}]

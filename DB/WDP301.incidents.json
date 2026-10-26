@@ -1,0 +1,37 @@
+[{
+  "_id": {
+    "$oid": "6ac06ad1bb60d80b939ef241"
+  },
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "branchId": {
+    "$oid": "6ac06ad0bb60d80b939ef226"
+  },
+  "roomId": {
+    "$oid": "6ac06ad0bb60d80b939ef22b"
+  },
+  "reportedBy": {
+    "$oid": "6ac06ad0bb60d80b939ef224"
+  },
+  "title": "Rò rỉ vòi xịt vệ sinh",
+  "description": "Vòi xịt bồn cầu bị rỉ nước liên tục làm ướt sàn nhà tắm.",
+  "images": [],
+  "resolvedImages": [],
+  "priority": "MEDIUM",
+  "status": "IN_PROGRESS",
+  "repairCost": 150000,
+  "costPayer": "LANDLORD",
+  "assignedTo": {
+    "$oid": "6ac06ad0bb60d80b939ef222"
+  },
+  "notes": "Đã liên hệ thợ điện nước hẹn 9h sáng mai qua thay dây mới.",
+  "isDeleted": false,
+  "createdAt": {
+    "$date": "2026-10-03T02:39:13.617Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:13.617Z"
+  },
+  "__v": 0
+}]

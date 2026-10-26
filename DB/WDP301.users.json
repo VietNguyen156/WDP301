@@ -1,0 +1,157 @@
+[{
+  "_id": {
+    "$oid": "6ac06ad0bb60d80b939ef21f"
+  },
+  "name": "Nguyễn Quản Trị (Super Admin)",
+  "email": "admin@wdp301.com",
+  "password": "$2b$10$LPIyfC6QT5xG/vDpOUIfte5nNm3CcZUYsoOPWWJlX2riGNjy8FEGa",
+  "phoneNumber": "0901000001",
+  "role": "SUPER_ADMIN",
+  "status": "ACTIVE",
+  "assignedBranches": [],
+  "temporaryResidenceRegistered": false,
+  "isDeleted": false,
+  "createdAt": {
+    "$date": "2026-10-03T02:39:12.008Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:12.008Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "name": "Trần Văn Chủ Trọ",
+  "email": "landlord@wdp301.com",
+  "password": "$2b$10$FjyZJiCAWeQnpDy1MwPy8OaMhSJdSnz6MRzsFL2P6wAvN.6jGzUui",
+  "phoneNumber": "0988888888",
+  "role": "LANDLORD",
+  "status": "ACTIVE",
+  "bankConfig": {
+    "bankCode": "MB",
+    "bankName": "MBBank",
+    "accountNumber": "0988888888",
+    "accountName": "TRAN VAN CHU TRO"
+  },
+  "assignedBranches": [],
+  "temporaryResidenceRegistered": false,
+  "isDeleted": false,
+  "createdAt": {
+    "$date": "2026-10-03T02:39:12.194Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:12.346Z"
+  },
+  "__v": 0,
+  "subscriptionId": {
+    "$oid": "6ac06ad0bb60d80b939ef221"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac06ad0bb60d80b939ef222"
+  },
+  "name": "Lê Quản Lý",
+  "email": "manager@wdp301.com",
+  "password": "$2b$10$S/GVTTf9m3/f9IPTCX1w8.cryTDYXchwieNrEj5f9NU17WH4UNI92",
+  "phoneNumber": "0977777777",
+  "role": "PROPERTY_MANAGER",
+  "status": "ACTIVE",
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "assignedBranches": [
+    {
+      "$oid": "6ac06ad0bb60d80b939ef226"
+    }
+  ],
+  "temporaryResidenceRegistered": false,
+  "isDeleted": false,
+  "createdAt": {
+    "$date": "2026-10-03T02:39:12.394Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:12.881Z"
+  },
+  "__v": 1
+},
+{
+  "_id": {
+    "$oid": "6ac06ad0bb60d80b939ef223"
+  },
+  "name": "Nguyễn Văn Thuê (P.101)",
+  "email": "tenant1@wdp301.com",
+  "password": "$2b$10$Vv0KGpMUkzDJoGqJZB9FKuoh1wZaQgsYIFjJx/9lXRiFYoEQIxkK.",
+  "phoneNumber": "0912111111",
+  "role": "TENANT",
+  "status": "ACTIVE",
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "assignedBranches": [],
+  "citizenId": "001201001234",
+  "hometown": "Nam Định",
+  "temporaryResidenceRegistered": true,
+  "isDeleted": false,
+  "createdAt": {
+    "$date": "2026-10-03T02:39:12.500Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:12.500Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6ac06ad0bb60d80b939ef224"
+  },
+  "name": "Hoàng Thị Mai (P.102)",
+  "email": "tenant2@wdp301.com",
+  "password": "$2b$10$K.iK2UbNSSASIONP3gl1jO8b/vmjZL7zgbDaHuCtlrYoAqrB3JsBq",
+  "phoneNumber": "0912222222",
+  "role": "TENANT",
+  "status": "ACTIVE",
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "assignedBranches": [],
+  "citizenId": "001202002345",
+  "hometown": "Thanh Hóa",
+  "temporaryResidenceRegistered": true,
+  "isDeleted": false,
+  "createdAt": {
+    "$date": "2026-10-03T02:39:12.621Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:12.621Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6ac06ad0bb60d80b939ef225"
+  },
+  "name": "Phạm Quốc Bảo (P.201)",
+  "email": "tenant3@wdp301.com",
+  "password": "$2b$10$vJ3R6n1bc17d6Ggj2dfnKuvLHpdkGkVd574AcxNZbLpQclQYafo72",
+  "phoneNumber": "0912333333",
+  "role": "TENANT",
+  "status": "ACTIVE",
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "assignedBranches": [],
+  "citizenId": "001203003456",
+  "hometown": "Hải Phòng",
+  "temporaryResidenceRegistered": false,
+  "isDeleted": false,
+  "createdAt": {
+    "$date": "2026-10-03T02:39:12.735Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:12.735Z"
+  },
+  "__v": 0
+}]

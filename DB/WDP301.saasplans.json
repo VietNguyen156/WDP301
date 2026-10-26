@@ -1,0 +1,102 @@
+[{
+  "_id": {
+    "$oid": "6ac06acfbb60d80b939ef21b"
+  },
+  "name": "Gói Dùng Thử",
+  "code": "FREE_TRIAL",
+  "price": 0,
+  "billingCycle": "MONTHLY",
+  "maxBranches": 1,
+  "maxRooms": 5,
+  "maxManagers": 1,
+  "features": [
+    "Quản lý cơ bản",
+    "Chốt số điện nước",
+    "Hóa đơn VietQR"
+  ],
+  "isActive": true,
+  "createdAt": {
+    "$date": "2026-10-03T02:39:11.918Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:11.918Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6ac06acfbb60d80b939ef21c"
+  },
+  "name": "Gói Starter (Chuỗi nhỏ)",
+  "code": "STARTER",
+  "price": 199000,
+  "billingCycle": "MONTHLY",
+  "maxBranches": 1,
+  "maxRooms": 20,
+  "maxManagers": 2,
+  "features": [
+    "Tự động hóa hóa đơn",
+    "VietQR động",
+    "Webhook ngân hàng",
+    "Báo cáo công nợ"
+  ],
+  "isActive": true,
+  "createdAt": {
+    "$date": "2026-10-03T02:39:11.918Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:11.918Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6ac06acfbb60d80b939ef21d"
+  },
+  "name": "Gói Pro (Chuỗi chuyên nghiệp)",
+  "code": "PRO",
+  "price": 499000,
+  "billingCycle": "MONTHLY",
+  "maxBranches": 5,
+  "maxRooms": 100,
+  "maxManagers": 5,
+  "features": [
+    "Tất cả tính năng Starter",
+    "Quản lý sự cố & bảo trì",
+    "Thông báo Zalo/Email tự động",
+    "Báo cáo dòng tiền realtime"
+  ],
+  "isActive": true,
+  "createdAt": {
+    "$date": "2026-10-03T02:39:11.918Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:11.918Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6ac06acfbb60d80b939ef21e"
+  },
+  "name": "Gói Doanh Nghiệp",
+  "code": "ENTERPRISE",
+  "price": 999000,
+  "billingCycle": "MONTHLY",
+  "maxBranches": 999,
+  "maxRooms": 9999,
+  "maxManagers": 99,
+  "features": [
+    "Không giới hạn",
+    "Hỗ trợ 24/7",
+    "Tích hợp Smart Meter IoT"
+  ],
+  "isActive": true,
+  "createdAt": {
+    "$date": "2026-10-03T02:39:11.918Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:11.918Z"
+  },
+  "__v": 0
+}]

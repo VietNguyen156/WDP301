@@ -1,0 +1,114 @@
+[{
+  "_id": {
+    "$oid": "6ac06ad1bb60d80b939ef233"
+  },
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "branchId": {
+    "$oid": "6ac06ad0bb60d80b939ef226"
+  },
+  "roomId": {
+    "$oid": "6ac06ad0bb60d80b939ef22a"
+  },
+  "recordedBy": {
+    "$oid": "6ac06ad0bb60d80b939ef222"
+  },
+  "billingPeriod": "2026-09",
+  "month": 9,
+  "year": 2026,
+  "oldElectricIndex": 120,
+  "newElectricIndex": 195,
+  "consumedElectric": 75,
+  "oldWaterIndex": 45,
+  "newWaterIndex": 52,
+  "consumedWater": 7,
+  "isBilled": true,
+  "isDeleted": false,
+  "readingDate": {
+    "$date": "2026-10-03T02:39:13.385Z"
+  },
+  "createdAt": {
+    "$date": "2026-10-03T02:39:13.385Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:13.385Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6ac06ad1bb60d80b939ef234"
+  },
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "branchId": {
+    "$oid": "6ac06ad0bb60d80b939ef226"
+  },
+  "roomId": {
+    "$oid": "6ac06ad0bb60d80b939ef22b"
+  },
+  "recordedBy": {
+    "$oid": "6ac06ad0bb60d80b939ef222"
+  },
+  "billingPeriod": "2026-09",
+  "month": 9,
+  "year": 2026,
+  "oldElectricIndex": 85,
+  "newElectricIndex": 140,
+  "consumedElectric": 55,
+  "oldWaterIndex": 30,
+  "newWaterIndex": 35,
+  "consumedWater": 5,
+  "isBilled": true,
+  "isDeleted": false,
+  "readingDate": {
+    "$date": "2026-10-03T02:39:13.385Z"
+  },
+  "createdAt": {
+    "$date": "2026-10-03T02:39:13.385Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:13.385Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6ac06ad1bb60d80b939ef235"
+  },
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "branchId": {
+    "$oid": "6ac06ad0bb60d80b939ef226"
+  },
+  "roomId": {
+    "$oid": "6ac06ad1bb60d80b939ef22c"
+  },
+  "recordedBy": {
+    "$oid": "6ac06ad0bb60d80b939ef222"
+  },
+  "billingPeriod": "2026-09",
+  "month": 9,
+  "year": 2026,
+  "oldElectricIndex": 210,
+  "newElectricIndex": 305,
+  "consumedElectric": 95,
+  "oldWaterIndex": 60,
+  "newWaterIndex": 68,
+  "consumedWater": 8,
+  "isBilled": true,
+  "isDeleted": false,
+  "readingDate": {
+    "$date": "2026-10-03T02:39:13.385Z"
+  },
+  "createdAt": {
+    "$date": "2026-10-03T02:39:13.385Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:13.385Z"
+  },
+  "__v": 0
+}]

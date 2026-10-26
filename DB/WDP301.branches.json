@@ -1,0 +1,62 @@
+[{
+  "_id": {
+    "$oid": "6ac06ad0bb60d80b939ef226"
+  },
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "name": "Tòa Nhà Trọ Xanh Cầu Giấy",
+  "totalFloors": 1,
+  "address": {
+    "street": "Số 18 Ngõ 233 Xuân Thủy",
+    "ward": "Dịch Vọng Hậu",
+    "district": "Cầu Giấy",
+    "city": "Hà Nội",
+    "fullAddress": "Số 18 Ngõ 233 Xuân Thủy, Dịch Vọng Hậu, Cầu Giấy, Hà Nội"
+  },
+  "defaultElectricityPrice": 3800,
+  "waterBillingType": "METER",
+  "defaultWaterPrice": 30000,
+  "defaultServices": [
+    {
+      "name": "Rác & Vệ sinh",
+      "price": 30000,
+      "billingType": "PER_ROOM",
+      "_id": {
+        "$oid": "6ac06ad0bb60d80b939ef227"
+      }
+    },
+    {
+      "name": "Internet Cáp quang",
+      "price": 50000,
+      "billingType": "PER_ROOM",
+      "_id": {
+        "$oid": "6ac06ad0bb60d80b939ef228"
+      }
+    },
+    {
+      "name": "Gửi xe máy",
+      "price": 100000,
+      "billingType": "PER_UNIT",
+      "_id": {
+        "$oid": "6ac06ad0bb60d80b939ef229"
+      }
+    }
+  ],
+  "billingCycleDay": 1,
+  "paymentDueDays": 5,
+  "managerIds": [
+    {
+      "$oid": "6ac06ad0bb60d80b939ef222"
+    }
+  ],
+  "status": "ACTIVE",
+  "isDeleted": false,
+  "createdAt": {
+    "$date": "2026-10-03T02:39:12.840Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:12.840Z"
+  },
+  "__v": 0
+}]

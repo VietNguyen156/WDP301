@@ -1,0 +1,135 @@
+[{
+  "_id": {
+    "$oid": "6ac06ad1bb60d80b939ef22f"
+  },
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "branchId": {
+    "$oid": "6ac06ad0bb60d80b939ef226"
+  },
+  "roomId": {
+    "$oid": "6ac06ad0bb60d80b939ef22a"
+  },
+  "tenantId": {
+    "$oid": "6ac06ad0bb60d80b939ef223"
+  },
+  "contractCode": "HDT-2026-P101",
+  "startDate": {
+    "$date": "2026-01-01T00:00:00.000Z"
+  },
+  "endDate": {
+    "$date": "2027-01-01T00:00:00.000Z"
+  },
+  "rentalPrice": 3500000,
+  "depositAmount": 3500000,
+  "depositStatus": "PAID",
+  "initialElectricIndex": 100,
+  "initialWaterIndex": 20,
+  "serviceQuantities": {},
+  "roommates": [
+    {
+      "fullName": "Nguyễn Văn Em",
+      "citizenId": "001201009999",
+      "phoneNumber": "0912111999",
+      "_id": {
+        "$oid": "6ac06ad1bb60d80b939ef230"
+      }
+    }
+  ],
+  "refundedDepositAmount": 0,
+  "status": "ACTIVE",
+  "isDeleted": false,
+  "deductions": [],
+  "createdAt": {
+    "$date": "2026-10-03T02:39:13.137Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:13.137Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6ac06ad1bb60d80b939ef231"
+  },
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "branchId": {
+    "$oid": "6ac06ad0bb60d80b939ef226"
+  },
+  "roomId": {
+    "$oid": "6ac06ad0bb60d80b939ef22b"
+  },
+  "tenantId": {
+    "$oid": "6ac06ad0bb60d80b939ef224"
+  },
+  "contractCode": "HDT-2026-P102",
+  "startDate": {
+    "$date": "2026-03-01T00:00:00.000Z"
+  },
+  "endDate": {
+    "$date": "2026-09-01T00:00:00.000Z"
+  },
+  "rentalPrice": 3200000,
+  "depositAmount": 3200000,
+  "depositStatus": "PAID",
+  "initialElectricIndex": 50,
+  "initialWaterIndex": 15,
+  "serviceQuantities": {},
+  "refundedDepositAmount": 0,
+  "status": "ACTIVE",
+  "isDeleted": false,
+  "roommates": [],
+  "deductions": [],
+  "createdAt": {
+    "$date": "2026-10-03T02:39:13.217Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:13.217Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6ac06ad1bb60d80b939ef232"
+  },
+  "landlordId": {
+    "$oid": "6ac06ad0bb60d80b939ef220"
+  },
+  "branchId": {
+    "$oid": "6ac06ad0bb60d80b939ef226"
+  },
+  "roomId": {
+    "$oid": "6ac06ad1bb60d80b939ef22c"
+  },
+  "tenantId": {
+    "$oid": "6ac06ad0bb60d80b939ef225"
+  },
+  "contractCode": "HDT-2026-P201",
+  "startDate": {
+    "$date": "2026-02-15T00:00:00.000Z"
+  },
+  "endDate": {
+    "$date": "2027-02-15T00:00:00.000Z"
+  },
+  "rentalPrice": 4000000,
+  "depositAmount": 4000000,
+  "depositStatus": "PAID",
+  "initialElectricIndex": 120,
+  "initialWaterIndex": 30,
+  "serviceQuantities": {},
+  "refundedDepositAmount": 0,
+  "status": "ACTIVE",
+  "isDeleted": false,
+  "roommates": [],
+  "deductions": [],
+  "createdAt": {
+    "$date": "2026-10-03T02:39:13.299Z"
+  },
+  "updatedAt": {
+    "$date": "2026-10-03T02:39:13.299Z"
+  },
+  "__v": 0
+}]
