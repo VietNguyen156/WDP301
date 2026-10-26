@@ -47,7 +47,7 @@ const auditLogSchema = new mongoose.Schema(
   },
   {
     timestamps: { createdAt: true, updatedAt: false }, // Chỉ cần thời gian tạo log
-  }
+  },
 );
 
 auditLogSchema.index({ landlordId: 1, createdAt: -1 });

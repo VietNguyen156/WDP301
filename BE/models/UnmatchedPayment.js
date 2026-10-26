@@ -11,7 +11,6 @@ const unmatchedPaymentSchema = new mongoose.Schema(
     referenceCode: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
       index: true,
     },
@@ -62,12 +61,14 @@ const unmatchedPaymentSchema = new mongoose.Schema(
     notes: {
       type: String,
     },
+    isDeleted: { type: Boolean, default: false, index: true },
   },
   {
     timestamps: true,
   }
 );
 
+unmatchedPaymentSchema.index({ landlordId: 1, referenceCode: 1 }, { unique: true });
 unmatchedPaymentSchema.index({ landlordId: 1, status: 1, createdAt: -1 });
 
 module.exports = mongoose.model("UnmatchedPayment", unmatchedPaymentSchema);

@@ -1,8 +1,12 @@
 const mongoose = require("mongoose");
 const crypto = require("crypto");
 
+const LIVE_STATUSES = ["DRAFT", "ISSUED", "PARTIALLY_PAID", "PAID", "OVERPAID", "UNPAID"];
+
 const invoiceSchema = new mongoose.Schema(
   {
+    invoiceType: { type: String, enum: ["MONTHLY", "SETTLEMENT"], default: "MONTHLY" },
+    depositAppliedAmount: { type: Number, default: 0, min: 0, validate: Number.isSafeInteger },
     landlordId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -39,7 +43,6 @@ const invoiceSchema = new mongoose.Schema(
       required: true,
       uppercase: true,
       trim: true,
-      index: true,
     },
 
     // Kỳ hóa đơn định dạng chuỗi chuẩn: YYYY-MM (vd: "2026-09")
@@ -99,6 +102,10 @@ const invoiceSchema = new mongoose.Schema(
     servicesDetail: [
       {
         serviceName: { type: String, required: true },
+        billingType: {
+          type: String,
+          enum: ["PER_ROOM", "PER_PERSON", "PER_UNIT"],
+        },
         unitPrice: { type: Number, required: true },
         quantity: { type: Number, default: 1 },
         amount: { type: Number, required: true },
@@ -147,6 +154,13 @@ const invoiceSchema = new mongoose.Schema(
     },
 
     // Token bảo mật truy cập trực tiếp xem hóa đơn No-App cho Khách thuê
+    bankSnapshot: {
+      bankCode: String,
+      bankName: String,
+      accountNumber: String,
+      accountName: String,
+    },
+    cancellationReason: String,
     publicAccessToken: {
       type: String,
       unique: true,
@@ -180,7 +194,7 @@ const invoiceSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
 // Tự động đồng bộ billingPeriod trước khi validate
@@ -192,7 +206,10 @@ invoiceSchema.pre("validate", function () {
 
 // Virtual: OVERDUE là trạng thái suy diễn (Derived Condition), không lưu cứng
 invoiceSchema.virtual("isOverdue").get(function () {
-  if (this.dueDate && ["ISSUED", "PARTIALLY_PAID", "UNPAID"].includes(this.status)) {
+  if (
+    this.dueDate &&
+    ["ISSUED", "PARTIALLY_PAID", "UNPAID"].includes(this.status)
+  ) {
     return new Date() > this.dueDate;
   }
   return false;
@@ -203,5 +220,14 @@ invoiceSchema.index({ landlordId: 1, invoiceCode: 1 }, { unique: true });
 invoiceSchema.index({ landlordId: 1, status: 1, billingPeriod: -1 });
 invoiceSchema.index({ landlordId: 1, status: 1, dueDate: 1 });
 invoiceSchema.index({ landlordId: 1, isDeleted: 1 });
+// One live invoice per room/contract/period; a CANCELLED one no longer blocks re-billing.
+invoiceSchema.index(
+  { landlordId: 1, roomId: 1, contractId: 1, billingPeriod: 1, invoiceType: 1 },
+  {
+    unique: true,
+    name: "one_live_invoice_per_period",
+    partialFilterExpression: { isDeleted: false, status: { $in: LIVE_STATUSES } },
+  },
+);
 
 module.exports = mongoose.model("Invoice", invoiceSchema);

@@ -7,18 +7,25 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "format": "prettier --write src tests playwright.config.js vite.config.js"
   },
   "dependencies": {
+    "axios": "^1.20.0",
+    "lucide-react": "^1.56.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.4",
+    "socket.io-client": "^4.8.4"
   },
   "devDependencies": {
-    "@rolldown/binding-win32-x64-msvc": "^1.2.8",
+    "@playwright/test": "^1.64.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
     "oxlint": "^1.79.0",
+    "prettier": "^3.9.10",
     "vite": "^8.2.2"
   }
 }

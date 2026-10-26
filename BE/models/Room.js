@@ -32,6 +32,17 @@ const roomSchema = new mongoose.Schema(
       type: Number,
       default: 2, // Số người ở tối đa
     },
+    electricityPrice: { type: Number, min: 0 },
+    waterPrice: { type: Number, min: 0 },
+    waterBillingType: { type: String, enum: ["METER", "PER_PERSON", "FIXED"] },
+    services: {
+      type: [{
+        name: { type: String, required: true },
+        price: { type: Number, required: true, min: 0 },
+        billingType: { type: String, enum: ["PER_ROOM", "PER_PERSON", "PER_UNIT"], default: "PER_ROOM" },
+      }],
+      default: undefined,
+    },
     status: {
       type: String,
       enum: ["EMPTY", "RENTED", "MAINTENANCE", "CLEANING", "INACTIVE"],
@@ -77,9 +88,11 @@ const roomSchema = new mongoose.Schema(
 );
 
 // Compound Index: Đảm bảo trong 1 cơ sở không bao giờ có 2 phòng trùng số
-roomSchema.index({ branchId: 1, roomNumber: 1 }, { unique: true });
+roomSchema.index({ landlordId: 1, branchId: 1, roomNumber: 1 }, { unique: true });
 // Compound Index hỗ trợ thống kê tỷ lệ lấp đầy cực nhanh theo Chủ trọ
 roomSchema.index({ landlordId: 1, status: 1 });
 roomSchema.index({ landlordId: 1, branchId: 1, isDeleted: 1 });
 
+require('./propertyValidators')(roomSchema, ['floor', 'basePrice', 'maxOccupants', 'currentElectricIndex', 'currentWaterIndex', 'electricityPrice', 'waterPrice']);
+require('./propertyValidators')(roomSchema.path('services').schema, ['price']);
 module.exports = mongoose.model("Room", roomSchema);

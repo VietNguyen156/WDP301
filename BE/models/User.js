@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 
 const userSchema = new mongoose.Schema(
   {
+    quotaVersion: { type: Number, default: 0, select: false },
     name: {
       type: String,
       required: [true, "Vui lòng nhập họ và tên"],
@@ -10,18 +11,20 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: [true, "Vui lòng nhập email"],
-      unique: true,
+      required: function () { return this.role === "LANDLORD"; },
       lowercase: true,
       trim: true,
       match: [/^\S+@\S+\.\S+$/, "Email không hợp lệ"],
     },
     password: {
       type: String,
-      default: "password123",
-      minlength: [6, "Mật khẩu tối thiểu 6 ký tự"],
+      required: true,
+      minlength: [4, "Mật khẩu tối thiểu 4 ký tự"],
       select: false, // Mặc định không trả về password khi query
     },
+    username: { type: String, trim: true, lowercase: true },
+    mustChangePassword: { type: Boolean, default: false },
+    authVersion: { type: Number, default: 0, select: false },
     phoneNumber: {
       type: String,
       trim: true,
@@ -34,7 +37,13 @@ const userSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["ACTIVE", "PENDING_APPROVAL", "REJECTED", "SUSPENDED"],
+      enum: [
+        "ACTIVE",
+        "PENDING_APPROVAL",
+        "PENDING_ACTIVATION",
+        "REJECTED",
+        "SUSPENDED",
+      ],
       default: "ACTIVE",
     },
 
@@ -49,6 +58,12 @@ const userSchema = new mongoose.Schema(
       bankName: { type: String, trim: true }, // Tên ngân hàng (vd: MBBank, Vietcombank)
       accountNumber: { type: String, trim: true }, // Số tài khoản thụ hưởng
       accountName: { type: String, trim: true }, // Tên chủ tài khoản thụ hưởng
+    },
+    // Liên kết SePay Bank Hub: mỗi chủ trọ là một "công ty" trong Bank Hub
+    bankHub: {
+      companyXid: { type: String },
+      bankAccountXid: { type: String, index: true, sparse: true },
+      linkedAt: { type: Date },
     },
 
     // Dành cho PROPERTY_MANAGER (Quản lý cơ sở) hoặc TENANT (Người thuê)
@@ -86,12 +101,27 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+    toJSON: { transform: (_doc, value) => {
+      delete value.password;
+      delete value.authVersion;
+      delete value.quotaVersion;
+      return value;
+    } },
+  },
 );
+
+userSchema.index({ email: 1 }, { unique: true, partialFilterExpression: { email: { $type: "string" } } });
+userSchema.index({ username: 1 }, { unique: true, partialFilterExpression: { username: { $type: "string" } } });
+userSchema.pre("validate", function () {
+  if (this.role === "LANDLORD" && this.email) this.username = this.email;
+  if (this.role === "PROPERTY_MANAGER" && this.phoneNumber) this.username = this.phoneNumber;
+  if (this.role === "TENANT" && this.citizenId) this.username = this.citizenId;
+});
 
 // Hash password trước khi lưu vào DB (Mongoose 8/9 async hook)
 userSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
+  if (this.role !== "SUPER_ADMIN") require("../services/accountValidation").password(this.password);
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
 });

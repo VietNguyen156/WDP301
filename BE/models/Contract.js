@@ -2,6 +2,23 @@ const mongoose = require("mongoose");
 
 const contractSchema = new mongoose.Schema(
   {
+    settlement: {
+      state: { type: String, enum: ["PREPARED", "COMPLETED"] },
+      preparedAt: Date,
+      invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: "Invoice" },
+      invoiceIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Invoice" }],
+      depositAppliedAmount: Number,
+      roomAmount: Number,
+      serviceAmount: Number,
+      paymentsAfterPreparation: Number,
+      heldDeposit: Number, electricAmount: Number, waterAmount: Number,
+      deductionAmount: Number, outstandingDebt: Number, totalCharges: Number,
+      refundedDepositAmount: Number, remainingDue: Number,
+    },
+    confirmedByBothParties: { type: Boolean, default: false },
+    mutationVersion: { type: Number, default: 0, select: false },
+    electricImage: String,
+    waterImage: String,
     landlordId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -50,7 +67,7 @@ const contractSchema = new mongoose.Schema(
     },
     depositStatus: {
       type: String,
-      enum: ["PAID", "UNPAID", "REFUNDED", "PARTIALLY_REFUNDED"],
+      enum: ["PAID", "UNPAID", "REFUNDED", "PARTIALLY_REFUNDED", "APPLIED"],
       default: "UNPAID",
     },
 
@@ -67,6 +84,11 @@ const contractSchema = new mongoose.Schema(
     },
 
     // Danh sách người ở cùng phòng
+    serviceQuantities: {
+      type: Map,
+      of: { type: Number, min: 0, validate: Number.isSafeInteger },
+      default: {},
+    },
     roommates: [
       {
         fullName: { type: String, required: true },
@@ -125,4 +147,13 @@ contractSchema.index({ landlordId: 1, contractCode: 1 }, { unique: true });
 contractSchema.index({ landlordId: 1, status: 1 });
 contractSchema.index({ landlordId: 1, roomId: 1, status: 1 });
 
+require('./propertyValidators')(contractSchema, ['rentalPrice', 'depositAmount', 'initialElectricIndex', 'initialWaterIndex', 'finalElectricIndex', 'finalWaterIndex', 'refundedDepositAmount']);
+require('./propertyValidators')(contractSchema.path('deductions').schema, ['amount']);
+require('./propertyValidators')(contractSchema, ['settlement.heldDeposit', 'settlement.electricAmount',
+  'settlement.waterAmount', 'settlement.deductionAmount', 'settlement.outstandingDebt', 'settlement.totalCharges',
+  'settlement.refundedDepositAmount', 'settlement.remainingDue', 'settlement.depositAppliedAmount',
+  'settlement.roomAmount', 'settlement.serviceAmount', 'settlement.paymentsAfterPreparation']);
+contractSchema.pre('validate', function () {
+  if (this.startDate && this.endDate && this.endDate <= this.startDate) this.invalidate('endDate', 'Ngày kết thúc phải sau ngày bắt đầu');
+});
 module.exports = mongoose.model("Contract", contractSchema);

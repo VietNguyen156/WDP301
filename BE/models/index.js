@@ -8,9 +8,12 @@ const Contract = require("./Contract");
 const UtilityReading = require("./UtilityReading");
 const Invoice = require("./Invoice");
 const Payment = require("./Payment");
+const PaymentReceipt = require("./PaymentReceipt");
 const UnmatchedPayment = require("./UnmatchedPayment");
 const Incident = require("./Incident");
 const AuditLog = require("./AuditLog");
+const AuthSession = require("./AuthSession");
+const PlanUpgradeRequest = require("./PlanUpgradeRequest");
 
 module.exports = {
   User,
@@ -23,7 +26,10 @@ module.exports = {
   UtilityReading,
   Invoice,
   Payment,
+  PaymentReceipt,
   UnmatchedPayment,
   Incident,
   AuditLog,
+  AuthSession,
+  PlanUpgradeRequest,
 };

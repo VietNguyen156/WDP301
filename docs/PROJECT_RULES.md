@@ -15,7 +15,7 @@ _(Pragmatic Boarding House Management SaaS Platform)_
 5. [05. Database Rules & Soft Delete Policy (Quy tắc MongoDB & Xóa mềm)](#05-database-rules--soft-delete-policy)
 6. [06. Backend MVC Rules (Quy tắc Backend Express)](#06-backend-mvc-rules)
 7. [07. API Rules (Quy chuẩn thiết kế API)](#07-api-rules)
-8. [08. Authentication & Security (Bảo mật, Rate Limit & Data Masking)](#08-authentication--security)
+8. [08. Authentication, Account Provisioning & Security (Xác thực, Cấp tài khoản & Bảo mật)](#08-authentication-account-provisioning--security)
 9. [09. Invoice & Billing Rules (Vòng đời hóa đơn & Phân định pháp lý)](#09-invoice--billing-rules)
 10. [10. Payment, Webhook & Unmatched Engine (Bảo mật thanh toán & Xử lý nhầm lẫn)](#10-payment-webhook--unmatched-engine)
 11. [11. Contract & Check-out Rules (Nghiệm thu trả cọc & Thanh lý)](#11-contract--check-out-rules)
@@ -100,10 +100,10 @@ Hệ thống thống nhất định danh 4 vai trò với bảng phân quyền v
 - **Đối tượng**: Đội ngũ phát triển và vận hành hệ thống phần mềm (Platform Owner).
 - **Mục tiêu**: Quản lý việc kinh doanh phần mềm B2B SaaS, đảm bảo hạ tầng và kiểm soát các khách hàng doanh nghiệp (Chủ trọ).
 - **Chức năng nghiệp vụ chi tiết**:
-  1. **Quản trị Khách hàng B2B (Chủ trọ - `User.role = 'LANDLORD'`)**:
-     - Xem danh sách toàn bộ các Chủ trọ đã đăng ký trên hệ thống kèm thông tin định danh (Họ tên, SĐT, Email, CCCD, ngày đăng ký, trạng thái).
-     - **Duyệt đăng ký tài khoản từ Chủ trọ**: Xem yêu cầu đăng ký mới $\rightarrow$ Duyệt (`PENDING` $\rightarrow$ `APPROVED` $\rightarrow$ `ACTIVE`) hoặc Từ chối (`PENDING` $\rightarrow$ `REJECTED`).
-     - **Khóa / Mở khóa tài khoản**: Chuyển trạng thái `ACTIVE` $\longleftrightarrow$ `SUSPENDED` (chặn đăng nhập khi vi phạm điều khoản hoặc gian lận).
+  1. **Quản trị Khách hàng B2B (Chủ trọ - `User.role = 'LANDLORD'`) & Người dùng Toàn sàn**:
+     - Xem danh sách và thông tin chi tiết toàn bộ người dùng trên hệ thống qua `GET /api/v1/users` (không trả thông tin ngân hàng nội bộ của Landlord).
+     - **Khóa / Mở khóa tài khoản**: Chuyển trạng thái `ACTIVE` $\longleftrightarrow$ `SUSPENDED` (chặn đăng nhập khi vi phạm điều khoản hoặc gian lận). Khi Landlord bị khóa, Manager và Tenant thuộc chuỗi cũng bị chặn đồng nhất ở cả Property Core và Finance.
+     - **Tài khoản Khởi tạo & Không can thiệp Cấp quyền**: Backend tự động tạo sẵn tài khoản `admin / admin` (mật khẩu băm bằng bcrypt) nếu chưa tồn tại; tài khoản admin seed cũ `admin@wdp301.com` được chuyển một lần sang `admin / admin`. Không có API công khai tạo admin; các thao tác `POST / PUT / DELETE` trên `/users` bị loại bỏ để bảo toàn cơ chế cấp tài khoản chuẩn.
   2. **Quản lý Gói cước SaaS (`SaaSPlan` CRUD)**:
      - Tạo, sửa, xóa, định giá các gói dịch vụ (`FREE_TRIAL`, `STARTER`, `PRO`, `ENTERPRISE`).
      - Thiết lập hạn ngạch tài nguyên cho từng gói: Số cơ sở tối đa (`maxBranches`), số phòng tối đa (`maxRooms`), số nhân viên quản lý tối đa (`maxManagers`), tính năng cho phép và thời gian dùng thử (`trialDays`).
@@ -124,6 +124,7 @@ Hệ thống thống nhất định danh 4 vai trò với bảng phân quyền v
 
 - **Đối tượng**: Khách hàng B2B trả tiền mua gói phần mềm để quản lý chuỗi phòng trọ/chung cư mini của mình.
 - **Mục tiêu**: Tự động hóa vận hành, tối ưu tỷ lệ lấp đầy phòng và kiểm soát dòng tiền chính xác, minh bạch.
+- **Cơ chế Đăng ký**: Tự đăng ký bằng email và mật khẩu qua `POST /api/v1/auth/register`; trạng thái `ACTIVE` ngay, không chờ duyệt/OTP/email verification. Được cấp thuê bao 30 ngày dùng thử (gói `FREE_TRIAL` hoặc fallback cấu hình 1 cơ sở, 5 phòng, 1 manager).
 - **Chức năng nghiệp vụ chi tiết**:
   1. **3-Second Dashboard (Giám sát Dòng tiền & Tình trạng Phòng)**:
      - **Thống kê Cơ cấu Phòng & Tỷ lệ Lấp đầy**:
@@ -134,11 +135,15 @@ Hệ thống thống nhất định danh 4 vai trò với bảng phân quyền v
      - Thiết lập các Cơ sở/Tòa nhà (`Branch`), cấu hình đơn giá điện (kWh), hình thức tính nước (đồng hồ/đầu người/khoán), phí wifi, rác, gửi xe.
      - Tạo phòng đơn lẻ hoặc dùng công cụ **Sinh phòng nhanh hàng loạt** (ví dụ: Tầng 1 $\rightarrow$ 4, P.101 $\rightarrow$ P.405).
   3. **Quản lý Nhân sự Cơ sở (`PROPERTY_MANAGER`)**:
-     - **Tạo tài khoản Quản lý**: Nhập Họ tên, SĐT, Email, CCCD $\rightarrow$ Hệ thống tạo tài khoản với `role = 'PROPERTY_MANAGER'`.
-     - **Phân công chi nhánh phụ trách**: Gán danh sách cơ sở cụ thể (`assignedBranches = [BranchA, BranchB]`).
-     - CRUD Quản lý: Xem danh sách, sửa thông tin, phân công lại chi nhánh, khóa/mở khóa tài khoản.
-  4. **Quản lý Hợp đồng & Cấp tài khoản Tenant**:
-     - **Ký hợp đồng mới**: Nhập thông tin khách (Họ tên, SĐT, CCCD, Quê quán) $\rightarrow$ Tự động tạo và kích hoạt tài khoản `TENANT` (xác thực OTP) $\rightarrow$ Cập nhật phòng `EMPTY` $\rightarrow$ `RENTED`, ghi nhận tiền cọc và chỉ số điện nước ban đầu.
+     - **Cấp tài khoản Quản lý (`POST /api/v1/staff`)**: Landlord trực tiếp cấp tài khoản cho nhân sự. Username bắt buộc là số điện thoại Việt Nam 10 chữ số (hệ thống tự động chuẩn hóa `+84` về `0`), email tùy chọn. Hệ thống tạo mật khẩu ngẫu nhiên và gắn cờ `mustChangePassword: true`.
+     - **Mật khẩu Tạm hiển thị 1 lần**: Mật khẩu ngẫu nhiên chỉ trả về một lần duy nhất trong phản hồi HTTP 201 cho Landlord bàn giao cho nhân sự. Hệ thống không lưu mật khẩu dạng rõ, không trả lại trong API danh sách hoặc audit log.
+     - **Cấp lại mật khẩu (`POST /api/v1/staff/:staffId/reset-password`)**: Sinh mật khẩu ngẫu nhiên mới, thu hồi mọi phiên đăng nhập cũ và yêu cầu đổi mật khẩu lần nữa.
+     - **Phân công chi nhánh phụ trách**: Gán danh sách cơ sở cụ thể (`assignedBranches = [BranchA, BranchB]`). Mọi cơ sở phải đang hoạt động, chưa xóa và thuộc sở hữu của Landlord. Quota manager được kiểm tra chặt chẽ trong cùng transaction.
+  4. **Quản lý Hợp đồng & Tự động Cấp tài khoản Tenant**:
+     - **Ký hợp đồng mới (`POST /api/v1/contracts`)**: Nhập thông tin khách thuê (Họ tên và CCCD 12 chữ số bắt buộc; SĐT và Email là tùy chọn) $\rightarrow$ Hệ thống tự động kiểm tra CCCD trong scope của Landlord:
+       - Nếu khách mới: Tự động cấp tài khoản `TENANT` ở trạng thái `ACTIVE` với username là CCCD (giữ số 0 đầu), mật khẩu ngẫu nhiên, gắn cờ `mustChangePassword: true`. Trả về thông tin đăng nhập tạm thời `tenantCredentials` trong response tạo hợp đồng để Landlord bàn giao. Không có API cấp Tenant độc lập; không sử dụng xác thực OTP.
+       - Nếu khách đã có tài khoản: Tự động liên kết hợp đồng vào Tenant hiện hữu và giữ nguyên mật khẩu cũ.
+     - **Cấp lại mật khẩu Tenant (`POST /api/v1/tenants/:tenantId/reset-password`)**: Sinh mật khẩu ngẫu nhiên mới, thu hồi phiên cũ và yêu cầu đổi mật khẩu.
      - **Thống kê Hợp đồng**: Danh sách hợp đồng đang hoạt động (`Active`), sắp hết hạn (`Expiring Soon` trong 30 ngày), đã hết hạn (`Expired`), đã thanh lý (`Terminated`).
      - **Thanh lý Hợp đồng**: Chốt chỉ số điện nước cuối cùng $\rightarrow$ Lập phiếu quyết toán cấn trừ cọc $\rightarrow$ Phòng chuyển `CLEANING`.
   5. **Tài chính & Thu tiền Tự động**:
@@ -168,7 +173,9 @@ Hệ thống thống nhất định danh 4 vai trò với bảng phân quyền v
   4. **Giám sát Thực địa Cơ sở**:
      - Nắm bắt tình trạng phòng thực tế (đang thuê `RENTED`, phòng trống `EMPTY`, phòng cần dọn vệ sinh `CLEANING`, phòng bảo trì `MAINTENANCE`) tại các chi nhánh được giao.
      - Cập nhật trạng thái phòng vận hành giữa `EMPTY` $\longleftrightarrow$ `CLEANING` $\longleftrightarrow$ `MAINTENANCE`.
-- ⚠️ **Ranh giới Phân quyền Nghiêm ngặt (RBAC Boundary)**:
+- ⚠️ **Ranh giới Phân quyền Nghiêm ngặt (RBAC Boundary) & Quy tắc Mật khẩu**:
+  - **Định danh**: Username là số điện thoại 10 chữ số (chuẩn hóa `+84` về `0`). Nhận mật khẩu tạm ngẫu nhiên từ Landlord và **bắt buộc đổi mật khẩu ở lần đăng nhập đầu tiên** (`mustChangePassword: true`).
+  - **Chặn truy cập khi chưa đổi mật khẩu**: Khi `mustChangePassword: true`, mọi API nghiệp vụ có bảo vệ đều trả về lỗi `403 PASSWORD_CHANGE_REQUIRED`. Chỉ được phép gọi `login`, `refresh`, `logout`, `me` và `change-password`.
   - **CHỈ ĐƯỢC** thao tác trong phạm vi các chi nhánh được phân công (`assignedBranches`).
   - **TUYỆT ĐỐI KHÔNG ĐƯỢC** xem doanh thu tài chính tổng của Chủ trọ, không xem MRR, không thể sửa tài khoản ngân hàng và không được can thiệp vào gói cước SaaS.
 
@@ -179,9 +186,11 @@ Hệ thống thống nhất định danh 4 vai trò với bảng phân quyền v
 - **Đối tượng**: Người thuê trọ (phần lớn là sinh viên, nhân viên văn phòng, Gen Z).
 - **Mục tiêu**: Thanh toán hóa đơn nhanh chóng trong 5 giây mà không cần cài app phiền toái; phản ánh sự cố minh bạch.
 - **Chức năng nghiệp vụ chi tiết**:
-  1. **Cấp Tài khoản & Xác thực OTP**:
-     - Tài khoản được tự động tạo khi Chủ trọ ký hợp đồng thuê phòng (dựa trên CCCD + SĐT).
-     - Xác thực kích hoạt qua mã OTP gửi về điện thoại $\rightarrow$ Tài khoản chuyển sang trạng thái `ACTIVE`.
+  1. **Cấp Tài khoản Tự động & Bắt buộc Đổi Mật khẩu Lần đầu**:
+     - Tài khoản được tự động tạo khi Chủ trọ ký hợp đồng thuê phòng; username là CCCD dạng chuỗi 12 chữ số (giữ số 0 đầu), trạng thái `ACTIVE` ngay.
+     - Nhận mật khẩu tạm ngẫu nhiên từ Chủ trọ và **bắt buộc đổi mật khẩu ở lần đăng nhập đầu tiên** (`mustChangePassword: true`).
+     - Trước khi đổi mật khẩu, mọi API nghiệp vụ đều bị chặn với mã lỗi `403 PASSWORD_CHANGE_REQUIRED`.
+     - **Bãi bỏ cơ chế kích hoạt OTP**: Hệ thống không gửi OTP kích hoạt (hai endpoint kích hoạt OTP cũ trả HTTP 410 `OTP_ACTIVATION_RETIRED`).
   2. **Trải nghiệm Nhận & Xem Hóa đơn No-App (`/i/:token`)**:
      - Nhận tin nhắn thông báo hóa đơn qua SĐT / Zalo / Email kèm link xem trực tiếp.
      - Mở hóa đơn tức thì dưới 1.5 giây mà **không cần đăng nhập tài khoản**.
@@ -352,10 +361,12 @@ const getBranchScope = (req) => {
 ### 2. Danh mục Mã lỗi HTTP chuẩn
 
 - `400 VALIDATION_ERROR`: Dữ liệu đầu vào sai định dạng.
-- `401 UNAUTHORIZED`: Thiếu token hoặc token hết hạn.
+- `401 UNAUTHORIZED`: Thiếu token, token không hợp lệ hoặc session đã bị thu hồi/logout.
 - `403 FORBIDDEN`: Không có quyền truy cập chi nhánh/tài nguyên này.
+- `403 PASSWORD_CHANGE_REQUIRED`: Bắt buộc đổi mật khẩu trước khi truy cập các API nghiệp vụ.
 - `404 NOT_FOUND`: Không tìm thấy bản ghi.
-- `409 CONFLICT`: Xung đột dữ liệu (mã hóa đơn trùng, phòng đang có hợp đồng hoạt động).
+- `409 CONFLICT`: Xung đột dữ liệu (trùng email, trùng username/SĐT/CCCD, mã hóa đơn trùng, phòng đang có hợp đồng hoạt động).
+- `410 OTP_ACTIVATION_RETIRED`: Endpoint kích hoạt tài khoản bằng mã OTP cũ đã bãi bỏ.
 - `422 BUSINESS_RULE_ERROR`: Vi phạm luật nghiệp vụ (sửa hóa đơn đã PAID, chỉ số mới nhỏ hơn cũ).
 - `429 TOO_MANY_REQUESTS`: Vượt quá giới hạn gọi API (Rate limit).
 - `500 INTERNAL_SERVER_ERROR`: Lỗi hệ thống server không mong muốn.
@@ -375,6 +386,21 @@ const getBranchScope = (req) => {
 
 - Mọi API nghiệp vụ mới bắt buộc dùng prefix `/api/v1`.
 - Dùng danh từ số nhiều cho resource: `/branches`, `/rooms`, `/contracts`, `/invoices`, `/payments`, `/incidents`.
+- Nhóm API Xác thực & Phiên làm việc:
+  - `POST /auth/register`: Đăng ký tài khoản Landlord (Public, ACTIVE ngay).
+  - `POST /auth/login`: Đăng nhập bằng `username` (hoặc `email`) + `password` (Public).
+  - `GET /auth/me`: Đọc thông tin người dùng đang đăng nhập (Bearer token, hỗ trợ tài khoản `mustChangePassword`).
+  - `POST /auth/change-password`: Đổi mật khẩu bắt buộc hoặc chủ động (Bearer token, thu hồi mọi phiên cũ).
+  - `POST /auth/refresh` & `POST /auth/logout`: Làm mới token / Đăng xuất qua HttpOnly cookie.
+- Nhóm API Cấp & Quản lý Tài khoản (Scope Landlord):
+  - `POST /staff`: Landlord cấp tài khoản Manager mới (trả mật khẩu tạm 1 lần duy nhất).
+  - `GET /staff`: Danh sách nhân sự cơ sở.
+  - `POST /staff/:staffId/reset-password`: Cấp lại mật khẩu ngẫu nhiên cho Manager.
+  - `GET /tenants`: Danh sách khách thuê thuộc chuỗi trọ.
+  - `POST /tenants/:tenantId/reset-password`: Cấp lại mật khẩu ngẫu nhiên cho Tenant.
+  - Khách thuê mới được tự động cấp tài khoản qua `POST /contracts`, không có API cấp Tenant độc lập.
+- Nhóm API Quản trị Toàn sàn:
+  - `GET /users`: Super Admin xem danh sách và chi tiết người dùng (loại bỏ POST/PUT/DELETE trên `/users`).
 - Dùng nested resource khi quan hệ trực tiếp giúp giới hạn scope, ví dụ `/branches/:branchId/rooms` và `/invoices/:invoiceId/payments`.
 - Dùng HTTP method đúng ngữ nghĩa: `GET` để đọc, `POST` để tạo/workflow, `PUT` để cập nhật, `DELETE` chỉ cho xóa mềm.
 - Workflow nghiệp vụ dùng action rõ ràng, ví dụ `/invoices/:invoiceId/issue`, `/contracts/:contractId/terminate`, `/payments/webhook` và `/payments/cash`.
@@ -409,15 +435,15 @@ const getBranchScope = (req) => {
 ### 6. Role và Quyền Truy cập
 
 - `SUPER_ADMIN`: quản lý SaaS plan, landlord, subscription và platform analytics; không xem hoặc sửa chi tiết tiền phòng nội bộ của landlord.
-- `LANDLORD`: toàn quyền trong tenant scope của chính mình; được xác nhận thu tiền mặt ở mọi branch thuộc landlord.
-- `PROPERTY_MANAGER`: chỉ thao tác trong `assignedBranches`; được xem phòng, chốt điện nước, xử lý incident và xác nhận thu tiền mặt tại branch được giao; không xem doanh thu tổng hoặc sửa bank config/SaaS.
+  - `LANDLORD`: toàn quyền trong tenant scope của chính mình; nhận báo cáo và là người duy nhất duyệt hoặc từ chối thu tiền mặt ở mọi branch thuộc landlord.
+  - `PROPERTY_MANAGER`: chỉ thao tác trong `assignedBranches`; được xem phòng, chốt điện nước, xử lý incident và lập báo cáo thu tiền mặt tại branch được giao; không được tự xác nhận cuối cùng, không xem doanh thu tổng hoặc sửa bank config/SaaS.
 - `TENANT`: chỉ xem dữ liệu của mình, invoice public bằng token và tạo/theo dõi incident thuộc hợp đồng; không tạo/xác nhận Payment, sửa Invoice hoặc truy cập dashboard landlord.
 - Mọi route phải khai báo authentication, role authorization và tenant/branch scope trước controller.
 
 ### 7. Chuẩn Error Code
 
 - Mã lỗi nghiệp vụ dùng `SCREAMING_SNAKE_CASE`, ổn định và độc lập với thông điệp tiếng Việt.
-- Mã bắt buộc gồm: `AUTH_REQUIRED`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `INVALID_ID`, `VALIDATION_ERROR`, `CONFLICT`, `QUOTA_EXCEEDED`, `BRANCH_SCOPE_FORBIDDEN`, `LANDLORD_SCOPE_FORBIDDEN`, `INVOICE_ALREADY_PAID`, `INVOICE_CANCELLED`, `INVOICE_NOT_ISSUED`, `PAYMENT_AMOUNT_INVALID`, `PAYMENT_REFERENCE_DUPLICATED`, `PAYMENT_NOT_ALLOWED`, `READING_LOWER_THAN_PREVIOUS`, `READING_ALREADY_BILLED`, `BUSINESS_RULE_ERROR`, `TOO_MANY_REQUESTS`, `INTERNAL_SERVER_ERROR`.
+- Mã bắt buộc gồm: `AUTH_REQUIRED`, `UNAUTHORIZED`, `FORBIDDEN`, `PASSWORD_CHANGE_REQUIRED`, `OTP_ACTIVATION_RETIRED`, `NOT_FOUND`, `INVALID_ID`, `VALIDATION_ERROR`, `CONFLICT`, `QUOTA_EXCEEDED`, `BRANCH_SCOPE_FORBIDDEN`, `LANDLORD_SCOPE_FORBIDDEN`, `INVOICE_ALREADY_PAID`, `INVOICE_CANCELLED`, `INVOICE_NOT_ISSUED`, `PAYMENT_AMOUNT_INVALID`, `PAYMENT_REFERENCE_DUPLICATED`, `PAYMENT_NOT_ALLOWED`, `READING_LOWER_THAN_PREVIOUS`, `READING_ALREADY_BILLED`, `BUSINESS_RULE_ERROR`, `TOO_MANY_REQUESTS`, `INTERNAL_SERVER_ERROR`.
 - Không dùng message để frontend quyết định logic; frontend phải dựa vào `errorCode`.
 
 ### 8. Vòng đời Invoice và Payment
@@ -425,7 +451,8 @@ const getBranchScope = (req) => {
 - Invoice chỉ dùng các trạng thái: `DRAFT`, `ISSUED`, `PARTIALLY_PAID`, `PAID`, `OVERPAID`, `CANCELLED`.
 - `OVERDUE` là điều kiện suy diễn: `now > dueDate` và status là `ISSUED` hoặc `PARTIALLY_PAID`; không lưu `OVERDUE` thành status riêng.
 - Payment chỉ dùng các trạng thái `SUCCESS`, `FAILED`, `REFUNDED` và các method `VIETQR`, `BANK_TRANSFER`, `CASH`.
-- Payment `CASH` bắt buộc có số biên lai/reference duy nhất, `confirmedBy`, `transactionDate` và điểm thu nếu có.
+- Payment `CASH` bắt buộc có số biên lai/reference duy nhất, `transactionDate` và điểm thu nếu có.
+- Thu tiền mặt bởi `PROPERTY_MANAGER` tạo Payment trạng thái `PENDING_CONFIRMATION`, lưu `reportedBy` và chưa cộng vào hóa đơn. `LANDLORD` duyệt qua endpoint xác nhận thì Payment chuyển `SUCCESS`, lưu `confirmedBy` và hệ thống mới cập nhật `paidAmount`/trạng thái Invoice. Landlord có thể từ chối với lý do, chuyển Payment sang `FAILED`; mọi bước phải ghi `AuditLog`.
 - Server tự tính `remainingAmount = max(totalAmount - paidAmount, 0)` và `overpaidAmount = max(paidAmount - totalAmount, 0)`.
 - Tạo Payment, cập nhật Invoice và ghi AuditLog phải nằm trong cùng MongoDB transaction.
 - Invoice `PAID` hoặc `OVERPAID` không được sửa trực tiếp; phải dùng refund, adjustment note hoặc credit note.
@@ -443,29 +470,165 @@ const getBranchScope = (req) => {
 
 ---
 
-# 08. AUTHENTICATION & SECURITY
+# 08. AUTHENTICATION, ACCOUNT PROVISIONING & SECURITY
 
-### 1. Kiến trúc Bảo mật 2 Tầng Token & Cấu hình SameSite Cookie Cross-Site
+### 1. Quy chuẩn Tài khoản & Định danh Username theo 4 Vai trò (Áp dụng 14/10/2026)
 
-- **Access Token (15 phút)**: Lưu trữ trong **React In-Memory State**. Tuyệt đối **CẤM** lưu Access Token vào `localStorage` hoặc `sessionStorage`.
-- **Refresh Token (7 ngày) - Quy tắc SameSite theo Hạ tầng Triển khai**:
-  - **Trường hợp 1: Triển khai Cross-Site (Vercel Frontend `xxx.vercel.app` & Render Backend `yyy.onrender.com`)**:
-    - Cookie Refresh Token **BẮT BUỘC**: `httpOnly: true`, `secure: true`, `sameSite: "none"`.
-    - Backend Express CORS **BẮT BUỘC**: `credentials: true` và gán `origin: process.env.CLIENT_URL` (Tuyệt đối **CẤM** dùng `*`).
-  - **Trường hợp 2: Triển khai Cùng Tên Miền (Custom Domain: `app.wdp301.com` & `api.wdp301.com`)**:
-    - Cấu hình: `sameSite: "lax"`, `secure: true`, `domain: ".wdp301.com"`.
+Hệ thống thống nhất cơ chế định danh không trùng lặp toàn hệ sinh thái, phân định rõ trách nhiệm khởi tạo giữa các vai trò:
 
-### 2. Khóa Chặt Cơ chế Bypass Header (Strict Production Lock)
+| Vai trò                | Định danh (`username`)                                         | Cơ chế Khởi tạo                                  | Trạng thái ban đầu                          | Mật khẩu & Chính sách                                                    |
+| :--------------------- | :------------------------------------------------------------- | :----------------------------------------------- | :------------------------------------------ | :----------------------------------------------------------------------- |
+| **`LANDLORD`**         | Email hợp lệ                                                   | Tự đăng ký (`POST /auth/register`)               | `ACTIVE` ngay lập tức (không chờ duyệt/OTP) | Tự đặt ($\ge 8$ ký tự, tối đa 72 byte UTF-8); cấp dùng thử 30 ngày       |
+| **`PROPERTY_MANAGER`** | Số điện thoại VN 10 chữ số (chuẩn hóa `+84` $\rightarrow$ `0`) | Chủ trọ cấp trực tiếp (`POST /staff`)            | `ACTIVE`, gắn cờ `mustChangePassword: true` | Mật khẩu ngẫu nhiên; hiển thị 1 lần duy nhất; bắt buộc đổi lần đầu       |
+| **`TENANT`**           | Số CCCD 12 chữ số (dạng chuỗi, giữ số 0 đầu)                   | Tự động cấp khi lập hợp đồng (`POST /contracts`) | `ACTIVE`, gắn cờ `mustChangePassword: true` | Mật khẩu ngẫu nhiên; hiển thị 1 lần duy nhất; bắt buộc đổi lần đầu       |
+| **`SUPER_ADMIN`**      | `admin`                                                        | Backend tự khởi tạo nếu chưa tồn tại             | `ACTIVE`                                    | Mật khẩu khởi tạo `admin` (băm bcrypt); không có API công khai tạo admin |
+
+- **Ràng buộc Duy nhất & Bất biến**:
+  - `username` và `email` đã từng sử dụng **tuyệt đối không được cấp lại cho bất kỳ tài khoản nào khác**, kể cả các tài khoản đã bị xóa mềm (`isDeleted: true`).
+  - Email đối với `PROPERTY_MANAGER` và `TENANT` là tùy chọn. MongoDB thiết lập **Unique Partial Index**:
+    - Email: `{ email: 1 }` với filter `{ email: { $type: "string" } }` (không lưu chuỗi rỗng `""` cho tài khoản không khai báo email).
+    - Username: `{ username: 1 }` (**UNIQUE** toàn sàn).
+  - Khách thuê (`TENANT`) trực thuộc phạm vi quản lý của một `LANDLORD` theo mô hình dữ liệu hiện hành.
+  - Backend khởi tạo tài khoản `admin / admin` sau khi build index thành công; hệ thống từ chối khởi động nếu khởi tạo index thất bại. Tài khoản seed cũ `admin@wdp301.com` được chuyển đổi một lần sang `admin / admin`; khi restart server không reset lại mật khẩu tài khoản `admin` đã có.
+
+### 2. Quy chuẩn Mật khẩu, Mật khẩu Tạm & Đổi Mật khẩu Bắt buộc (`mustChangePassword`)
+
+1. **Quy tắc Mật khẩu Người dùng Tự đặt**:
+   - Độ dài tối thiểu **8 ký tự**, tối đa **72 byte** (chuẩn an toàn của thuật toán băm bcrypt UTF-8).
+   - Mật khẩu mới **bắt buộc phải khác** mật khẩu hiện tại.
+2. **Cơ chế Mật khẩu Tạm (One-time Temporary Password)**:
+   - Khi Landlord cấp tài khoản Quản lý (`POST /staff`), cấp lại mật khẩu (`reset-password`) hoặc lập hợp đồng cho khách thuê mới (`POST /contracts`): Backend sinh mật khẩu tạm ngẫu nhiên, băm lưu vào DB và trả về mật khẩu thô **một lần duy nhất** trong response JSON (`credentials` hoặc `tenantCredentials`).
+   - Mật khẩu thô **tuyệt đối không được lưu trữ** trong database, không ghi vào AuditLog, và không bao giờ xuất hiện lại trong bất kỳ API `GET` danh sách hay chi tiết nào.
+   - Frontend hiển thị modal bàn giao để Landlord trực tiếp gửi cho nhân sự / khách thuê (không tự động gửi SMS/Email ngầm trong luồng này).
+3. **Cơ chế Khóa API Nghiệp vụ khi Chưa Đổi Mật khẩu (`PASSWORD_CHANGE_REQUIRED`)**:
+   - Mọi tài khoản có cờ `mustChangePassword: true` khi gọi bất kỳ API nghiệp vụ có bảo vệ nào (Property Core, Finance, Dashboard...) đều bị middleware chặn với mã lỗi:
+     $$\text{HTTP } 403 \text{ FORBIDDEN} \quad \text{với errorCode: } \mathbf{PASSWORD\_CHANGE\_REQUIRED}$$
+   - **Các ngoại lệ duy nhất được phép truy cập khi chưa đổi mật khẩu**:
+     - `POST /api/v1/auth/login`
+     - `POST /api/v1/auth/refresh`
+     - `POST /api/v1/auth/logout`
+     - `GET /api/v1/auth/me` (cho phép đọc thông tin hồ sơ của chính mình)
+     - `POST /api/v1/auth/change-password` (thực hiện đổi mật khẩu)
+     - Link hóa đơn No-App `/i/:token` (sử dụng public access token riêng biệt).
+4. **Quy trình Đổi Mật khẩu Bắt buộc (`POST /api/v1/auth/change-password`)**:
+   - Payload: `{ currentPassword, newPassword }`.
+   - Backend thực thi trong **MongoDB Transaction**:
+     1. Xác thực `currentPassword` khớp với hash trong DB.
+     2. Băm `newPassword` và cập nhật vào `User.password`.
+     3. Đặt `mustChangePassword = false`.
+     4. Tăng phiên bản xác thực (`authVersion`) và **thu hồi toàn bộ các phiên đăng nhập (refresh sessions) cũ**.
+   - Phản hồi: HTTP 200 `{ success: true, message: "...", data: { user: { ... }, requiresLogin: true } }`.
+   - **Hành vi bắt buộc ở Frontend**: Xóa ngay access token trong React in-memory, hủy phiên hiện tại và điều hướng người dùng về màn hình Đăng nhập để đăng nhập lại với mật khẩu mới. Toàn bộ token cũ đều bị vô hiệu hóa.
+
+### 3. Kiến trúc Bảo mật 2 Tầng Token & Quản lý Phiên (Session Management)
+
+```
+[ FRONTEND (React In-Memory) ]                          [ BACKEND & DATABASE ]
+              │                                                     │
+              ├─────── 1. POST /auth/login (username + pwd) ───────►│ Xác thực thông tin
+              │◄────── 2. Access Token (15m, JSON Body) ────────────┤ Lưu Session Hash DB
+              │◄────── 3. Refresh Token (7d, HttpOnly Cookie) ──────┤ Set-Cookie /api
+              │                                                     │
+     (Gọi API nghiệp vụ)                                            │
+              ├─────── 4. Bearer <AccessToken> ────────────────────►│ Verify JWT + Session
+              │                                                     │
+       (Hết hạn 15m)                                                │
+              ├─────── 5. POST /auth/refresh (Cookie Auto) ────────►│ Verify Session Hash DB
+              │◄────── 6. Access Token Mới (JSON Body) ─────────────┤ Xoay vòng session
+              │                                                     │
+         (Đăng xuất)                                                │
+              ├─────── 7. POST /auth/logout (Cookie Auto) ─────────►│ Xóa Session Hash DB
+              │◄────── 8. Clear Cookie ─────────────────────────────┤ Thu hồi token
+```
+
+1. **Access Token (Thời hạn 15 phút)**:
+   - Lưu trữ tuyệt đối trong **React In-Memory State** (biến module/context).
+   - **TUYỆT ĐỐI CẤM** lưu Access Token vào `localStorage`, `sessionStorage` hoặc Cookie không an toàn để triệt tiêu nguy cơ tấn công XSS đánh cắp quyền truy cập.
+   - Access token bắt buộc chứa `sessionId`. Mọi token không chứa `sessionId` hoặc mang `sessionId` đã bị thu hồi/đăng xuất sẽ bị từ chối `401 UNAUTHORIZED`.
+2. **Refresh Token (Thời hạn 7 ngày) & Cơ chế HttpOnly Cookie**:
+   - Refresh token được truyền độc quyền qua **HttpOnly Cookie** (không bao giờ trả trong JSON response).
+   - Backend lưu trữ **Hash của Refresh Token** trong bảng phiên đăng nhập (`UserSession`) trong database.
+   - Cấu hình Cookie:
+     - `path: "/api"` (phục vụ đồng bộ cả endpoint chuẩn `/api/v1` và alias tương thích cũ `/api`).
+     - `httpOnly: true` (chống JavaScript truy cập).
+     - **Môi trường Production (Cross-Site Vercel $\leftrightarrow$ Render)**: `secure: true`, `sameSite: "none"`.
+     - **Môi trường Cùng Domain (`app.wdp301.com` $\leftrightarrow$ `api.wdp301.com`)**: `secure: true`, `sameSite: "lax"`.
+3. **Cấu hình CORS & Credentials**:
+   - Backend Express CORS bắt buộc: `credentials: true`.
+   - `origin`: Bắt buộc trỏ chính xác vào `process.env.CLIENT_URL` (Tuyệt đối **CẤM** dùng ký tự đại diện `*` khi bật credentials).
+4. **Yêu cầu Bảo mật `JWT_SECRET`**:
+   - `JWT_SECRET` **bắt buộc phải cấu hình qua file `.env`** và có độ dài tối thiểu **32 ký tự**.
+   - Tuyệt đối loại bỏ mọi chuỗi secret dự phòng (fallback hardcoded) trong mã nguồn.
+
+### 4. Chi tiết Các Endpoint Xác thực & Cấp Tài khoản
+
+#### A. Xác thực Cơ bản (Public & Session)
+
+- **`POST /api/v1/auth/register` (Public — Dành riêng cho Landlord)**:
+  - Request: `{ name, email, password, phoneNumber? }`.
+  - Có thể gửi kèm `role: "LANDLORD"`; mọi giá trị role khác bị từ chối `403 FORBIDDEN`.
+  - Không nhận các trường can thiệp: `landlordId`, `status`, `mustChangePassword`, `assignedBranches`.
+  - Response (201): Cấp tài khoản `ACTIVE` ngay, gán gói `FREE_TRIAL` 30 ngày (hoặc cấu hình dùng thử mặc định).
+  - Không tự động đăng nhập sau đăng ký; Client phải chuyển sang bước gọi API login. Email/username trùng trả `409 CONFLICT`.
+- **`POST /api/v1/auth/login` (Public — Đa định danh)**:
+  - Request: `{ username, password }` hoặc `{ email, password }` (chỉ gửi 1 trong 2).
+  - `username` chấp nhận: Email của Landlord, SĐT 10 số của Manager, CCCD 12 số của Tenant, hoặc `admin`.
+  - Response (200): Trả access token và thông tin `user` DTO trong `data`; cookie refresh token gửi kèm header `Set-Cookie`.
+- **`GET /api/v1/auth/me` (Bearer Token)**:
+  - Trả thông tin `user` DTO hiện tại. Cho phép tài khoản có `mustChangePassword: true` đọc thông tin cá nhân.
+- **`POST /api/v1/auth/change-password` (Bearer Token)**:
+  - Request: `{ currentPassword, newPassword }`.
+  - Đổi mật khẩu, xóa cờ `mustChangePassword`, thu hồi mọi phiên cũ, trả `requiresLogin: true`.
+- **`POST /api/v1/auth/refresh` & `POST /api/v1/auth/logout`**:
+  - Gửi cookie tự động qua `withCredentials: true`.
+  - `refresh`: Trả access token mới và user DTO.
+  - `logout`: Hủy session trong database và xóa cookie trên client.
+
+#### B. Cấp & Quản trị Nhân sự / Khách thuê (Landlord Scope)
+
+- **`POST /api/v1/staff` (Bearer Token Landlord)**:
+  - Request: `{ name, phoneNumber, assignedBranches?, email? }`.
+  - Kiểm tra quota manager, xác thực chi nhánh hợp lệ thuộc quyền sở hữu của Landlord trong cùng transaction.
+  - Response (201): Trả `user` DTO và object `credentials: { username, temporaryPassword, mustChangePassword: true }`.
+- **`GET /api/v1/staff` & `GET /api/v1/tenants` (Bearer Token Landlord)**:
+  - Hỗ trợ `page`, `limit`; trả danh sách nhân sự/khách thuê thuộc tenant scope của Landlord (`isDeleted: false`). Không trả mật khẩu.
+- **`POST /api/v1/staff/:staffId/reset-password` & `POST /api/v1/tenants/:tenantId/reset-password` (Bearer Token Landlord)**:
+  - Request body: `{}`. Chỉ Landlord sở hữu tài khoản mới có quyền cấp lại.
+  - Sinh mật khẩu ngẫu nhiên mới, thu hồi session cũ, đặt `mustChangePassword: true`.
+  - Hỗ trợ chuyển tài khoản Tenant cũ từ `PENDING_ACTIVATION` sang `ACTIVE`. Không tự ý mở khóa tài khoản `SUSPENDED`.
+  - Response (200): Trả `credentials` chứa mật khẩu tạm một lần.
+- **`POST /api/v1/contracts` (Tích hợp Cấp Khách thuê Mới)**:
+  - Request hợp đồng: `tenant.name` và `tenant.identityCard` (CCCD 12 chữ số) là **bắt buộc**; `tenant.phoneNumber` và `tenant.email` là **tùy chọn**.
+  - Hệ thống tự tra cứu CCCD trong scope của Landlord:
+    - Nếu đã có: Liên kết Tenant hiện hữu, giữ nguyên mật khẩu cũ.
+    - Nếu chưa có: Tạo mới tài khoản Tenant `ACTIVE`, mật khẩu ngẫu nhiên, `mustChangePassword: true` trong cùng transaction tạo hợp đồng.
+  - Response (201): **Chỉ khi tạo mới Tenant**, response mới bổ sung thêm `data.tenantCredentials: { username, temporaryPassword, mustChangePassword: true }`. Không lưu trường này vào contract document; các API xem hợp đồng sau đó không trả lại mật khẩu.
+
+### 5. Bãi bỏ Hoàn toàn Cơ chế Xác thực OTP (OTP Deprecation)
+
+- Kể từ ngày **14/10/2026**, hệ thống **chính thức khai tử cơ chế kích hoạt tài khoản bằng mã OTP**.
+- Hai endpoint OTP kích hoạt cũ bị vô hiệu hóa và luôn trả về:
+  $$\text{HTTP } 410 \text{ GONE} \quad \text{với errorCode: } \mathbf{OTP\_ACTIVATION\_RETIRED}$$
+- Không còn bất kỳ màn hình nhập mã OTP nào trên ứng dụng Frontend cho tài khoản mới.
+
+### 6. Giới hạn Tuyệt đối trên Collection User đối với Super Admin
+
+- Endpoint `/api/v1/users` dành cho `SUPER_ADMIN` **chỉ hỗ trợ thao tác đọc (`GET`)**: Xem danh sách tổng quan và chi tiết cơ bản.
+- **Tuyệt đối không trả về thông tin tài khoản ngân hàng nội bộ của Landlord**.
+- Các endpoint `POST / PUT / DELETE` trên `/users` **bị loại bỏ hoàn toàn** để ngăn chặn việc tạo/sửa người dùng tùy tiện vượt qua quy trình băm mật khẩu, cấp hạn ngạch và logic nghiệp vụ của hệ sinh thái.
+
+### 7. Khóa Chặt Cơ chế Bypass Header (Strict Production Lock)
 
 - Header `x-landlord-id` hoặc Mock Auth **CHỈ ĐƯỢC PHÉP HOẠT ĐỘNG KHI `NODE_ENV === 'development' || NODE_ENV === 'test'`**.
 - Trên môi trường **Production (`NODE_ENV === 'production'`)**:
   - **TUYỆT ĐỐI CẤM MỌI HÌNH THỨC BYPASS**.
   - Bất kỳ request nào gửi kèm `x-landlord-id` trên production sẽ bị middleware từ chối ngay lập tức với mã lỗi `403 FORBIDDEN` và ghi log cảnh báo xâm nhập an ninh.
 
-### 3. Rate Limiting cho Endpoint Công khai
+### 8. Rate Limiting cho Endpoint Công khai
 
 - **Public Invoice Link (`/i/:token`)**: Giới hạn tối đa **60 requests/phút/IP** để ngăn chặn quét brute-force token.
 - **Webhook Payment (`/api/payments/webhook`)**: Giới hạn tối đa **120 requests/phút/IP** để chống tấn công DoS.
+- **Auth Endpoints (`/api/v1/auth/login`, `/api/v1/auth/register`)**: Giới hạn tối đa **20 requests/phút/IP** để chống tấn công vét cạn mật khẩu (Brute-force/Credential Stuffing).
 
 ---
 
@@ -552,11 +715,17 @@ const getBranchScope = (req) => {
 - Chỉ được tạo hợp đồng mới cho các phòng đang ở trạng thái `EMPTY`.
 - Sau khi hợp đồng được kích hoạt: Tự động đổi trạng thái phòng `EMPTY` $\rightarrow$ `RENTED`.
 
-### 2. Kích hoạt Tài khoản Tenant
+### 2. Tự động Cấp Tài khoản Tenant qua Hợp đồng (Zero-Touch Provisioning)
 
-- Khi ký hợp đồng, hệ thống tự động kiểm tra xem số điện thoại của Tenant đã có trong DB chưa:
-  - Nếu chưa: Tạo mới `User` (`role = 'TENANT'`, `landlordId = contract.landlordId`).
-  - Nếu đã có: Liên kết hợp đồng vào Tenant ID hiện hữu.
+- Khi tạo hợp đồng (`POST /api/v1/contracts`), hệ thống kiểm tra số CCCD (dạng chuỗi 12 chữ số) trong tenant scope của Landlord:
+  - **Khách thuê đã tồn tại**: Tự động liên kết hợp đồng mới vào Tenant ID hiện hữu, giữ nguyên mật khẩu cũ của khách (không reset mật khẩu).
+  - **Khách thuê mới**: Tạo mới tài khoản `User` (`role = 'TENANT'`, `username = tenant.identityCard`, `landlordId = contract.landlordId`, `status = 'ACTIVE'`, mật khẩu ngẫu nhiên băm bcrypt, `mustChangePassword: true`) trong cùng MongoDB transaction tạo hợp đồng.
+  - `tenant.name` và `tenant.identityCard` là thông tin bắt buộc; `tenant.phoneNumber` và `tenant.email` là tùy chọn.
+  - **Bảo toàn bảo mật mật khẩu**:
+    - Response tạo hợp đồng thành công (HTTP 201) **chỉ trả về `data.tenantCredentials: { username, temporaryPassword, mustChangePassword: true }` khi tạo mới khách thuê**.
+    - Tuyệt đối không lưu trường `tenantCredentials` vào document `Contract` trong cơ sở dữ liệu.
+    - Mọi API đọc hợp đồng sau này (`GET /contracts`, `GET /contracts/:id`) tuyệt đối không trả lại mật khẩu.
+    - Không tồn tại API công khai cấp tài khoản Tenant độc lập ngoài luồng ký hợp đồng; không sử dụng xác thực OTP (đã bãi bỏ).
 
 ### 3. Quy trình Nghiệm thu Trả phòng & Quyết toán Tiền cọc (Check-out Settlement)
 
