@@ -28,6 +28,7 @@ import {
   Button,
   Modal,
 } from "../../components/ui";
+import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 
 export function AdminSecurityView() {
   const toast = useToast();
@@ -56,8 +57,8 @@ export function AdminSecurityView() {
   const [lockdownReason, setLockdownReason] = useState("");
   const [lockdownSubmitting, setLockdownSubmitting] = useState(false);
 
-  const fetchAuditLogs = useCallback(async () => {
-    setLoading(true);
+  const fetchAuditLogs = useCallback(async (silent) => {
+    if (silent !== true) setLoading(true);
     setError(null);
     try {
       const params = { page, limit: 10 };
@@ -73,6 +74,7 @@ export function AdminSecurityView() {
       setLoading(false);
     }
   }, [page, actionFilter]);
+  useLiveRefresh(["admin"], () => fetchAuditLogs(true));
 
   useEffect(() => {
     fetchAuditLogs();

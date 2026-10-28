@@ -553,7 +553,8 @@ async function listAuditLogs(req) {
       .populate("actorId", "name email role")
       .populate("landlordId", "name email")
       .lean(),
-    AuditLog.countDocuments(filter),
+    // Unfiltered totals come from collection metadata instead of scanning every log.
+    Object.keys(filter).length ? AuditLog.countDocuments(filter) : AuditLog.estimatedDocumentCount(),
   ]);
   return { items, total, page, limit };
 }

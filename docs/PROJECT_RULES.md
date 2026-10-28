@@ -4,6 +4,8 @@
 
 _(Pragmatic Boarding House Management SaaS Platform)_
 
+> Cập nhật 28/10/2026: gói dịch vụ đủ tính năng, tên đăng nhập theo từng chủ trọ & chọn tài khoản, tự khóa / mở lại tài khoản khách thuê, gia hạn hợp đồng, tiền cọc (VietQR + đối soát tự động), realtime `data:changed` / `activity`, chuông "Việc cần xử lý", phân loại sự cố bằng TypeSafe, AuditLog chỉ lưu trường thay đổi + TTL, code split FE. API chi tiết: `BE/API.md`.
+
 ---
 
 # MỤC LỤC TỔNG THỂ
@@ -106,7 +108,10 @@ Hệ thống thống nhất định danh 4 vai trò với bảng phân quyền v
      - **Tài khoản Khởi tạo & Không can thiệp Cấp quyền**: Backend tự động tạo sẵn tài khoản `admin / admin` (mật khẩu băm bằng bcrypt) nếu chưa tồn tại; tài khoản admin seed cũ `admin@wdp301.com` được chuyển một lần sang `admin / admin`. Không có API công khai tạo admin; các thao tác `POST / PUT / DELETE` trên `/users` bị loại bỏ để bảo toàn cơ chế cấp tài khoản chuẩn.
   2. **Quản lý Gói cước SaaS (`SaaSPlan` CRUD)**:
      - Tạo, sửa, xóa, định giá các gói dịch vụ (`FREE_TRIAL`, `STARTER`, `PRO`, `ENTERPRISE`).
-     - Thiết lập hạn ngạch tài nguyên cho từng gói: Số cơ sở tối đa (`maxBranches`), số phòng tối đa (`maxRooms`), số nhân viên quản lý tối đa (`maxManagers`), tính năng cho phép và thời gian dùng thử (`trialDays`).
+     - Thiết lập hạn ngạch tài nguyên cho từng gói: Số cơ sở tối đa (`maxBranches`), số phòng tối đa (`maxRooms`), số nhân viên quản lý tối đa (`maxManagers`), giá và thời gian dùng thử (`trialDays`, chỉ gói `FREE_TRIAL`).
+     - **Mọi gói có đầy đủ tính năng** (danh sách hiển thị chung: `BE/utils/planFeatures.js` → `INCLUDED_FEATURES`); các gói chỉ khác **giá và hạn ngạch**. Không cấu hình `features` / `featureFlags` theo từng gói. Các tính năng tự động (đối soát SePay/Bank Hub, sự cố) chỉ yêu cầu chủ trọ có **thuê bao đang hiệu lực**.
+     - Hạn ngạch "Không giới hạn" lưu bằng số lớn quy ước: `999` cơ sở, `9999` phòng, `99` quản lý.
+     - Không cho tạm ngưng / xóa gói khi còn thuê bao đang dùng (`PLAN_IN_USE`); màn admin hiển thị `subscriptionCount` của từng gói.
   3. **Quản lý Thuê bao (Subscription) & Hóa đơn SaaS**:
      - **Xuất hóa đơn SaaS trước khi thanh toán**: Hệ thống xuất hóa đơn mua phần mềm (`PlatformInvoice`) với trạng thái `PENDING` $\rightarrow$ Khách thanh toán $\rightarrow$ `PAID`.
      - Quản lý thời hạn thuê bao, hỗ trợ gia hạn hoặc nâng cấp/hạ cấp gói cước thủ công.
@@ -309,7 +314,11 @@ const getBranchScope = (req) => {
 - `Invoices`: `{ landlordId: 1, invoiceCode: 1 }` (**UNIQUE**) — Không dùng invoiceCode độc lập toàn cầu.
 - `Invoices`: `{ landlordId: 1, status: 1, billingPeriod: -1 }`.
 - `Invoices`: `{ landlordId: 1, status: 1, dueDate: 1 }` (Tối ưu lọc công nợ).
-- `Payments`: `{ referenceCode: 1 }` (**UNIQUE** — chống duplicate webhook).
+- `Payments`: `{ landlordId: 1, paymentMethod: 1, referenceCode: 1 }` (**UNIQUE** — mã giao dịch chỉ duy nhất trong từng chủ trọ & phương thức; chống ghi nhận trùng). `PaymentReceipt` giữ một biên nhận cho mỗi (chủ trọ, nguồn, mã tham chiếu) cho cả giao dịch đã khớp, chưa khớp và tiền cọc.
+- `Users`: `{ email: 1, landlordId: 1 }` và `{ username: 1, landlordId: 1 }` (**UNIQUE** partial) — tên đăng nhập duy nhất **trong từng chủ trọ** (xem 08.1).
+- Trang danh sách sắp theo `createdAt` mới nhất: `{ landlordId: 1, isDeleted: 1, createdAt: -1 }` trên `Invoices`, `Contracts`, `Branches`, `Incidents`; `Rooms`: `{ landlordId: 1, branchId: 1, isDeleted: 1, floor: 1, roomNumber: 1 }`.
+- `AuditLogs`: `{ landlordId: 1, createdAt: -1 }`, `{ entityType: 1, entityId: 1, createdAt: -1 }`, `{ createdAt: -1 }`, `{ action: 1, createdAt: -1 }`, `{ entityType: 1, createdAt: -1 }` và TTL `{ expiresAt: 1 }` (xem 17).
+- Index cũ bị thay thế được xóa tự động khi khởi động (`BE/config/migrations.js`) trước khi `createIndexes()`.
 - `Rooms`: `{ landlordId: 1, branchId: 1, roomNumber: 1 }` (**UNIQUE**).
 - `UtilityReadings`: `{ landlordId: 1, branchId: 1, roomId: 1, billingPeriod: 1 }` (**UNIQUE**).
 - `Contracts`: `{ landlordId: 1, roomId: 1, status: 1 }`.
@@ -481,15 +490,19 @@ Hệ thống thống nhất cơ chế định danh không trùng lặp toàn h�
 | **`LANDLORD`**         | Email hợp lệ                                                   | Tự đăng ký (`POST /auth/register`)               | `ACTIVE` ngay lập tức (không chờ duyệt/OTP) | Tự đặt ($\ge 8$ ký tự, tối đa 72 byte UTF-8); cấp dùng thử 30 ngày       |
 | **`PROPERTY_MANAGER`** | Số điện thoại VN 10 chữ số (chuẩn hóa `+84` $\rightarrow$ `0`) | Chủ trọ cấp trực tiếp (`POST /staff`)            | `ACTIVE`, gắn cờ `mustChangePassword: true` | Mật khẩu ngẫu nhiên; hiển thị 1 lần duy nhất; bắt buộc đổi lần đầu       |
 | **`TENANT`**           | Số CCCD 12 chữ số (dạng chuỗi, giữ số 0 đầu)                   | Tự động cấp khi lập hợp đồng (`POST /contracts`) | `ACTIVE`, gắn cờ `mustChangePassword: true` | Mật khẩu ngẫu nhiên; hiển thị 1 lần duy nhất; bắt buộc đổi lần đầu       |
-| **`SUPER_ADMIN`**      | `admin`                                                        | Backend tự khởi tạo nếu chưa tồn tại             | `ACTIVE`                                    | Mật khẩu khởi tạo `admin` (băm bcrypt); không có API công khai tạo admin |
+| **`SUPER_ADMIN`**      | `admin`                                                        | Tạo thủ công trực tiếp trong DB (backend **không** tự tạo) | `ACTIVE`                                    | Mật khẩu băm bcrypt; không có API công khai tạo admin |
 
-- **Ràng buộc Duy nhất & Bất biến**:
-  - `username` và `email` đã từng sử dụng **tuyệt đối không được cấp lại cho bất kỳ tài khoản nào khác**, kể cả các tài khoản đã bị xóa mềm (`isDeleted: true`).
-  - Email đối với `PROPERTY_MANAGER` và `TENANT` là tùy chọn. MongoDB thiết lập **Unique Partial Index**:
-    - Email: `{ email: 1 }` với filter `{ email: { $type: "string" } }` (không lưu chuỗi rỗng `""` cho tài khoản không khai báo email).
-    - Username: `{ username: 1 }` (**UNIQUE** toàn sàn).
-  - Khách thuê (`TENANT`) trực thuộc phạm vi quản lý của một `LANDLORD` theo mô hình dữ liệu hiện hành.
-  - Backend khởi tạo tài khoản `admin / admin` sau khi build index thành công; hệ thống từ chối khởi động nếu khởi tạo index thất bại. Tài khoản seed cũ `admin@wdp301.com` được chuyển đổi một lần sang `admin / admin`; khi restart server không reset lại mật khẩu tài khoản `admin` đã có.
+- **Ràng buộc Duy nhất theo Chủ trọ (cập nhật 28/10/2026)**:
+  - `username` và `email` là duy nhất **trong phạm vi một chủ trọ**, không còn duy nhất toàn sàn. Một người (cùng CCCD / SĐT / email) có thể có tài khoản riêng ở **mỗi chủ trọ** mà họ thuê hoặc làm việc; mỗi tài khoản có mật khẩu riêng.
+  - **Unique Partial Index**: `{ email: 1, landlordId: 1 }` (filter `{ email: { $type: "string" } }`, không lưu chuỗi rỗng) và `{ username: 1, landlordId: 1 }`. `LANDLORD` và `SUPER_ADMIN` không có `landlordId` nên email / username vẫn không trùng nhau giữa các chủ trọ.
+  - Trong cùng một chủ trọ, username / email đã dùng (kể cả tài khoản xóa mềm) không được cấp lại cho tài khoản khác.
+  - Khách thuê (`TENANT`) và Quản lý (`PROPERTY_MANAGER`) trực thuộc đúng một `LANDLORD` (`landlordId`).
+- **Đăng nhập khi một tên đăng nhập có nhiều tài khoản** (`POST /auth/login`):
+  1. Backend lấy mọi tài khoản trùng username/email và kiểm tra mật khẩu với từng tài khoản.
+  2. Chỉ một tài khoản đúng mật khẩu $\rightarrow$ đăng nhập như bình thường.
+  3. Nhiều tài khoản cùng đúng mật khẩu $\rightarrow$ trả `{ selectionRequired: true, accounts: [{ id, roleName, status, landlordName, places }] }` (**chưa tạo phiên, chưa đặt cookie**). `places` liệt kê "Cơ sở – Phòng" của các hợp đồng còn hiệu lực (khách thuê) hoặc cơ sở được giao (quản lý).
+  4. FE hiển thị màn **"Chọn tài khoản"**; người dùng chọn $\rightarrow$ FE gửi lại `{ username, password, accountId }` (mật khẩu được kiểm tra lại). Danh sách chỉ lộ ra sau khi nhập đúng mật khẩu.
+  5. Tự đăng nhập lại sau khi đổi mật khẩu luôn gửi kèm `accountId` để quay về đúng tài khoản.
 
 ### 2. Quy chuẩn Mật khẩu, Mật khẩu Tạm & Đổi Mật khẩu Bắt buộc (`mustChangePassword`)
 
@@ -619,16 +632,23 @@ Hệ thống thống nhất cơ chế định danh không trùng lặp toàn h�
 
 ### 7. Khóa Chặt Cơ chế Bypass Header (Strict Production Lock)
 
-- Header `x-landlord-id` hoặc Mock Auth **CHỈ ĐƯỢC PHÉP HOẠT ĐỘNG KHI `NODE_ENV === 'development' || NODE_ENV === 'test'`**.
-- Trên môi trường **Production (`NODE_ENV === 'production'`)**:
-  - **TUYỆT ĐỐI CẤM MỌI HÌNH THỨC BYPASS**.
-  - Bất kỳ request nào gửi kèm `x-landlord-id` trên production sẽ bị middleware từ chối ngay lập tức với mã lỗi `403 FORBIDDEN` và ghi log cảnh báo xâm nhập an ninh.
+- Header `x-landlord-id` / `x-user-id` và Mock Auth **bị từ chối ở mọi môi trường** (kể cả development): middleware trả `403 FORBIDDEN`. Phạm vi dữ liệu chỉ lấy từ JWT.
+- **CORS & Origin**: REST API, đăng nhập và Socket.io dùng chung `isAllowedOrigin` (`BE/utils/appUrls.js`): các origin trong `CLIENT_URL` (nhiều origin cách nhau bằng dấu phẩy) và link preview Vercel **của đúng team** (`VERCEL_PREVIEW_SUFFIX`). Không mở wildcard kiểu `wdp-*.vercel.app` vì API cho phép gửi cookie.
 
 ### 8. Rate Limiting cho Endpoint Công khai
 
 - **Public Invoice Link (`/i/:token`)**: Giới hạn tối đa **60 requests/phút/IP** để ngăn chặn quét brute-force token.
 - **Webhook Payment (`/api/payments/webhook`)**: Giới hạn tối đa **120 requests/phút/IP** để chống tấn công DoS.
 - **Auth Endpoints (`/api/v1/auth/login`, `/api/v1/auth/register`)**: Giới hạn tối đa **20 requests/phút/IP** để chống tấn công vét cạn mật khẩu (Brute-force/Credential Stuffing).
+
+### 9. Tự khóa & Mở lại Tài khoản Khách thuê theo Hợp đồng
+
+- **Tự khóa** (`BE/jobs/tenantAccess.js`, chạy khi khởi động và mỗi 6 giờ): tài khoản `TENANT` chuyển `status: "INACTIVE"` (`deactivationReason: "NO_ACTIVE_CONTRACT"`) khi đồng thời:
+  - không còn hợp đồng đang chạy, hoặc hợp đồng đã hết hạn / đã trả phòng **quá `TENANT_LOCK_AFTER_DAYS` ngày** (mặc định 30; hết hạn tính theo `endDate`, đã thanh lý tính theo `actualEndDate`);
+  - **không còn hóa đơn nợ** (`ISSUED`, `PARTIALLY_PAID`, `UNPAID` còn tiền) — khách còn nợ vẫn đăng nhập được để thanh toán.
+- Khi khóa: tăng `authVersion`, xóa toàn bộ phiên đăng nhập, audit `DEACTIVATE_TENANT` (actor `SYSTEM`). Đăng nhập đúng mật khẩu nhận `403 TENANT_INACTIVE` kèm lời giải thích; sai mật khẩu vẫn báo sai như thường (không lộ trạng thái). Link hóa đơn `/i/:token` vẫn hoạt động.
+- **Mở lại**: lập hợp đồng mới cùng CCCD (cùng chủ trọ) hoặc gia hạn hợp đồng $\rightarrow$ tài khoản trở lại trạng thái trước khi khóa, **giữ nguyên mật khẩu khách đã đổi**, không cấp mật khẩu tạm, không bắt đổi mật khẩu (audit `REACTIVATE_TENANT`).
+- Tắt bằng `TENANT_AUTO_LOCK=false`.
 
 ---
 
@@ -671,6 +691,20 @@ Hệ thống thống nhất cơ chế định danh không trùng lặp toàn h�
   - **Khấu trừ vào hóa đơn kỳ sau (Credit Note)**.
   - Hoặc **Phiếu hoàn tiền (Refund)**.
 
+### 4. Tiêu chuẩn Thiết lập Tài khoản VietQR & Ngôn ngữ Giao tiếp Chuyên nghiệp
+
+- **Yêu cầu Bắt buộc trước khi Phát hành Hóa đơn**:
+  - Mỗi Cơ sở (`Branch`) hoặc Chuỗi trọ của Chủ nhà (`Landlord`) bắt buộc phải cấu hình tài khoản ngân hàng nhận tiền hợp lệ (`bankConfig` gồm `bankCode`, `accountNumber`, `accountHolder`).
+  - Nếu chưa thiết lập, hệ thống sẽ chặn hành động phát hành hóa đơn (`400 Bad Request` với mã lỗi nội bộ `BANK_NOT_CONFIGURED`).
+- **Quy chuẩn Thông điệp Người dùng (UX Copywriting Guidelines)**:
+  - **TUYỆT ĐỐI KHÔNG HIỂN THỊ MÃ LỖI THÔ KỸ THUẬT** (như `BANK_NOT_CONFIGURED`, `HTTP 400`, `NullReferenceException`) trên giao diện người dùng.
+  - Thông điệp cảnh báo phải lịch sự, chuẩn mực và định hướng hành động theo vai trò:
+    - **Dành cho Chủ nhà (`LANDLORD`)**:
+      > *"Cơ sở này chưa thiết lập tài khoản ngân hàng nhận tiền. Vui lòng cài đặt thông tin VietQR để kích hoạt tính năng phát hành hóa đơn và nhận thanh toán tự động."* (Kèm nút CTA điều hướng trực tiếp: **[Cài đặt tài khoản ngân hàng]**).
+    - **Dành cho Quản lý cơ sở (`PROPERTY_MANAGER`)**:
+      > *"Cơ sở hiện chưa được cấu hình tài khoản nhận tiền. Bạn vui lòng liên hệ Chủ nhà để thiết lập thông tin ngân hàng trước khi phát hành hóa đơn."*
+  - Triệt tiêu hoàn toàn các thông báo mang tính đe dọa, dùng từ ngữ chuyên môn hoặc xưng hô không phù hợp.
+
 ---
 
 # 10. PAYMENT, WEBHOOK & UNMATCHED ENGINE
@@ -706,6 +740,13 @@ Hệ thống thống nhất cơ chế định danh không trùng lặp toàn h�
   2. Trên Dashboard của Landlord hiển thị cảnh báo đỏ: _"Có 1 giao dịch nhận tiền chưa được đối soát"_.
   3. Landlord có nút **"Gán thủ công vào phòng [chọn phòng]"** $\rightarrow$ Hệ thống tự động liên kết với hóa đơn của phòng đó và chuyển trạng thái hóa đơn sang `PAID` kèm log audit.
 
+### 3. Đối soát Tiền cọc qua Ngân hàng (SePay webhook / Bank Hub IPN)
+
+- Nội dung chuyển cọc chuẩn: `COC <mã hợp đồng bỏ dấu gạch>` (ví dụ `COC HDT20269B2095CAAB10`), in sẵn trong mã VietQR cọc. Mã cọc được dò **trước** mã hóa đơn.
+- Khớp đúng một hợp đồng, cọc đang `UNPAID`, hợp đồng chưa thanh lý và **số tiền đúng bằng `depositAmount`** $\rightarrow$ `depositStatus: PAID`, lưu `depositReceivedAt` (ngày giao dịch), `depositReferenceCode`, `PaymentReceipt.contractId`, audit `RECEIVE_CONTRACT_DEPOSIT` (actor `SYSTEM`), phát `contract:deposit_received`.
+- Sai số tiền / cọc đã nhận / hợp đồng đã kết thúc $\rightarrow$ vào `UnmatchedPayment` kèm ghi chú lý do; không tự gạch.
+- Chỉ áp dụng khi chủ trọ có thuê bao đang hiệu lực; webhook trùng trả 200 và không ghi nhận lần hai.
+
 ---
 
 # 11. CONTRACT & CHECK-OUT RULES
@@ -715,17 +756,19 @@ Hệ thống thống nhất cơ chế định danh không trùng lặp toàn h�
 - Chỉ được tạo hợp đồng mới cho các phòng đang ở trạng thái `EMPTY`.
 - Sau khi hợp đồng được kích hoạt: Tự động đổi trạng thái phòng `EMPTY` $\rightarrow$ `RENTED`.
 
-### 2. Tự động Cấp Tài khoản Tenant qua Hợp đồng (Zero-Touch Provisioning)
+### 2. Tự động Cấp Tài khoản Khách thuê qua Hợp đồng
 
 - Khi tạo hợp đồng (`POST /api/v1/contracts`), hệ thống kiểm tra số CCCD (dạng chuỗi 12 chữ số) trong tenant scope của Landlord:
   - **Khách thuê đã tồn tại**: Tự động liên kết hợp đồng mới vào Tenant ID hiện hữu, giữ nguyên mật khẩu cũ của khách (không reset mật khẩu).
   - **Khách thuê mới**: Tạo mới tài khoản `User` (`role = 'TENANT'`, `username = tenant.identityCard`, `landlordId = contract.landlordId`, `status = 'ACTIVE'`, mật khẩu ngẫu nhiên băm bcrypt, `mustChangePassword: true`) trong cùng MongoDB transaction tạo hợp đồng.
-  - `tenant.name` và `tenant.identityCard` là thông tin bắt buộc; `tenant.phoneNumber` và `tenant.email` là tùy chọn.
-  - **Bảo toàn bảo mật mật khẩu**:
+  - `tenant.name` và `tenant.identityCard` là thông tin bắt buộc; `tenant.phoneNumber` và `tenant.email` là tùy chọn (nếu nhập phải khớp tài khoản đã có, ngược lại `TENANT_IDENTITY_CONFLICT`).
+  - **Khách đang bị tạm khóa vì hết hợp đồng** (08.9): tài khoản được mở lại với mật khẩu cũ, không trả `tenantCredentials`.
+  - Cùng CCCD ở **chủ trọ khác**: tạo tài khoản mới thuộc chủ trọ này (tên đăng nhập duy nhất theo chủ trọ, 08.1).
+  - **Bảo toàn bảo mật mật khẩu & Giao tiếp thông tin chuyên nghiệp**:
     - Response tạo hợp đồng thành công (HTTP 201) **chỉ trả về `data.tenantCredentials: { username, temporaryPassword, mustChangePassword: true }` khi tạo mới khách thuê**.
     - Tuyệt đối không lưu trường `tenantCredentials` vào document `Contract` trong cơ sở dữ liệu.
     - Mọi API đọc hợp đồng sau này (`GET /contracts`, `GET /contracts/:id`) tuyệt đối không trả lại mật khẩu.
-    - Không tồn tại API công khai cấp tài khoản Tenant độc lập ngoài luồng ký hợp đồng; không sử dụng xác thực OTP (đã bãi bỏ).
+    - Bãi bỏ các biệt ngữ kỹ thuật khó hiểu (như "Zero-Touch Provisioning", "bãi bỏ OTP theo quy chuẩn 14/10/2026") khỏi giao diện người dùng; thay thế bằng hướng dẫn bàn giao thông tin đăng nhập tự động minh bạch cho khách thuê.
 
 ### 3. Quy trình Nghiệm thu Trả phòng & Quyết toán Tiền cọc (Check-out Settlement)
 
@@ -737,6 +780,47 @@ Hệ thống thống nhất cơ chế định danh không trùng lặp toàn h�
      - Nếu kết quả $> 0$: Chủ trọ hoàn lại tiền cọc thừa cho Tenant.
      - Nếu kết quả $< 0$: Tenant thanh toán số tiền còn thiếu trước khi rời đi.
   4. **Thanh lý Hợp đồng**: Hợp đồng chuyển `TERMINATED`. Phòng chuyển sang `CLEANING` để dọn dẹp đón khách mới.
+
+### 4. Xác nhận Hợp đồng Điện tử 2 Chiều (Two-Way Electronic Signing)
+
+- **Cơ sở pháp lý**: Căn cứ Luật Giao dịch điện tử 2023 và Bộ luật Dân sự 2015, hợp đồng điện tử được xác nhận số giữa Chủ trọ và Khách thuê có giá trị pháp lý tương đương văn bản giấy.
+- **Quy tắc Nghiệp vụ Backend**:
+  1. **Chủ trọ xác nhận (`POST /api/v1/contracts/:contractId/confirm/landlord`)**:
+     - Quyền thực hiện: Chỉ `LANDLORD` sở hữu hợp đồng.
+     - Ghi nhận `landlordConfirmedAt = new Date()`, `landlordConfirmedBy = req.user._id`.
+     - Tự động cập nhật `confirmedByBothParties = !!contract.tenantConfirmedAt`.
+     - Ghi nhận `AuditLog` với action `CONFIRM_CONTRACT_LANDLORD`.
+  2. **Khách thuê xác nhận (`POST /api/v1/contracts/:contractId/confirm/tenant`)**:
+     - Quyền thực hiện: Chỉ `TENANT` đại diện ký trong hợp đồng (`contract.tenantId.toString() === req.user._id.toString()`).
+     - Ghi nhận `tenantConfirmedAt = new Date()`, `tenantConfirmedBy = req.user._id`.
+     - Tự động cập nhật `confirmedByBothParties = !!contract.landlordConfirmedAt`.
+     - Ghi nhận `AuditLog` với action `CONFIRM_CONTRACT_TENANT`.
+  3. **Ràng buộc Chặt chẽ**:
+     - Không cho phép xác nhận nếu hợp đồng đã ở trạng thái thanh lý (`status === 'TERMINATED'`).
+     - Không cho phép xác nhận lặp lại nếu bên đó đã ký nhận trước đó.
+     - Payload body là tùy chọn (chấp nhận `{}` hoặc rỗng), danh tính được xác thực hoàn toàn qua JWT session token.
+- **Quy chuẩn UX/UI Frontend**:
+  - Tích hợp nút ký nhận trực tiếp ngay trong thẻ trạng thái xác nhận điện tử (`Ký xác nhận ngay` cho Chủ trọ hoặc `Đồng ý ký hợp đồng` cho Khách thuê).
+  - Tự động chuyển thẻ trạng thái sang màu xanh lục bảo (`.verified`) và hiển thị huy hiệu `✓ Đã ký kết hợp lệ bởi 2 bên` khi cả hai bên hoàn tất.
+  - Bản in PDF hợp đồng nhúng đầy đủ ngày giờ xác nhận điện tử của cả hai bên.
+
+### 5. Gia hạn Hợp đồng (Phụ lục Gia hạn)
+
+- `POST /api/v1/contracts/:contractId/renew` (`LANDLORD`), body `{ endDate, rentalPrice?, notes? }`.
+- Chỉ cho hợp đồng chưa thanh lý (`ACTIVE` / `EXPIRING_SOON` / `EXPIRED`) và chưa lập phiếu quyết toán (`CONTRACT_SETTLEMENT_PREPARED`). `endDate` mới phải sau ngày kết thúc hiện tại và ở tương lai.
+- Gia hạn **ngay trên hợp đồng hiện tại**: giữ nguyên mã hợp đồng, tiền cọc, khách thuê; phòng không đổi trạng thái. Giá thuê mới áp dụng cho hóa đơn tạo sau đó (hóa đơn đã lập giữ nguyên).
+- Mỗi lần gia hạn thêm một mục `contract.renewals[]` (`previousEndDate`, `endDate`, `previousRentalPrice`, `rentalPrice`, `notes`, `renewedAt`, `renewedBy`) — hiển thị "Lịch sử gia hạn" trong hồ sơ hợp đồng. Audit `RENEW_CONTRACT`; mở lại tài khoản khách nếu đang bị tạm khóa.
+
+### 6. Tiền cọc
+
+- Hợp đồng có cọc `UNPAID` và còn hiệu lực trả thêm `depositPayment` trong `GET /contracts/:id`: số tiền, ngân hàng của chủ trọ, nội dung `COC ...`, `vietQrUrl`, `autoConfirm`. FE hiển thị khung VietQR chuyển cọc cho cả chủ trọ và khách thuê.
+- Chủ trọ xác nhận thủ công: `POST /contracts/:id/deposit/received` (chỉ `UNPAID` $\rightarrow$ `PAID`, idempotent, audit `RECEIVE_CONTRACT_DEPOSIT`). Chuyển khoản đúng cú pháp được tự ghi nhận (10.3).
+- Môi trường sandbox: `POST /contracts/:id/deposit/simulate` giả lập chuyển cọc qua đúng luồng đối soát (tắt ở production / `PAYMENT_SIMULATOR=false`).
+
+### 7. Nội dung Hợp đồng & Bản in
+
+- Hồ sơ hợp đồng luôn hiển thị đủ thông tin **Bên A** (chủ trọ: họ tên, CCCD, SĐT, địa chỉ thường trú — chủ trọ tự nhập trong Hồ sơ cá nhân) và **Bên B**, cùng **8 điều khoản** (quyền & nghĩa vụ hai bên, bảo quản tài sản, giá & thanh toán, tiền cọc, chấm dứt, giải quyết tranh chấp, điều khoản chung) căn cứ Bộ luật Dân sự 2015 & Luật Nhà ở 2023; số liệu lấy từ `contractTerms` và hợp đồng.
+- Điều khoản không được thu gọn mặc định. Nút "In bản Hợp đồng" in **toàn bộ** hồ sơ (CSS `@media print` gỡ giới hạn chiều cao modal, ẩn sidebar / nút).
 
 ---
 
@@ -766,6 +850,11 @@ Hệ thống thống nhất cơ chế định danh không trùng lặp toàn h�
    $$\text{TENANT tạo yêu cầu} \longrightarrow \text{PENDING} \longrightarrow \text{Tiếp nhận (IN\_PROGRESS)} \longrightarrow \text{Sửa xong (SOLVED)} \longrightarrow \text{Đóng phiếu (CLOSED)}$$
 2. **Minh bạch Chi phí**:
    - Phiếu bảo trì bắt buộc ghi rõ: Mô tả hỏng hóc, Ảnh hiện trường, Chi phí vật tư/thợ, và **Người chịu phí** (`LANDLORD` hay `TENANT`/trừ tiền cọc).
+3. **Phân loại Tự động bằng TypeSafe Jev** (`BE/services/incidentTriage.js`, bật khi có `TYPESAFE_API_KEY`):
+   - Jev chỉ trả lời **câu hỏi nhận định** (1 Choice: bộ phận hỏng; 6 Noul: có phải sự cố, nguy hiểm cho người, nước đang rò gây hư hại, mất hẳn tiện ích, phòng không khóa được, chỉ là lỗi nhỏ). **Quyết định nằm trong code** theo bảng: nguy hiểm $\rightarrow$ `URGENT`; nguy hiểm chưa chắc / nước rò / mất tiện ích / không khóa được $\rightarrow$ `HIGH`; lỗi nhỏ $\rightarrow$ `LOW`; còn lại `MEDIUM`. Ngưỡng Noul: ≥ 0.7 là có, < 0.3 là không, ở giữa $\rightarrow$ `triage.needsReview = true`.
+   - Toàn bộ câu hỏi, lựa chọn, ngưỡng nằm trong **một file**; sửa câu hỏi phải chạy thử lại trên bộ báo cáo mẫu (kể cả ca giữ lại không dùng khi chỉnh), không viết tiêu chí cho riêng một ca lỗi.
+   - Chạy nền **sau khi trả response** tạo sự cố; lỗi gọi API được lưu `triage.status: FAILED`, **không bao giờ coi lỗi là câu trả lời**. Sự cố do khách báo nhận mức ưu tiên gợi ý; nhân viên tạo thì giữ mức họ chọn. Nhân viên có thể "Phân loại lại" (`POST /incidents/:id/triage`).
+   - Tiêu đề & mô tả sự cố được gửi tới `api.typesafe.ai`; tiếng Việt kém chính xác hơn tiếng Anh nên luôn có cờ "Cần xem lại" cho người quản lý.
 
 ---
 
@@ -775,37 +864,90 @@ Hệ thống thống nhất cơ chế định danh không trùng lặp toàn h�
    - Hóa đơn và thông báo tiền phòng được gửi qua link trực tiếp qua SMS / Zalo OA / Email.
 2. **Nội dung Nhắc nợ Thân thiện**:
    - Hỗ trợ nút sao chép nhanh nội dung nhắc nợ lịch sự để Chủ nhà gửi Zalo cho từng khách trọ.
+3. **Chuông Thông báo trên TopBar** (`GET /notifications`, `GET /notifications/activity`):
+   - **"Việc cần xử lý"**: đếm trực tiếp từ dữ liệu (không lưu bảng thông báo), theo vai trò. Mỗi nhóm có tổng số và tối đa 5 bản ghi gấp nhất, **ghi cụ thể** phòng – cơ sở – khách – mã hợp đồng/hóa đơn – số tiền – hạn / số ngày quá hạn, bấm mở đúng bản ghi. Nhóm: sự cố khẩn cấp / mới / cần xem lại, giao dịch chưa khớp, hóa đơn quá hạn, phiếu thu tiền mặt chờ duyệt, hợp đồng chờ xác nhận / sắp hết hạn, cọc chưa nhận, gói sắp hết hạn; khách thuê: hóa đơn cần trả / quá hạn, hợp đồng chờ xác nhận, cọc chưa chuyển; admin: yêu cầu đổi gói, hóa đơn SaaS chưa thu.
+   - **"Hoạt động gần đây"**: 20 hoạt động gần nhất từ AuditLog (đúng phạm vi người xem) + sự kiện `activity` realtime; toast khi **người khác** thao tác.
+   - Số đỏ trên chuông chỉ đếm phần **mới kể từ lần mở chuông trước** (nhớ theo tài khoản trên trình duyệt).
 
 ---
 
 # 15. FRONTEND ARCHITECTURE RULES
 
-1. **Cấu trúc Thư mục Feature-based**:
+1. **Cấu trúc Thư mục Feature-based & Modular Layout**:
    ```text
    FE/src/
    ├── assets/
-   ├── components/       # Các UI Component dùng chung (Button, Modal, Table, Toast)
-   ├── context/          # AuthContext, SocketContext
-   ├── features/         # Module nghiệp vụ chuyên biệt (dashboard, branches, rooms, meter-reading, invoices, incidents)
-   ├── services/         # Toàn bộ logic gọi API Axios nằm ở đây, không viết trực tiếp trong component
-   └── utils/            # Helper format tiền tệ VNĐ, ngày tháng, regex
+   ├── components/
+   │   ├── common/       # UI Components dùng chung cơ bản (Button, Modal, Table, Toast, Badge)
+   │   └── layout/       # Khung điều hướng & cấu trúc ứng dụng phân tách:
+   │       ├── AppLayout.jsx     # Khung làm việc chính (Sidebar + TopBar + Main Content Outlet)
+   │       ├── Sidebar.jsx       # Menu điều hướng chính phân quyền theo Role, Logo & Badge
+   │       ├── TopBar.jsx        # Thanh công cụ trên cùng (Quick Search CTA, Thông báo, Profile)
+   │       ├── PublicLayout.jsx  # Khung trang công khai độc lập (Hóa đơn không cần cài App)
+   │       ├── GlobalSearch.jsx  # Hộp thoại tìm kiếm nhanh toàn cục (Ctrl + K)
+   │       └── index.js          # Barrel export layout components
+   ├── context/          # AuthContext, ToastContext
+   ├── hooks/            # useResource (reload / refresh ngầm), useDebounced, useLiveRefresh, useSocketEvent, hook theo trang
+   ├── features/         # Module nghiệp vụ chuyên biệt (dashboard, branches, rooms, contracts, utility-readings, invoices, incidents, staff, tenants)
+   ├── services/         # Toàn bộ logic gọi API Axios tập trung, không gọi trực tiếp trong UI components
+   └── utils/            # Helper format tiền tệ VNĐ, ngày tháng, regex, storage
    ```
+
 2. **Quy chuẩn Component UI**:
    - Tuyệt đối không gọi API trực tiếp trong các component render lớn. Mọi API logic phải nằm trong `services/`.
    - **Bắt buộc có đủ 3 trạng thái**: `LoadingState` (Skeleton/Spinner), `ErrorState` (Alert/Retry button), và `EmptyState` (Hình minh họa + Nút CTA).
-   - Tối ưu Debounce (300ms) cho các ô tìm kiếm danh sách phòng/khách thuê.
+   - **Debounce bắt buộc cho mọi ô tìm kiếm gọi API** (300ms, `useDebounced`); gợi ý địa chỉ (Photon) 350ms, tối thiểu 3 ký tự và hủy request cũ bằng `AbortController`. Ô chỉ lọc dữ liệu đã tải trên trình duyệt thì không cần.
+   - Màn hình tự cập nhật bằng `useLiveRefresh([resources], refresh)` (16); làm mới ngầm không hiện spinner toàn trang và giữ dữ liệu cũ nếu lỗi.
+   - Bộ lọc "Tất cả cơ sở" nghĩa là **không lọc** — không tự lấy `selectedBranchId` toàn cục làm giá trị mặc định / fallback.
+   - Mở một bản ghi cụ thể bằng tham số URL (ví dụ `/contracts?contractId=...`, `/invoices?search=<mã>`), không lọc danh sách theo trường khác nghĩa.
    - Bắt buộc sử dụng **Toast Notification**. **TUYỆT ĐỐI CẤM** dùng hàm `alert()` mặc định của trình duyệt (_"local say"_).
+   - `App.jsx` giữ vai trò router và bootstrap ứng dụng tinh gọn; mọi logic khung giao diện, thanh bên và thanh tiêu đề chuyển giao toàn bộ cho `components/layout/`.
+
+3. **Công cụ Tìm kiếm Toàn cục (Global Quick Search Engine - `Ctrl + K`)**:
+   - Hệ thống trang bị hộp thoại tìm kiếm nhanh toàn cục có thể kích hoạt bằng phím tắt `Ctrl + K` (Windows) hoặc `⌘ + K` (macOS), hoặc bấm vào ô tìm kiếm trên `TopBar`.
+   - Tự động debounce 300ms và gửi truy vấn tới endpoint `GET /api/v1/search?q=<keyword>`.
+   - Kết quả trả về được phân nhóm trực quan gồm:
+     - **Cơ sở (Branches)**: Tên cơ sở, địa chỉ.
+     - **Phòng (Rooms)**: Tên phòng, tầng, cơ sở trực thuộc.
+     - **Hợp đồng (Contracts)**: Mã hợp đồng, tên khách thuê, số CCCD, phòng thuê.
+     - **Hóa đơn (Invoices)**: Mã hóa đơn, phòng, số tiền, trạng thái gạch nợ.
+   - Điều hướng trực tiếp tới đúng trang chi tiết của đối tượng khi người dùng click vào kết quả hoặc ấn Enter.
+   - Cơ chế bảo mật: Backend tự động phân quyền dữ liệu theo `landlordId` và `assignedBranches` của người tìm kiếm.
+
+4. **Bộ lọc Đa Tiêu chí Danh bạ Khách thuê (Tenant Directory Multi-Criteria Filter)**:
+   - Danh bạ khách thuê hỗ trợ tìm kiếm kết hợp đa trường:
+     - **Từ khóa tìm kiếm**: Tìm đồng thời trên Họ tên, Số CCCD 12 số, Số điện thoại, Email và Quê quán.
+     - **Lọc Trạng thái**: Tất cả, Đang hoạt động (`ACTIVE`), Chờ đổi mật khẩu (`mustChangePassword`), Tạm khóa – hết hợp đồng (`INACTIVE`, 08.9).
+     - **Lọc Quê quán / Tỉnh thành**: Trích xuất danh sách tỉnh thành duy nhất có trong dữ liệu khách thuê để lọc nhanh.
+   - Hỗ trợ nút xóa nhanh bộ lọc (`Xóa lọc`) khi có bất kỳ tiêu chí nào đang áp dụng.
+
+5. **Quy chuẩn Giao diện Modal Phức Tạp & Quản lý Cuộn Độc Lập (Scroll Containment)**:
+   - Các màn hình chi tiết nhiều thông tin trong modal (như `ContractDetail.jsx`):
+     - **Bento Grid / Card-based Structure**: Chia các khối thông tin thành các thẻ độc lập (Thẻ xác nhận điện tử 2 bên, Thẻ thông tin khách thuê & liên hệ, Thẻ chu kỳ & tài chính, Thẻ chỉ số bàn giao ban đầu, Điều khoản pháp lý).
+     - **Quản lý Cuộn Độc Lập**: Khung nội dung modal phải được giới hạn chiều cao tối đa (`max-height: calc(88vh - 130px)`) và cho phép cuộn độc lập (`overflow-y: auto`) với thanh cuộn tuỳ biến tinh tế (chiều rộng 6px, bo góc mượt mà). Các khối con trong khung cuộn flex phải `flex-shrink: 0` (khối có `overflow: hidden` sẽ bị co về 0px nếu thiếu).
+     - **Footer Cố Định (Sticky Modal Footer)**: Toàn bộ nút hành động nghiệp vụ (In hợp đồng, Sửa, Xác nhận ký, Đóng) đưa vào thuộc tính `footer` của `Modal` hoặc cố định ở chân, tuyệt đối không bị che khuất hoặc tràn màn hình khi người dùng cuộn nội dung.
+
+6. **Code Splitting & Bundle**:
+   - Mọi trang, modal lớn (Tạo hóa đơn, Chọn gói) và **từng tab admin** dùng `React.lazy` + `Suspense`; chỉ tải khi mở lần đầu.
+   - `vite.config.js` tách thư viện thành chunk riêng (`vendor-react`, `vendor-network`, `vendor-icons`) để trình duyệt giữ cache qua các lần deploy; chunk ứng dụng chính giữ nhỏ (~14 KB gzip).
 
 ---
 
 # 16. REALTIME / SOCKET.IO RULES
 
-1. **Phân chia Socket Rooms**:
-   - `landlord:<landlordId>`: Nhận biến động doanh thu, hóa đơn mới được thanh toán.
-   - `branch:<branchId>`: Quản lý nhận thông báo sự cố mới phát sinh.
-   - `invoice:<invoiceId>`: Khách thuê mở trang hóa đơn sẽ join room này để nhận tín hiệu gạch nợ tức thì.
-2. **Sự kiện Trọng tâm**:
-   - `payment:success`: Bắn sau khi Transaction commit thành công $\rightarrow$ Màn hình khách thuê tự động chuyển tích xanh _"Thanh toán thành công"_ mà không cần F5.
+1. **Phân chia Socket Rooms** (`BE/realtime/index.js`):
+   - `landlord:<landlordId>`: chủ trọ — doanh thu, hóa đơn được thanh toán, hoạt động chi tiết.
+   - `branch:<branchId>`: quản lý của cơ sở đó — sự cố, hoạt động trong cơ sở.
+   - `invoice:<invoiceId>`: trang hóa đơn (đăng nhập hoặc link công khai) — tín hiệu gạch nợ tức thì.
+   - `user:<userId>`: mọi tài khoản — hoạt động liên quan trực tiếp tới người đó (hóa đơn, hợp đồng, sự cố của khách).
+   - `scope:<landlordId>`: chủ trọ, quản lý, khách thuê của một chuỗi — chỉ nhận gợi ý làm mới `data:changed`.
+   - `admins` / `landlords`: SUPER_ADMIN / mọi chủ trọ (thay đổi gói, thuê bao).
+2. **Sự kiện**:
+   - `payment:success`, `invoice_paid`: sau khi transaction commit $\rightarrow$ trang hóa đơn tự chuyển tích xanh không cần F5.
+   - `incident:created`, `incident:updated`, `contract:deposit_received`.
+   - `data:changed` `{ resources: [...] }` (`BE/realtime/liveUpdates.js`): phát sau **mọi** thao tác ghi thành công (middleware sau response), webhook ngân hàng, IPN cổng thanh toán, phân loại sự cố. **Không chứa dữ liệu** — chỉ tên nhóm (contracts, rooms, invoices, payments, unmatched, incidents, dashboard, notifications, ...), nên được gửi cho cả chuỗi. Bảng `RELATED` quy định một thay đổi ảnh hưởng những màn nào.
+   - `activity` (`BE/realtime/activity.js`): **ai làm gì, phòng nào, cơ sở nào, mã hợp đồng / hóa đơn nào, số tiền**. Vì có dữ liệu cá nhân nên **chỉ gửi** `landlord:`, `branch:` của cơ sở liên quan, `user:` của khách liên quan và `admins` (việc về gói). Danh sách hành động & câu chữ: `ACTIONS`.
+3. **Nguyên tắc**: chỉ phát sau khi transaction commit; lỗi realtime không được làm hỏng request đã thành công; FE gộp các thay đổi liên tiếp (debounce 400ms) thành một lần làm mới.
 
 ---
 
@@ -820,18 +962,24 @@ Hệ thống thống nhất cơ chế định danh không trùng lặp toàn h�
      action: String,          // CREATE_INVOICE, CANCEL_INVOICE, CONFIRM_CASH_PAYMENT, SETTLE_CONTRACT...
      entityType: String,      // INVOICE, CONTRACT, ROOM, BRANCH, PRICING
      entityId: ObjectId,      // ID của đối tượng bị thay đổi
-     before: Object,          // Dữ liệu trước khi sửa
-     after: Object,           // Dữ liệu sau khi sửa
+     before: Object,          // Chỉ các trường đã thay đổi (giá trị cũ)
+     after: Object,           // Chỉ các trường đã thay đổi (giá trị mới)
      ipAddress: String,
      userAgent: String,
+     expiresAt: Date,         // Hạn lưu trữ (TTL)
      createdAt: Date
    }
    ```
+   - `actorRole` có thêm `SYSTEM` cho thay đổi không có người đăng nhập (webhook ngân hàng, IPN, job tự khóa tài khoản).
+   - **Chỉ lưu trường thay đổi** (`BE/utils/auditPolicy.js` → `changedFields`): so sánh cấp đầu, bỏ qua `_id`, `__v`, `createdAt`, `updatedAt`, các trường version nội bộ. Bản ghi tạo mới / xóa lưu nguyên dữ liệu truyền vào.
+   - **Hạn lưu trữ (TTL index `expiresAt`)**: log thường `AUDIT_RETENTION_DAYS` (mặc định 365 ngày); **log tài chính** `AUDIT_FINANCE_RETENTION_DAYS` (mặc định 3650 ngày) — `entityType` `INVOICE` / `PLATFORM_INVOICE` / `SUBSCRIPTION` hoặc action chứa `PAYMENT`, `BANK`, `DEPOSIT`, `SETTLE`, `PRICING`, `COST`. Đặt `0` để giữ vĩnh viễn.
+   - Trang audit của admin: tổng số khi không lọc dùng `estimatedDocumentCount`.
 2. **Các hành động Bắt buộc Ghi Audit**:
    - Sửa đổi biểu giá điện/nước.
    - Thay đổi STK ngân hàng nhận tiền.
    - Hủy hóa đơn hoặc xác nhận thanh toán tiền mặt thủ công.
-   - Gia hạn hoặc thanh lý hợp đồng thuê phòng.
+   - Gia hạn (`RENEW_CONTRACT`) hoặc thanh lý hợp đồng thuê phòng; xác nhận / tự ghi nhận tiền cọc (`RECEIVE_CONTRACT_DEPOSIT`).
+   - Tự khóa / mở lại tài khoản khách thuê (`DEACTIVATE_TENANT`, `REACTIVATE_TENANT`); phân loại lại sự cố (`TRIAGE_INCIDENT`).
    - Gán giao dịch chuyển khoản nhầm (`UnmatchedPayment`) vào hóa đơn.
 
 ---
@@ -852,8 +1000,12 @@ Hệ thống thống nhất cơ chế định danh không trùng lặp toàn h�
 1. **Tối ưu RAM 512MB MongoDB Atlas**:
    - Luôn sử dụng `.lean()` cho các query đọc chỉ hiển thị dữ liệu trên Frontend để giảm tải tiêu hao bộ nhớ Mongoose.
    - Giới hạn `limit()` và `skip()` trong mọi API lấy danh sách, không trả về toàn bộ hàng ngàn document cùng lúc.
+   - Chạy song song các truy vấn độc lập (`Promise.all`), ví dụ xác thực mỗi request kiểm tra user và phiên cùng lúc.
+   - Sắp xếp / giới hạn / đếm trong MongoDB (aggregate, `$group`) thay vì tải hàng loạt về Node rồi lọc; `$lookup` chỉ chạy sau `$limit`.
+   - Mỗi kiểu sắp xếp của trang danh sách phải có compound index tương ứng (05.2).
 2. **Tối ưu Bundle Size Frontend**:
-   - Tách bundle bằng Dynamic Import (`React.lazy`).
+   - Tách bundle bằng Dynamic Import (`React.lazy`) cho trang, modal và tab admin; tách chunk thư viện (15.6).
+   - Dashboard tải 2 đợt: số liệu chính (thống kê, công nợ tính sẵn ở BE) hiện ngay, danh sách phụ tải sau.
    - Sử dụng Vite build tối ưu nén tài nguyên static.
 
 ---
@@ -879,7 +1031,8 @@ Hệ thống thống nhất cơ chế định danh không trùng lặp toàn h�
    - **Webhook**: Cổng nhận diện giao dịch ngân hàng mở (SePay / Casso).
 2. **Bảo mật Biến Môi trường (Environment Variables)**:
    - Tuyệt đối không commit file `.env` lên GitHub.
-   - Cung cấp file `.env.example` đầy đủ các key mẫu.
+   - Cung cấp file `.env.example` đầy đủ các key mẫu. Các key thêm gần đây: `CLIENT_URL` (nhiều origin, phẩy), `PUBLIC_APP_URL`, `VERCEL_PREVIEW_SUFFIX`, `TRUST_PROXY`, `COOKIE_SAME_SITE`, `AUDIT_RETENTION_DAYS`, `AUDIT_FINANCE_RETENTION_DAYS`, `TENANT_AUTO_LOCK`, `TENANT_LOCK_AFTER_DAYS`, `TYPESAFE_API_KEY`, `TYPESAFE_MODEL`, `PAYMENT_SIMULATOR`.
+3. **Migration khi khởi động** (`BE/config/migrations.js`, chạy trước `createIndexes()`, idempotent): xóa index cũ bị thay thế, backfill dữ liệu (ví dụ `expiresAt` của AuditLog), gỡ `features` / `featureFlags` cũ khỏi gói. Sau mỗi lần cập nhật cần khởi động lại BE.
 
 ---
 

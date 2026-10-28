@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { LIVE_CONTRACT_STATUSES, OWING_INVOICE_STATUSES } = require("../utils/statuses");
 const crypto = require("node:crypto");
 const {
   Invoice,
@@ -24,6 +25,7 @@ const VISIBLE_STATUSES = [
   "UNPAID",
 ];
 const INVOICE_STATUSES = ["DRAFT", ...VISIBLE_STATUSES, "CANCELLED"];
+const OWING_STATUSES = OWING_INVOICE_STATUSES;
 
 function invoiceScope(req) {
   const scope = { ...getTenantScope(req), isDeleted: false };
@@ -59,13 +61,21 @@ async function listInvoices(req) {
   }
   const filter = { $and: [invoiceScope(req), ...filters] };
   const { page, limit, skip } = validate.pagination(req.query);
-  const [data, total] = await Promise.all([
+  const [rows, total] = await Promise.all([
     Invoice.find(filter)
       .sort({ createdAt: -1, _id: -1 })
       .skip(skip)
-      .limit(limit),
+      .limit(limit)
+      .lean(),
     Invoice.countDocuments(filter),
   ]);
+  // lean() skips the schema virtuals, so add the two the FE reads (id, isOverdue).
+  const now = new Date();
+  const data = rows.map((row) => ({
+    ...row,
+    id: String(row._id),
+    isOverdue: Boolean(row.dueDate && OWING_STATUSES.includes(row.status) && now > row.dueDate),
+  }));
   return { data, pagination: { page, limit, total } };
 }
 
@@ -78,7 +88,7 @@ async function invoiceInputs(req, room, billingPeriod, session, contractId) {
     branchId: room.branchId,
     roomId: room._id,
     isDeleted: false,
-    status: { $in: ["ACTIVE", "EXPIRING_SOON", "EXPIRED"] },
+    status: { $in: LIVE_CONTRACT_STATUSES },
     "settlement.state": { $ne: "PREPARED" },
     startDate: { $lt: end },
     endDate: { $gte: start },

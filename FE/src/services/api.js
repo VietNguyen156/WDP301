@@ -171,6 +171,15 @@ export const contractApi = {
     axiosInstance.post(`/contracts/${id}/settlement`, body).then(payload),
   terminate: (id, body = {}) =>
     axiosInstance.post(`/contracts/${id}/terminate`, body).then(payload),
+  confirmByLandlord: (id, body = {}) =>
+    axiosInstance.post(`/contracts/${id}/confirm/landlord`, body).then(payload),
+  confirmByTenant: (id, body = {}) =>
+    axiosInstance.post(`/contracts/${id}/confirm/tenant`, body).then(payload),
+  renew: (id, body) => axiosInstance.post(`/contracts/${id}/renew`, body).then(payload),
+  markDepositReceived: (id) =>
+    axiosInstance.post(`/contracts/${id}/deposit/received`, {}).then(payload),
+  simulateDeposit: (id) =>
+    axiosInstance.post(`/contracts/${id}/deposit/simulate`, {}).then(payload),
 };
 
 export const paymentApi = {
@@ -197,6 +206,7 @@ export const incidentApi = {
     axiosInstance.put(`/incidents/${id}/status`, body).then(payload),
   updateCost: (id, body) =>
     axiosInstance.put(`/incidents/${id}/cost`, body).then(payload),
+  retriage: (id) => axiosInstance.post(`/incidents/${id}/triage`).then(payload),
 };
 
 export const profileApi = {
@@ -232,6 +242,17 @@ export const bankHubApi = {
   createLinkToken: (body = { purpose: "LINK" }) =>
     axiosInstance.post("/bank-hub/link-token", body).then(payload),
   sync: () => axiosInstance.post("/bank-hub/sync").then(payload),
+};
+
+// Top bar search across branches, rooms, contracts and invoices (staff only).
+export const searchApi = {
+  search: (q) => axiosInstance.get("/search", { params: { q } }).then(payload),
+};
+
+// Top bar bell: work waiting for the signed-in user.
+export const notificationApi = {
+  list: () => axiosInstance.get("/notifications").then(payload),
+  activity: () => axiosInstance.get("/notifications/activity").then(payload),
 };
 
 export const dashboardApi = {

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { AlertTriangle, Trash2 } from "lucide-react";
 import { Modal } from "../../components/ui/Modal";
 import { Button } from "../../components/ui/Button";
 import { invoiceService } from "../../services/invoiceService";
@@ -45,9 +46,14 @@ export function InvoiceCancelModal({ isOpen, onClose, invoice, onInvoiceCancelle
           <Button variant="outline" onClick={onClose} disabled={submitting}>
             Quay lại
           </Button>
-          <Button variant="destructive" loading={submitting} onClick={handleCancel}>
-            <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>delete</span>
-            Xác nhận hủy hóa đơn
+          <Button
+            variant="destructive"
+            loading={submitting}
+            onClick={handleCancel}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+          >
+            <Trash2 size={16} />
+            <span>Xác nhận hủy hóa đơn</span>
           </Button>
         </div>
       }
@@ -63,9 +69,15 @@ export function InvoiceCancelModal({ isOpen, onClose, invoice, onInvoiceCancelle
             fontSize: "0.85rem",
             color: "var(--error-text)",
             lineHeight: 1.4,
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "8px",
           }}
         >
-          ⚠️ <strong>Lưu ý:</strong> Chỉ được hủy hóa đơn chưa phát sinh thanh toán (đã thu = 0 VNĐ). Sau khi hủy, hóa đơn sẽ chuyển sang trạng thái <strong>CANCELLED</strong> và mã QR thanh toán sẽ bị vô hiệu hóa.
+          <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: "2px" }} />
+          <div>
+            <strong>Lưu ý:</strong> Chỉ được hủy hóa đơn chưa phát sinh thanh toán (đã thu = 0 VNĐ). Sau khi hủy, hóa đơn sẽ chuyển sang trạng thái <strong>CANCELLED</strong> và mã QR thanh toán sẽ bị vô hiệu hóa.
+          </div>
         </div>
 
         <div className="invoice-modal-field">

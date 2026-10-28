@@ -314,7 +314,7 @@ async function handleIpn(body) {
       orderNumber,
       result.unapplied ? "UNAPPLIED" : "PAID",
     );
-  return result;
+  return { ...result, invoiceId: invoice._id, landlordId: invoice.landlordId };
 }
 
 // GET /v1/order/detail/{order_invoice_number} on the gateway REST API (Basic merchant_id:secret_key).

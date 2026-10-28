@@ -14,8 +14,6 @@ const v = require("../utils/validation");
 const account = require("./accountValidation");
 const audit = require("./auditService");
 const { currentSubscription } = require("./quotaService");
-const { FEATURE_KEYS } = require("../utils/planFeatures");
-const { planHas } = require("./planFeatures");
 const hash = (token) => crypto.createHash("sha256").update(token).digest("hex");
 const authError = () =>
   new AppError(
@@ -58,7 +56,6 @@ const planView = (plan) =>
     maxBranches: plan.maxBranches,
     maxRooms: plan.maxRooms,
     maxManagers: plan.maxManagers,
-    featureFlags: FEATURE_KEYS.filter((key) => planHas(plan, key)),
   };
 const subscriptionView = (sub) =>
   sub && {
@@ -128,8 +125,61 @@ function tokenFor(user, session) {
   );
 }
 
+// Login names are unique per landlord, so one CCCD / email can match an account with each
+// landlord. The password decides which accounts are this person's; open accounts come first,
+// then the most recently created (the tenant's current landlord).
+const STATUS_RANK = { ACTIVE: 0, PENDING_ACTIVATION: 1, INACTIVE: 2 };
+async function matchingAccounts(candidates, password) {
+  const matches = [];
+  for (const candidate of candidates)
+    if (await candidate.comparePassword(password)) matches.push(candidate);
+  return matches.sort(
+    (a, b) => (STATUS_RANK[a.status] ?? 3) - (STATUS_RANK[b.status] ?? 3) || b.createdAt - a.createdAt,
+  );
+}
+
+const ROLE_NAMES = { LANDLORD: "Chủ trọ", PROPERTY_MANAGER: "Quản lý cơ sở", TENANT: "Khách thuê", SUPER_ADMIN: "Quản trị" };
+
+// What the login screen shows for each account to choose from: whose it is and where.
+async function accountChoices(users) {
+  const Contract = require("../models/Contract");
+  const Branch = require("../models/Branch");
+  const { LIVE_CONTRACT_STATUSES } = require("../utils/statuses");
+  return Promise.all(
+    users.map(async (u) => {
+      const landlord =
+        u.role === "LANDLORD" ? u : await User.findById(u.landlordId).select("name email").lean();
+      let places = [];
+      if (u.role === "TENANT") {
+        const contracts = await Contract.find({
+          tenantId: u._id,
+          landlordId: u.landlordId,
+          isDeleted: false,
+          status: { $in: LIVE_CONTRACT_STATUSES },
+        })
+          .select("branchId roomId")
+          .populate("branchId", "name")
+          .populate("roomId", "roomNumber")
+          .lean();
+        places = contracts.map((c) => [c.branchId?.name, c.roomId?.roomNumber && `Phòng ${c.roomId.roomNumber}`].filter(Boolean).join(" – "));
+      } else if (u.role === "PROPERTY_MANAGER") {
+        const branches = await Branch.find({ _id: { $in: u.assignedBranches || [] }, isDeleted: false }).select("name").lean();
+        places = branches.map((b) => b.name);
+      }
+      return {
+        id: String(u._id),
+        role: u.role,
+        roleName: ROLE_NAMES[u.role] || u.role,
+        status: u.status,
+        landlordName: landlord?.name || landlord?.email || "Chủ trọ",
+        places,
+      };
+    }),
+  );
+}
+
 async function login(body) {
-  v.fields(body, ["username", "email", "password"]);
+  v.fields(body, ["username", "email", "password", "accountId"]);
   if ((body.username !== undefined) === (body.email !== undefined))
     throw new ValidationError("Cung cấp username hoặc email");
   v.text(body.username ?? body.email, "Tài khoản");
@@ -138,14 +188,27 @@ async function login(body) {
   if (username.startsWith("+84")) username = account.phone(username, true);
   // Email remains accepted for existing clients; phone/CCCD are the new account names.
   const filter = username.includes("@") ? { email: username } : { username };
-  const user = await User.findOne({ ...filter, isDeleted: false }).select(
-    "+password +authVersion",
+  const matches = await matchingAccounts(
+    await User.find({ ...filter, isDeleted: false }).select("+password +authVersion").limit(10),
+    body.password,
   );
-  if (!user || !(await user.comparePassword(body.password)))
+  // Same CCCD + password with several landlords: let the person choose (step 2 resends the
+  // credentials with accountId, so the password is checked again).
+  if (matches.length > 1 && body.accountId === undefined)
+    return { selectionRequired: true, accounts: await accountChoices(matches) };
+  const user =
+    body.accountId === undefined ? matches[0] : matches.find((m) => String(m._id) === String(body.accountId));
+  if (!user)
     throw new AppError(
       "Tài khoản hoặc mật khẩu không đúng",
       401,
       "AUTH_REQUIRED",
+    );
+  // Right password but the tenant has no contract any more: say why instead of "wrong password".
+  if (user.status === "INACTIVE")
+    throw new ForbiddenError(
+      "Tài khoản đã tạm khóa vì không còn hợp đồng thuê. Khi bạn ký hợp đồng mới, tài khoản sẽ mở lại với mật khẩu cũ.",
+      "TENANT_INACTIVE",
     );
   const active = await activeUser(user._id);
   if ((user.authVersion || 0) !== (active.authVersion || 0)) throw authError();
@@ -194,7 +257,6 @@ async function register(req) {
           maxRooms: 5,
           maxManagers: 1,
           isActive: true,
-          featureFlags: [],
         },
       },
       { upsert: true, returnDocument: "after", runValidators: true, session },
@@ -268,17 +330,17 @@ async function authenticate(token) {
     !Number.isSafeInteger(payload.version)
   )
     throw authError();
-  const user = await activeUser(payload.sub);
-  if (
-    payload.version !== (user.authVersion || 0) ||
-    !(await AuthSession.exists({
+  // Runs on every request: the session check only needs the token, so it goes in parallel.
+  const [user, session] = await Promise.all([
+    activeUser(payload.sub),
+    AuthSession.exists({
       _id: payload.sid,
-      userId: user._id,
+      userId: payload.sub,
       authVersion: payload.version,
       expiresAt: { $gt: new Date() },
-    }))
-  )
-    throw authError();
+    }),
+  ]);
+  if (payload.version !== (user.authVersion || 0) || !session) throw authError();
   return user;
 }
 

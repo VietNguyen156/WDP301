@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { LIVE_CONTRACT_STATUSES, OWING_INVOICE_STATUSES } = require("../utils/statuses");
 const Invoice = require("../models/Invoice");
 const Payment = require("../models/Payment");
 const Room = require("../models/Room");
@@ -15,7 +16,7 @@ const {
 
 // "3-second dashboard": how much came in, who still owes (and for how long), how full we are.
 const BILLED = ["ISSUED", "PARTIALLY_PAID", "PAID", "OVERPAID", "UNPAID"];
-const OWING = ["ISSUED", "PARTIALLY_PAID", "UNPAID"];
+const OWING = OWING_INVOICE_STATUSES;
 const ROOM_STATUSES = ["RENTED", "EMPTY", "MAINTENANCE", "CLEANING"];
 const rate = (part, whole) =>
   whole ? Math.round((part / whole) * 10000) / 100 : 0;
@@ -40,18 +41,24 @@ function reminder(item) {
   );
 }
 
+const owingMatch = (match) => ({
+  ...match,
+  isDeleted: false,
+  status: { $in: OWING },
+  remainingAmount: { $gt: 0 },
+});
+const overdueDays = (now) => ({
+  $max: [0, { $floor: { $divide: [{ $subtract: [now, "$dueDate"] }, DAY_MS] } }],
+});
+
+// Most overdue first, then largest amount. Sorting and limiting happen in MongoDB so the
+// room/branch/tenant lookups only run for the rows actually returned.
 async function debtItems(match, limit) {
   const now = new Date();
   const rows = await Invoice.aggregate([
-    {
-      $match: {
-        ...match,
-        isDeleted: false,
-        status: { $in: OWING },
-        remainingAmount: { $gt: 0 },
-      },
-    },
-    { $sort: { dueDate: 1, _id: 1 } },
+    { $match: owingMatch(match) },
+    { $addFields: { overdueDays: overdueDays(now) } },
+    { $sort: { overdueDays: -1, remainingAmount: -1, _id: 1 } },
     { $limit: limit },
     {
       $lookup: {
@@ -90,22 +97,14 @@ async function debtItems(match, limit) {
         dueDate: 1,
         status: 1,
         publicAccessToken: 1,
+        overdueDays: 1,
         room: { $first: "$room" },
         branch: { $first: "$branch" },
         tenant: { $first: "$tenant" },
       },
     },
   ]);
-  return rows
-    .map((row) => ({
-      ...row,
-      overdueDays: Math.max(0, Math.floor((now - row.dueDate) / DAY_MS)),
-    }))
-    .sort(
-      (a, b) =>
-        b.overdueDays - a.overdueDays || b.remainingAmount - a.remainingAmount,
-    )
-    .map((row) => ({
+  return rows.map((row) => ({
       invoiceId: row._id,
       invoiceCode: row.invoiceCode,
       billingPeriod: row.billingPeriod,
@@ -131,12 +130,26 @@ async function debtItems(match, limit) {
     }));
 }
 
-function debtSummary(items) {
+// Totals over every owing invoice, counted in MongoDB without loading them.
+async function debtSummary(match) {
+  const now = new Date();
+  const [row] = await Invoice.aggregate([
+    { $match: owingMatch(match) },
+    {
+      $group: {
+        _id: null,
+        rooms: { $addToSet: "$roomId" },
+        invoiceCount: { $sum: 1 },
+        overdueCount: { $sum: { $cond: [{ $gt: [overdueDays(now), 0] }, 1, 0] } },
+        totalAmount: { $sum: "$remainingAmount" },
+      },
+    },
+  ]);
   return {
-    roomCount: new Set(items.map((i) => String(i.room?.id))).size,
-    invoiceCount: items.length,
-    overdueCount: items.filter((i) => i.overdueDays > 0).length,
-    totalAmount: items.reduce((sum, i) => sum + i.remainingAmount, 0),
+    roomCount: row?.rooms.length || 0,
+    invoiceCount: row?.invoiceCount || 0,
+    overdueCount: row?.overdueCount || 0,
+    totalAmount: row?.totalAmount || 0,
   };
 }
 
@@ -147,7 +160,7 @@ async function stats(req) {
   const match = await scope(req);
   const { start: from, end: to } = periodRange(billingPeriod);
   const now = new Date();
-  const [billed, received, rooms, contracts, debts] = await Promise.all([
+  const [billed, received, rooms, contracts, debts, debtTotals] = await Promise.all([
     Invoice.aggregate([
       {
         $match: {
@@ -191,7 +204,7 @@ async function stats(req) {
         $match: {
           ...match,
           isDeleted: false,
-          status: { $in: ["ACTIVE", "EXPIRING_SOON", "EXPIRED"] },
+          status: { $in: LIVE_CONTRACT_STATUSES },
         },
       },
       {
@@ -218,7 +231,8 @@ async function stats(req) {
         },
       },
     ]),
-    debtItems(match, 1000),
+    debtItems(match, 10),
+    debtSummary(match),
   ]);
   const totals = billed[0] || {
     expectedAmount: 0,
@@ -246,7 +260,7 @@ async function stats(req) {
       receivedAmount: received.reduce((sum, r) => sum + r.amount, 0),
       receivedByMethod,
     },
-    debts: { ...debtSummary(debts), items: debts.slice(0, 10) },
+    debts: { ...debtTotals, items: debts },
     occupancy: {
       totalRooms,
       rentedRooms: byStatus.RENTED || 0,
@@ -264,8 +278,9 @@ async function stats(req) {
 }
 
 async function debts(req) {
-  const items = await debtItems(await scope(req), 1000);
-  return { ...debtSummary(items), items };
+  const match = await scope(req);
+  const [items, totals] = await Promise.all([debtItems(match, 1000), debtSummary(match)]);
+  return { ...totals, items };
 }
 
 module.exports = { stats, debts };

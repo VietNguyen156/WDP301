@@ -5,16 +5,34 @@ import {
   Edit2,
   Trash2,
   CheckCircle2,
-  XCircle,
   Building2,
   DoorOpen,
   Users,
   AlertTriangle,
+  Sparkles,
+  Power,
+  Clock,
 } from "lucide-react";
 import { adminApi, errorMessage } from "../../services/api";
 import { money } from "../../utils/format";
 import { useToast } from "../../context/ToastContext";
 import { LoadingState, ErrorState, EmptyState, Button, Modal, Pagination } from "../../components/ui";
+import { useLiveRefresh } from "../../hooks/useLiveRefresh";
+import { useDebounced } from "../../hooks/useResource";
+
+// Every plan includes every feature; plans differ only in price and these quotas.
+// A quota at or above `unlimited` is shown (and saved) as "Không giới hạn".
+const QUOTAS = [
+  { key: "maxBranches", label: "Cơ sở", icon: Building2, unlimited: 999 },
+  { key: "maxRooms", label: "Phòng", icon: DoorOpen, unlimited: 9999 },
+  { key: "maxManagers", label: "Quản lý", icon: Users, unlimited: 99 },
+];
+const STATUS_FILTERS = [
+  { value: "", label: "Tất cả" },
+  { value: "true", label: "Đang bán" },
+  { value: "false", label: "Tạm ngưng" },
+];
+const PAGE_SIZE = 20;
 
 const INITIAL_FORM = {
   name: "",
@@ -26,48 +44,63 @@ const INITIAL_FORM = {
   maxManagers: 2,
   trialDays: 30,
   isActive: true,
-  featuresInput: "Quản lý cơ sở\nChốt số điện nước\nVietQR động\nĐối soát SePay",
 };
+
+const isUnlimited = (plan, quota) => plan[quota.key] >= quota.unlimited;
+const codeTone = (code) =>
+  ({ FREE_TRIAL: "trial", STARTER: "starter", PRO: "pro", ENTERPRISE: "enterprise" })[code] || "custom";
 
 export function AdminPlansView() {
   const toast = useToast();
   const [plans, setPlans] = useState([]);
+  const [includedFeatures, setIncludedFeatures] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Filters
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState(""); // "" | "true" | "false"
+  // Query the API once typing pauses, not on every keystroke.
+  const debouncedSearch = useDebounced(search);
+  const [statusFilter, setStatusFilter] = useState("");
 
-  // Modals state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
   const [deletingPlan, setDeletingPlan] = useState(null);
   const [form, setForm] = useState(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
+  const [togglingId, setTogglingId] = useState(null);
 
-  const fetchPlans = useCallback(async () => {
-    setLoading(true);
+  const fetchPlans = useCallback(async (silent) => {
+    if (silent !== true) setLoading(true);
     setError(null);
     try {
-      const params = { page, limit: 20 };
-      if (search.trim()) params.search = search.trim();
+      const params = { page, limit: PAGE_SIZE };
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
       if (statusFilter) params.isActive = statusFilter;
       const res = await adminApi.listPlans(params);
       setPlans(res?.items || []);
       setTotal(res?.total || 0);
+      setIncludedFeatures(res?.includedFeatures || []);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter]);
+  }, [page, debouncedSearch, statusFilter]);
+  useLiveRefresh(["admin","plans"], () => fetchPlans(true));
 
   useEffect(() => {
     fetchPlans();
   }, [fetchPlans]);
+
+  const formOpen = isCreateOpen || !!editingPlan;
+  const isTrialForm = form.code === "FREE_TRIAL";
+
+  function closeForm() {
+    setIsCreateOpen(false);
+    setEditingPlan(null);
+  }
 
   function openCreate() {
     setForm(INITIAL_FORM);
@@ -86,53 +119,55 @@ export function AdminPlansView() {
       maxManagers: plan.maxManagers,
       trialDays: plan.trialDays || 30,
       isActive: plan.isActive ?? true,
-      featuresInput: (plan.features || []).join("\n"),
     });
   }
 
+  function setQuotaUnlimited(quota, on) {
+    setForm((f) => ({ ...f, [quota.key]: on ? quota.unlimited : 1 }));
+  }
+
   async function handleSavePlan(e) {
-    e.preventDefault();
+    e?.preventDefault();
     setSubmitting(true);
     try {
-      const features = form.featuresInput
-        .split("\n")
-        .map((f) => f.trim())
-        .filter(Boolean);
-
       const payload = {
         name: form.name.trim(),
-        price: Number(form.price),
+        price: isTrialForm ? 0 : Number(form.price),
         billingCycle: form.billingCycle,
         maxBranches: Number(form.maxBranches),
         maxRooms: Number(form.maxRooms),
         maxManagers: Number(form.maxManagers),
-        trialDays: Number(form.trialDays),
         isActive: !!form.isActive,
-        features,
       };
+      if (isTrialForm) payload.trialDays = Number(form.trialDays);
 
-      if (!editingPlan) {
-        payload.code = form.code.trim().toUpperCase();
-        if (payload.code === "FREE_TRIAL") payload.price = 0;
-        await adminApi.createPlan(payload);
-        toast.success(`Đã tạo gói SaaS "${payload.name}" thành công!`);
-        setIsCreateOpen(false);
-      } else {
-        if (editingPlan.code === "FREE_TRIAL") payload.price = 0;
+      if (editingPlan) {
         await adminApi.updatePlan(editingPlan._id, payload);
-        toast.success(`Đã cập nhật gói "${payload.name}" thành công!`);
-        setEditingPlan(null);
+        toast.success(`Đã cập nhật gói "${payload.name}"`);
+      } else {
+        payload.code = form.code.trim().toUpperCase();
+        await adminApi.createPlan(payload);
+        toast.success(`Đã tạo gói "${payload.name}"`);
       }
+      closeForm();
       fetchPlans();
     } catch (err) {
-      const msg = errorMessage(err);
-      if (msg.includes("PLAN_IN_USE") || msg.includes("thuê bao")) {
-        toast.error("Không thể sửa/giảm hạn ngạch: Gói đang có thuê bao ACTIVE sử dụng.");
-      } else {
-        toast.error(msg);
-      }
+      toast.error(errorMessage(err));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleToggleActive(plan) {
+    setTogglingId(plan._id);
+    try {
+      await adminApi.updatePlan(plan._id, { isActive: !plan.isActive });
+      toast.success(plan.isActive ? `Đã tạm ngưng bán gói "${plan.name}"` : `Đã mở bán lại gói "${plan.name}"`);
+      fetchPlans();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setTogglingId(null);
     }
   }
 
@@ -141,16 +176,11 @@ export function AdminPlansView() {
     setSubmitting(true);
     try {
       await adminApi.deletePlan(deletingPlan._id);
-      toast.success(`Đã xóa mềm gói "${deletingPlan.name}".`);
+      toast.success(`Đã xóa gói "${deletingPlan.name}"`);
       setDeletingPlan(null);
       fetchPlans();
     } catch (err) {
-      const msg = errorMessage(err);
-      if (msg.includes("PLAN_IN_USE") || msg.includes("thuê bao")) {
-        toast.error("Không thể xóa: Gói đang có thuê bao ACTIVE sử dụng.");
-      } else {
-        toast.error(msg);
-      }
+      toast.error(errorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -158,44 +188,62 @@ export function AdminPlansView() {
 
   return (
     <div className="admin-view-body">
-      {/* Control Toolbar */}
-      <div className="admin-control-bar">
-        <div className="admin-filters-left">
-          <div style={{ position: "relative", minWidth: 240 }}>
-            <Search
-              size={15}
-              style={{ position: "absolute", left: 10, top: 10, color: "#94a3b8" }}
-            />
-            <input
-              type="text"
-              className="admin-input"
-              style={{ paddingLeft: 32 }}
-              placeholder="Tìm theo tên gói..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-            />
+      {/* Mọi gói có cùng tính năng: liệt kê một lần */}
+      <section className="plans-included-panel">
+        <div className="plans-included-head">
+          <Sparkles size={18} />
+          <div>
+            <h3>Mọi gói đều có đầy đủ tính năng</h3>
+            <p>Các gói chỉ khác nhau ở giá và hạn ngạch số cơ sở, phòng, nhân viên quản lý.</p>
           </div>
+        </div>
+        {includedFeatures.length > 0 && (
+          <ul className="plans-included-list">
+            {includedFeatures.map((feat) => (
+              <li key={feat}>
+                <CheckCircle2 size={13} />
+                <span>{feat}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
-          <select
-            className="admin-select"
-            value={statusFilter}
+      {/* Thanh công cụ */}
+      <div className="plans-toolbar">
+        <div className="plans-search">
+          <Search size={15} />
+          <input
+            type="search"
+            className="admin-input"
+            placeholder="Tìm theo tên gói..."
+            aria-label="Tìm theo tên gói"
+            value={search}
             onChange={(e) => {
-              setStatusFilter(e.target.value);
+              setSearch(e.target.value);
               setPage(1);
             }}
-          >
-            <option value="">Tất cả trạng thái</option>
-            <option value="true">Đang kích hoạt</option>
-            <option value="false">Tạm ngưng</option>
-          </select>
+          />
         </div>
-
+        <div className="plans-segmented" role="group" aria-label="Lọc theo trạng thái">
+          {STATUS_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              className={statusFilter === f.value ? "is-active" : ""}
+              aria-pressed={statusFilter === f.value}
+              onClick={() => {
+                setStatusFilter(f.value);
+                setPage(1);
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
         <Button onClick={openCreate}>
           <Plus size={16} />
-          <span>Thêm gói dịch vụ mới</span>
+          <span>Thêm gói</span>
         </Button>
       </div>
 
@@ -205,328 +253,265 @@ export function AdminPlansView() {
         <ErrorState message={error} retry={fetchPlans} />
       ) : !plans.length ? (
         <EmptyState
-          title="Chưa có gói dịch vụ nào"
-          description="Bấm 'Thêm gói dịch vụ mới' để tạo cấu hình gói SaaS đầu tiên."
+          title={search || statusFilter ? "Không có gói phù hợp" : "Chưa có gói dịch vụ nào"}
+          description={search || statusFilter ? "Thử đổi từ khóa hoặc bộ lọc." : "Tạo gói đầu tiên để chủ trọ có thể đăng ký."}
           action={
             <Button onClick={openCreate}>
               <Plus size={16} />
-              <span>Tạo gói mới</span>
+              <span>Thêm gói</span>
             </Button>
           }
         />
       ) : (
         <>
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Tên gói</th>
-                  <th>Mã gói</th>
-                  <th>Giá niêm yết</th>
-                  <th>Chu kỳ</th>
-                  <th>Hạn ngạch cơ sở / phòng / quản lý</th>
-                  <th>Dùng thử</th>
-                  <th>Tính năng</th>
-                  <th>Trạng thái</th>
-                  <th style={{ textAlign: "right" }}>Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plans.map((p) => {
-                  const isPro = p.code === "PRO";
-                  const isEnterprise = p.code === "ENTERPRISE";
+          <div className="plans-admin-grid">
+            {plans.map((p) => {
+              const inUse = p.subscriptionCount > 0;
+              return (
+                <article key={p._id} className={`plan-admin-card tone-${codeTone(p.code)} ${p.isActive ? "" : "is-paused"}`}>
+                  <header className="plan-admin-card-head">
+                    <span className="plan-admin-code">{p.code}</span>
+                    <span className={`status-pill ${p.isActive ? "active" : "cancelled"}`}>
+                      {p.isActive ? "Đang bán" : "Tạm ngưng"}
+                    </span>
+                  </header>
 
-                  return (
-                    <tr key={p._id}>
-                      <td>
-                        <strong style={{ color: "#0f172a", fontSize: 14 }}>{p.name}</strong>
-                      </td>
-                      <td>
-                        <span
-                          className={`plan-code-badge ${
-                            isPro ? "pro" : isEnterprise ? "enterprise" : ""
-                          }`}
-                        >
-                          {p.code}
-                        </span>
-                      </td>
-                      <td>
-                        <strong style={{ color: "#005c55" }}>
-                          {p.price === 0 ? "0 ₫ (Miễn phí)" : money(p.price)}
-                        </strong>
-                      </td>
-                      <td>
-                        <span style={{ fontSize: 12, color: "#64748b" }}>
-                          {p.billingCycle === "YEARLY" ? "Theo Năm" : "Theo Tháng"}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ display: "flex", gap: 10, fontSize: 12.5, color: "#334155" }}>
-                          <span title="Tối đa cơ sở">
-                            <Building2 size={13} style={{ display: "inline", verticalAlign: "middle" }} />{" "}
-                            {p.maxBranches >= 999 ? "∞" : p.maxBranches} CS
-                          </span>
-                          <span title="Tối đa phòng">
-                            <DoorOpen size={13} style={{ display: "inline", verticalAlign: "middle" }} />{" "}
-                            {p.maxRooms >= 9999 ? "∞" : p.maxRooms} P
-                          </span>
-                          <span title="Tối đa nhân viên quản lý">
-                            <Users size={13} style={{ display: "inline", verticalAlign: "middle" }} />{" "}
-                            {p.maxManagers >= 99 ? "∞" : p.maxManagers} QL
-                          </span>
+                  <h3 className="plan-admin-name">{p.name}</h3>
+                  <div className="plan-admin-price">
+                    {p.price === 0 ? (
+                      <strong>Miễn phí</strong>
+                    ) : (
+                      <>
+                        <strong>{money(p.price)}</strong>
+                        <span>/{p.billingCycle === "YEARLY" ? "năm" : "tháng"}</span>
+                      </>
+                    )}
+                  </div>
+
+                  <dl className="plan-admin-quotas">
+                    {QUOTAS.map((q) => {
+                      const Icon = q.icon;
+                      return (
+                        <div key={q.key}>
+                          <dt>
+                            <Icon size={14} />
+                            {q.label}
+                          </dt>
+                          <dd>{isUnlimited(p, q) ? "Không giới hạn" : p[q.key]}</dd>
                         </div>
-                      </td>
-                      <td>{p.trialDays ? `${p.trialDays} ngày` : "—"}</td>
-                      <td>
-                        <div className="features-chips-wrap">
-                          {(p.features || []).slice(0, 3).map((feat, idx) => (
-                            <span key={idx} className="feature-chip">
-                              {feat}
-                            </span>
-                          ))}
-                          {(p.features || []).length > 3 && (
-                            <span className="feature-chip" style={{ fontWeight: 600 }}>
-                              +{(p.features || []).length - 3}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        {p.isActive ? (
-                          <span className="status-pill active">
-                            <CheckCircle2 size={11} /> Hoạt động
-                          </span>
-                        ) : (
-                          <span className="status-pill cancelled">
-                            <XCircle size={11} /> Tạm ngưng
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        <div className="admin-row-actions">
-                          <button
-                            type="button"
-                            className="admin-action-btn"
-                            onClick={() => openEdit(p)}
-                            title="Sửa cấu hình gói"
-                          >
-                            <Edit2 size={13} />
-                            <span>Sửa</span>
-                          </button>
-                          <button
-                            type="button"
-                            className="admin-action-btn danger"
-                            onClick={() => setDeletingPlan(p)}
-                            title="Xóa mềm gói"
-                            aria-label={`Xóa mềm gói ${p.name}`}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      );
+                    })}
+                  </dl>
+
+                  <div className="plan-admin-meta">
+                    {p.code === "FREE_TRIAL" && (
+                      <span>
+                        <Clock size={13} /> Dùng thử {p.trialDays || 30} ngày
+                      </span>
+                    )}
+                    <span className={inUse ? "is-used" : ""}>
+                      <Users size={13} />
+                      {inUse ? `${p.subscriptionCount} thuê bao đang dùng` : "Chưa có thuê bao"}
+                    </span>
+                  </div>
+
+                  <footer className="plan-admin-actions">
+                    <button type="button" className="admin-action-btn" onClick={() => openEdit(p)}>
+                      <Edit2 size={13} />
+                      <span>Sửa</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-action-btn"
+                      onClick={() => handleToggleActive(p)}
+                      disabled={togglingId === p._id || (p.isActive && inUse)}
+                      title={p.isActive && inUse ? "Gói còn thuê bao đang dùng, không thể tạm ngưng" : undefined}
+                    >
+                      <Power size={13} />
+                      <span>{p.isActive ? "Tạm ngưng" : "Mở bán"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-action-btn danger"
+                      onClick={() => setDeletingPlan(p)}
+                      disabled={inUse}
+                      title={inUse ? "Gói còn thuê bao đang dùng, không thể xóa" : `Xóa gói ${p.name}`}
+                      aria-label={`Xóa gói ${p.name}`}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </footer>
+                </article>
+              );
+            })}
           </div>
 
-          <Pagination page={page} total={total} limit={20} onChange={(p) => setPage(p)} />
+          <Pagination page={page} total={total} limit={PAGE_SIZE} onChange={(n) => setPage(n)} />
         </>
       )}
 
-      {/* Modal Tạo/Sửa gói SaaS */}
-      {(isCreateOpen || editingPlan) && (
+      {/* Tạo / sửa gói */}
+      {formOpen && (
         <Modal
-          isOpen={true}
-          onClose={() => {
-            setIsCreateOpen(false);
-            setEditingPlan(null);
-          }}
-          title={editingPlan ? `Chỉnh sửa gói "${editingPlan.name}"` : "Tạo gói SaaS mới"}
-          subtitle="Cấu hình hạn ngạch tài nguyên, chu kỳ thanh toán và đơn giá gói"
-          maxWidth="640px"
+          isOpen
+          onClose={closeForm}
+          title={editingPlan ? `Sửa gói "${editingPlan.name}"` : "Thêm gói dịch vụ"}
+          subtitle="Mọi gói có đầy đủ tính năng; chỉ cấu hình giá và hạn ngạch"
+          maxWidth="600px"
           footer={
             <>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setIsCreateOpen(false);
-                  setEditingPlan(null);
-                }}
-                disabled={submitting}
-              >
-                Hủy bỏ
+              <Button variant="secondary" onClick={closeForm} disabled={submitting}>
+                Hủy
               </Button>
               <Button onClick={handleSavePlan} busy={submitting}>
-                {editingPlan ? "Lưu thay đổi" : "Tạo gói ngay"}
+                {editingPlan ? "Lưu thay đổi" : "Tạo gói"}
               </Button>
             </>
           }
         >
-          <form className="admin-form" onSubmit={handleSavePlan}>
-            <div className="admin-form-row">
-              <div className="admin-form-group">
-                <label>
-                  Tên gói dịch vụ <span className="req">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  className="admin-input"
-                  placeholder="Ví dụ: Gói Chuyên Nghiệp"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-              </div>
-
-              <div className="admin-form-group">
-                <label>
-                  Mã gói (Code) <span className="req">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  disabled={!!editingPlan}
-                  className="admin-input"
-                  placeholder="Ví dụ: PRO, ENTERPRISE..."
-                  value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-                />
-                <small className="admin-form-help">
-                  {editingPlan
-                    ? "Mã gói không thể sửa sau khi đã khởi tạo."
-                    : "Chữ hoa, số hoặc gạch dưới (VD: STARTER_PLUS)"}
-                </small>
-              </div>
-            </div>
-
-            <div className="admin-form-row">
-              <div className="admin-form-group">
-                <label>
-                  Giá niêm yết (VND) <span className="req">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1000"
-                  required
-                  className="admin-input"
-                  value={form.price}
-                  onChange={(e) => setForm({ ...form, price: e.target.value })}
-                />
-                <small className="admin-form-help">
-                  {form.code === "FREE_TRIAL" ? "Gói FREE_TRIAL bắt buộc giá = 0 ₫" : `Hiển thị: ${money(Number(form.price) || 0)}`}
-                </small>
-              </div>
-
-              <div className="admin-form-group">
-                <label>
-                  Chu kỳ thanh toán <span className="req">*</span>
-                </label>
-                <select
-                  className="admin-select"
-                  style={{ width: "100%", height: 38 }}
-                  value={form.billingCycle}
-                  onChange={(e) => setForm({ ...form, billingCycle: e.target.value })}
-                >
-                  <option value="MONTHLY">Hàng tháng (MONTHLY)</option>
-                  <option value="YEARLY">Hàng năm (YEARLY)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Quotas */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-              <div className="admin-form-group">
-                <label>
-                  Tối đa cơ sở <span className="req">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  className="admin-input"
-                  value={form.maxBranches}
-                  onChange={(e) => setForm({ ...form, maxBranches: e.target.value })}
-                />
-              </div>
-
-              <div className="admin-form-group">
-                <label>
-                  Tối đa phòng <span className="req">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  className="admin-input"
-                  value={form.maxRooms}
-                  onChange={(e) => setForm({ ...form, maxRooms: e.target.value })}
-                />
-              </div>
-
-              <div className="admin-form-group">
-                <label>
-                  Tối đa Quản lý <span className="req">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  className="admin-input"
-                  value={form.maxManagers}
-                  onChange={(e) => setForm({ ...form, maxManagers: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="admin-form-row">
-              <div className="admin-form-group">
-                <label>Số ngày dùng thử (Trial days)</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="365"
-                  className="admin-input"
-                  value={form.trialDays}
-                  onChange={(e) => setForm({ ...form, trialDays: e.target.value })}
-                />
-              </div>
-
-              <div className="admin-form-group" style={{ justifyContent: "center" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginTop: 18 }}>
+          <form className="admin-form plan-form" onSubmit={handleSavePlan}>
+            <fieldset>
+              <legend>Thông tin gói</legend>
+              <div className="admin-form-row">
+                <div className="admin-form-group">
+                  <label htmlFor="plan-name">
+                    Tên gói <span className="req">*</span>
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={form.isActive}
-                    onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-                    style={{ width: 17, height: 17, accentColor: "#0f766e" }}
+                    id="plan-name"
+                    type="text"
+                    required
+                    className="admin-input"
+                    placeholder="Ví dụ: Gói Chuyên Nghiệp"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
                   />
-                  <span>Kích hoạt hiển thị cho khách hàng</span>
-                </label>
+                </div>
+                <div className="admin-form-group">
+                  <label htmlFor="plan-code">
+                    Mã gói <span className="req">*</span>
+                  </label>
+                  <input
+                    id="plan-code"
+                    type="text"
+                    required
+                    disabled={!!editingPlan}
+                    className="admin-input"
+                    placeholder="Ví dụ: PRO"
+                    value={form.code}
+                    onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+                  />
+                  <small className="admin-form-help">
+                    {editingPlan ? "Không đổi được sau khi tạo." : "Chữ hoa, số, gạch dưới."}
+                  </small>
+                </div>
               </div>
-            </div>
+            </fieldset>
 
-            <div className="admin-form-group">
-              <label>Danh sách tính năng nổi bật (Mỗi dòng 1 tính năng)</label>
-              <textarea
-                rows={4}
-                className="admin-textarea"
-                placeholder="Ví dụ:&#10;Quản lý cơ sở&#10;Tự động tính tiền điện nước&#10;Mã VietQR động"
-                value={form.featuresInput}
-                onChange={(e) => setForm({ ...form, featuresInput: e.target.value })}
+            <fieldset>
+              <legend>Giá và chu kỳ</legend>
+              <div className="admin-form-row">
+                <div className="admin-form-group">
+                  <label htmlFor="plan-price">
+                    Giá (VND) <span className="req">*</span>
+                  </label>
+                  <input
+                    id="plan-price"
+                    type="number"
+                    min="0"
+                    step="1000"
+                    required
+                    disabled={isTrialForm}
+                    className="admin-input"
+                    value={isTrialForm ? 0 : form.price}
+                    onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  />
+                  <small className="admin-form-help">
+                    {isTrialForm ? "Gói dùng thử luôn miễn phí." : money(Number(form.price) || 0)}
+                  </small>
+                </div>
+                <div className="admin-form-group">
+                  <label htmlFor="plan-cycle">Chu kỳ</label>
+                  <select
+                    id="plan-cycle"
+                    className="admin-select"
+                    value={form.billingCycle}
+                    onChange={(e) => setForm({ ...form, billingCycle: e.target.value })}
+                  >
+                    <option value="MONTHLY">Hàng tháng</option>
+                    <option value="YEARLY">Hàng năm</option>
+                  </select>
+                </div>
+              </div>
+              {isTrialForm && (
+                <div className="admin-form-group">
+                  <label htmlFor="plan-trial">Số ngày dùng thử</label>
+                  <input
+                    id="plan-trial"
+                    type="number"
+                    min="1"
+                    max="365"
+                    className="admin-input"
+                    value={form.trialDays}
+                    onChange={(e) => setForm({ ...form, trialDays: e.target.value })}
+                  />
+                </div>
+              )}
+            </fieldset>
+
+            <fieldset>
+              <legend>Hạn ngạch</legend>
+              <div className="plan-form-quotas">
+                {QUOTAS.map((q) => {
+                  const unlimited = Number(form[q.key]) >= q.unlimited;
+                  return (
+                    <div key={q.key} className="admin-form-group">
+                      <label htmlFor={`plan-${q.key}`}>
+                        Tối đa {q.label.toLowerCase()} <span className="req">*</span>
+                      </label>
+                      <input
+                        id={`plan-${q.key}`}
+                        type="number"
+                        min="1"
+                        required
+                        disabled={unlimited}
+                        className="admin-input"
+                        value={unlimited ? "" : form[q.key]}
+                        placeholder={unlimited ? "Không giới hạn" : undefined}
+                        onChange={(e) => setForm({ ...form, [q.key]: e.target.value })}
+                      />
+                      <label className="plan-form-check">
+                        <input
+                          type="checkbox"
+                          checked={unlimited}
+                          onChange={(e) => setQuotaUnlimited(q, e.target.checked)}
+                        />
+                        <span>Không giới hạn</span>
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+            </fieldset>
+
+            <label className="plan-form-check">
+              <input
+                type="checkbox"
+                checked={form.isActive}
+                onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
               />
-            </div>
+              <span>Đang bán (chủ trọ thấy và đăng ký được)</span>
+            </label>
           </form>
         </Modal>
       )}
 
-      {/* Modal xác nhận xóa gói */}
+      {/* Xác nhận xóa */}
       {deletingPlan && (
         <Modal
-          isOpen={true}
+          isOpen
           onClose={() => setDeletingPlan(null)}
-          title="Xác nhận xóa gói dịch vụ"
+          title="Xóa gói dịch vụ"
           maxWidth="460px"
           footer={
             <>
@@ -534,19 +519,16 @@ export function AdminPlansView() {
                 Không xóa
               </Button>
               <Button variant="danger" onClick={handleDeletePlan} busy={submitting}>
-                Xóa mềm gói
+                Xóa gói
               </Button>
             </>
           }
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div className="admin-alert-banner warning">
-              <AlertTriangle size={20} style={{ flexShrink: 0 }} />
-              <div>
-                Bạn có chắc chắn muốn xóa gói <strong>{deletingPlan.name}</strong> ({deletingPlan.code})?
-                <br />
-                <small>Nếu gói đang có thuê bao ACTIVE sử dụng, hệ thống sẽ từ chối để bảo toàn dịch vụ.</small>
-              </div>
+          <div className="admin-alert-banner warning">
+            <AlertTriangle size={20} style={{ flexShrink: 0 }} />
+            <div>
+              Xóa gói <strong>{deletingPlan.name}</strong> ({deletingPlan.code})? Gói sẽ ẩn khỏi danh sách và chủ trọ
+              không đăng ký được nữa.
             </div>
           </div>
         </Modal>

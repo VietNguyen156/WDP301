@@ -20,6 +20,7 @@ import {
   Modal,
   Pagination,
 } from "../../components/ui";
+import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 
 export function AdminSubscriptionsView() {
   const toast = useToast();
@@ -51,8 +52,8 @@ export function AdminSubscriptionsView() {
     endDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
   }));
 
-  const fetchSubscriptions = useCallback(async () => {
-    setLoading(true);
+  const fetchSubscriptions = useCallback(async (silent) => {
+    if (silent !== true) setLoading(true);
     setError(null);
     try {
       const params = { page, limit: 20 };
@@ -70,6 +71,7 @@ export function AdminSubscriptionsView() {
       setLoading(false);
     }
   }, [page, statusFilter, expiringFilter]);
+  useLiveRefresh(["admin","plans","subscription"], () => fetchSubscriptions(true));
 
   useEffect(() => {
     fetchSubscriptions();

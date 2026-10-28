@@ -6,7 +6,7 @@ const http = require("http");
 const app = require("./app");
 const realtime = require("./realtime");
 const connectDB = require("./config/db");
-const { migrateFinanceIndexes, backfillPlanFeatureFlags } = require("./config/migrations");
+const { migrateFinanceIndexes, unifyPlanFeatures, migrateAuditLogs } = require("./config/migrations");
 const models = require("./models");
 
 async function start() {
@@ -16,7 +16,8 @@ async function start() {
 
   await connectDB();
   await migrateFinanceIndexes();
-  await backfillPlanFeatureFlags();
+  await unifyPlanFeatures();
+  await migrateAuditLogs();
   await Promise.all(
     Object.values(models).map(async (model) => {
       await model.init();
@@ -27,6 +28,8 @@ async function start() {
   const server = http.createServer(app);
   realtime.attach(server, app);
   server.listen(port);
+  // Background: lock tenants whose contracts have ended (TENANT_AUTO_LOCK=false turns it off).
+  require("./jobs/tenantAccess").start();
   server.on("listening", () =>
     console.log(`Server đang chạy tại http://localhost:${port}`),
   );

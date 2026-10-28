@@ -7,4 +7,6 @@ router.get("/:incidentId", c.get);
 const staff = authorize("LANDLORD", "PROPERTY_MANAGER");
 router.put("/:incidentId/status", staff, c.updateStatus);
 router.put("/:incidentId/cost", staff, c.updateCost);
+// Phân loại lại bằng TypeSafe (loại sự cố + mức ưu tiên)
+router.post("/:incidentId/triage", staff, c.retriage);
 module.exports = router;

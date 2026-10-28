@@ -781,7 +781,7 @@ Webhook sự kiện là kênh dự phòng: FE vẫn gọi `POST /bank-hub/sync` 
 Luật nghiệp vụ:
 
 - Lần đầu tạo link, backend tự tạo một "công ty" Bank Hub cho chủ trọ (`full_name` = tên + id chủ trọ) và lưu `companyXid`.
-- `LINK` cần gói có tính năng `SEPAY_WEBHOOK` (Starter trở lên); nếu không có → `403 FEATURE_NOT_IN_PLAN`. Đã liên kết rồi → `422 BANK_HUB_LINKED`. `UNLINK` khi chưa liên kết → `422 BANK_HUB_NOT_LINKED`.
+- `LINK` cần gói đang hiệu lực (gói nào cũng được); nếu không có → `403 FEATURE_NOT_IN_PLAN`. Đã liên kết rồi → `422 BANK_HUB_LINKED`. `UNLINK` khi chưa liên kết → `422 BANK_HUB_NOT_LINKED`.
 - Link token chỉ dùng **một lần** và có hạn (`expiresAt`); mỗi lần mở iframe cần gọi lại API này.
 - Tài khoản liên kết trở thành `bankConfig`:
   - `bankCode` = mã BIN 6 số (VietQR chấp nhận).
@@ -832,7 +832,7 @@ Header: `Authorization: Apikey <SEPAY_BANKHUB_IPN_API_KEY>`. Payload theo tài l
 - Chống trùng theo `transaction_id`: SePay gửi lại cùng giao dịch thì trả `duplicate: true` và không tạo thanh toán thứ hai. Khi `reference_code` là `null`, mã giao dịch được lưu là `BH-<transaction_id>`.
 - Phần gạch nợ dùng chung logic với webhook SePay hiện có:
   - Nhận diện mã hóa đơn `HD...` trong nội dung, kể cả khi ngân hàng bỏ dấu cách.
-  - Không khớp hóa đơn, chủ trọ bị khóa, hoặc gói không có `SEPAY_WEBHOOK` → tiền được giữ ở **giao dịch chưa đối soát**.
+  - Không khớp hóa đơn, chủ trọ bị khóa, hoặc không có gói hiệu lực → tiền được giữ ở **giao dịch chưa đối soát**.
 - Response: `{ "success": true, "duplicate": false, "unmatched": false, "ignored": false }`.
 
 #### POST /bank-hub/events — sự kiện liên kết
@@ -1013,32 +1013,24 @@ API trả các gói đang bán (`isActive: true`, chưa xóa) trong DB, sắp th
 | `items[].blockedBy` | Những giới hạn của gói nhỏ hơn mức đang dùng, ví dụ `["maxRooms"]`. Admin không đổi được sang gói này (`PLAN_QUOTA_BELOW_USAGE`). |
 | `items[].selectable` | `false` với gói dùng thử (chỉ cấp khi đăng ký) hoặc khi `blockedBy` không rỗng. |
 | `items[].trialDays` | Chỉ có ở gói `FREE_TRIAL`. |
-| `items[].featureFlags` | Các tính năng backend cho phép dùng ở gói đó (xem mục Tính năng theo gói). |
+| `items[].features` | Danh sách tính năng chung, giống nhau ở mọi gói (bằng `includedFeatures`). |
 | `items[].isRequested` | Gói mà chủ trọ đã gửi yêu cầu đổi sang và đang chờ admin xử lý. |
 | `upgradeRequest` | Yêu cầu đổi gói đang chờ (`PENDING`), hoặc `null`. |
-| `featureCatalog` | Bảng mã tính năng → tên hiển thị tiếng Việt. |
+| `includedFeatures` | Tính năng có trong mọi gói, để FE hiển thị một lần. |
 
 #### Gợi ý hiển thị cho FE
 
 - Thanh tiến độ: `usage.rooms.used / usage.rooms.limit`, ví dụ "4/5 phòng". Còn ít chỗ thì nhắc chủ trọ nâng cấp.
-- `features` là danh sách chữ do Admin nhập, hiển thị nguyên văn.
 - "Không giới hạn" vẫn là một số lớn trong DB (gói Doanh nghiệp đang có `999 / 9999 / 99`). FE tự quy ước ngưỡng hiển thị, ví dụ `>= 999` cơ sở, `>= 9999` phòng, `>= 99` quản lý.
 - Nút "Chọn nâng cấp" gọi `POST /plans/upgrade-requests` (xem bên dưới). Dùng `isRequested` / `upgradeRequest` để hiện nhãn "Đã gửi yêu cầu".
 
 ### Tính năng theo gói
 
-Trường `features` của gói chỉ là chữ để hiển thị. Trường `featureFlags` là danh sách mã tính năng mà backend thực sự chặn:
+Mọi gói có **đầy đủ tính năng**; các gói chỉ khác giá và hạn ngạch `maxBranches`, `maxRooms`, `maxManagers`. Danh sách hiển thị nằm ở `BE/utils/planFeatures.js` (`INCLUDED_FEATURES`).
 
-| Mã | Tính năng | Khi gói không có |
-| --- | --- | --- |
-| `SEPAY_WEBHOOK` | Tự động gạch nợ khi SePay báo có tiền | Tiền vẫn được ghi vào **giao dịch chưa đối soát** kèm ghi chú; chủ trọ gán hóa đơn thủ công (`/payments/unmatched/:id/resolve`). |
-| `INCIDENTS` | Quản lý sự cố & bảo trì | Tạo sự cố, đổi trạng thái hoặc ghi chi phí → `403 FEATURE_NOT_IN_PLAN`. Vẫn xem được lịch sử sự cố cũ. |
-
-- Admin cấu hình qua `POST/PUT /admin/plans` với `"featureFlags": ["SEPAY_WEBHOOK", "INCIDENTS"]`. Mã không hợp lệ → 400.
-- Gói **chưa từng đặt** `featureFlags` (gói cũ hoặc gói admin tự tạo) được dùng mọi tính năng, để không chặn nhầm ai. Khi server khởi động, các gói chuẩn được gán mặc định một lần: `FREE_TRIAL: []`, `STARTER: [SEPAY_WEBHOOK]`, `PRO` và `ENTERPRISE`: cả hai. Gói đã cấu hình thì không bị ghi đè.
-- Không có gói hiệu lực (hết hạn) = không có tính năng nào.
-- `/auth/me` (và login/refresh) trả `subscription.plan.featureFlags`, để FE ẩn menu "Sự cố" hoặc hiện nhãn "Nâng cấp để dùng".
-- Dashboard, nhắc nợ Zalo, IoT... chưa có API backend nên chưa có mã để chặn.
+- Đối soát SePay/Bank Hub tự động và quản lý sự cố chỉ cần chủ trọ có gói đang hiệu lực. Không có gói hiệu lực (hết hạn) → không tự đối soát (tiền vào giao dịch chưa đối soát) và tạo/sửa sự cố → `403 FEATURE_NOT_IN_PLAN`.
+- `POST/PUT /admin/plans` không nhận `features`, `featureFlags` nữa (gửi lên → 400). `GET /admin/plans` trả thêm `includedFeatures` và `items[].subscriptionCount` (số thuê bao đang dùng hoặc chờ thanh toán).
+- Khi khởi động, server xóa `featureFlags` và `features` cũ khỏi các gói đã lưu.
 
 ### Yêu cầu đổi gói
 
@@ -1312,3 +1304,68 @@ Database mới dùng defaults/index của model. Với database cũ, chủ dự 
 8. Analytics chỉ lấy tiền SaaS, kiểm tra MONTHLY/YEARLY, cảnh báo hạn và lọc ngày.
 
 Dependencies added: None. Automated testing chưa thực hiện; việc kiểm thử do project owner đảm nhiệm.
+
+## Audit log
+
+- Mỗi bản ghi chỉ lưu các trường thay đổi ở cấp đầu (`before`/`after`), bỏ qua `_id`, `__v`, `createdAt`, `updatedAt` và các trường version nội bộ. Bản ghi tạo mới (không có `before`) hoặc xóa (không có `after`) lưu nguyên dữ liệu được truyền vào.
+- Bản ghi có `expiresAt`; MongoDB tự xóa khi quá hạn (TTL index). Log thường giữ `AUDIT_RETENTION_DAYS` ngày (mặc định 365). Log tài chính giữ `AUDIT_FINANCE_RETENTION_DAYS` ngày (mặc định 3650): `entityType` là `INVOICE`, `PLATFORM_INVOICE`, `SUBSCRIPTION`, hoặc `action` chứa `PAYMENT`, `BANK`, `DEPOSIT`, `SETTLE`, `PRICING`, `COST`. Đặt `0` để giữ vĩnh viễn.
+- Khi khởi động, server xóa các index đơn cũ (`actorId_1`, `landlordId_1`, `action_1`, `entityType_1`) và gán `expiresAt` cho log cũ tính từ `createdAt`. Đổi số ngày giữ chỉ áp dụng cho log mới và log chưa có `expiresAt`.
+- Trang audit của admin dùng index `{createdAt:-1}`, `{action:1, createdAt:-1}`, `{entityType:1, createdAt:-1}`, `{landlordId:1, createdAt:-1}`; tổng số khi không lọc dùng `estimatedDocumentCount`.
+
+## Tiền cọc hợp đồng
+
+- `GET /contracts/:contractId` trả thêm `depositPayment` khi cọc chưa nhận (`depositStatus: UNPAID`, `depositAmount > 0`, hợp đồng còn hiệu lực), ngược lại là `null`. Có `amount`, `bankConfigured`; khi chủ trọ đã cấu hình ngân hàng thì có thêm `bank`, `paymentSyntax` (`COC <mã hợp đồng bỏ dấu gạch>`) và `vietQrUrl`.
+- `POST /contracts/:contractId/deposit/received` (LANDLORD, body rỗng): chuyển `UNPAID` → `PAID`, lưu `depositReceivedAt`, `depositReceivedBy`, ghi audit `RECEIVE_CONTRACT_DEPOSIT`. Cọc đã nhận → `422 DEPOSIT_ALREADY_RECEIVED`; hợp đồng không có cọc → `DEPOSIT_NOT_REQUIRED`; hợp đồng đã kết thúc → `CONTRACT_NOT_ACTIVE`.
+- Đối soát tự động (gói có `SEPAY_WEBHOOK`, webhook SePay hoặc IPN Bank Hub): nội dung chứa đúng một mã `COC HDT<năm><12 ký tự>` thì giao dịch được khớp với hợp đồng, kiểm tra trước mã hóa đơn. Cọc đang `UNPAID`, hợp đồng còn hiệu lực và số tiền đúng bằng `depositAmount` → `depositStatus: PAID`, `depositReceivedAt` = ngày giao dịch, `depositReferenceCode`, audit `RECEIVE_CONTRACT_DEPOSIT` (actor SYSTEM), `PaymentReceipt.contractId`, realtime `contract:deposit_received` tới phòng `landlord:` và `branch:`. Sai số tiền, cọc đã nhận hoặc hợp đồng đã kết thúc → `UnmatchedPayment` kèm ghi chú lý do; gói không có đối soát tự động thì chủ trọ xác nhận thủ công bằng API trên.
+- `depositPayment` có thêm `autoConfirm` (gói có đối soát tự động) và `simulator`. `POST /contracts/:contractId/deposit/simulate` (LANDLORD, TENANT; chỉ khi bật giả lập, không chạy ở production) giả lập khách chuyển cọc qua đúng luồng đối soát ngân hàng; trả `received`, `unmatched`, `reason`, `contract`.
+
+## Lọc danh sách hợp đồng
+
+`GET /contracts` nhận thêm:
+
+- `search`: khớp mã hợp đồng, số phòng, tên / SĐT / CCCD của khách thuê, hoặc tên / SĐT / CCCD người ở cùng (không phân biệt hoa thường).
+- `depositStatus`: `UNPAID`, `PAID`, `APPLIED`, `PARTIALLY_REFUNDED`, `REFUNDED`.
+- `confirmation`: `PENDING` (một trong hai bên chưa xác nhận) hoặc `CONFIRMED` (cả hai đã xác nhận).
+- Vẫn kết hợp được với `status` và `branchId`.
+
+## Phân loại sự cố tự động (TypeSafe)
+
+Bật bằng `TYPESAFE_API_KEY` trong `BE/.env` (để trống = tắt). Tiêu đề và mô tả sự cố được gửi tới `api.typesafe.ai` (model `TYPESAFE_MODEL`, mặc định `jev-latest`). Câu hỏi, lựa chọn và ngưỡng nằm trong `services/incidentTriage.js`.
+
+- Jev trả lời 1 câu Choice (sự cố thuộc bộ phận nào) và 6 câu Noul: có phải sự cố cần sửa không, có thể gây nguy hiểm không, nước có đang rò/tràn không, có mất hẳn điện/nước/nhà vệ sinh không, phòng có không khóa được không, có chỉ là lỗi nhỏ không. Code quyết định từ các câu trả lời (ngưỡng có ≥ 0.7, không < 0.3):
+  - nguy hiểm → `URGENT`; nguy hiểm chưa chắc, hoặc nước đang rò / mất tiện ích / không khóa được → `HIGH`; chỉ là lỗi nhỏ → `LOW`; còn lại → `MEDIUM`.
+  - `triage.needsReview = true` khi Jev chưa chắc đó có phải sự cố, có nguy hiểm, hoặc có thuộc nhóm nâng mức hay không; nội dung không giống sự cố → `category: OTHER`.
+- Khi tạo sự cố, việc phân loại chạy nền sau khi trả response (không làm chậm hay làm hỏng việc báo sự cố) rồi phát `incident:updated`. Sự cố do khách thuê báo được đặt mức ưu tiên gợi ý; sự cố do nhân viên tạo giữ mức họ chọn, gợi ý chỉ lưu ở `triage.suggestedPriority`.
+- Lỗi gọi API được lưu `triage.status: FAILED` kèm `error`; loại và mức ưu tiên giữ nguyên (lỗi không bao giờ được coi là câu trả lời).
+- `POST /incidents/:incidentId/triage` (LANDLORD, PROPERTY_MANAGER): phân loại lại sự cố đang `PENDING`/`IN_PROGRESS`, áp dụng cả loại và mức ưu tiên, ghi audit `TRIAGE_INCIDENT`. Chưa cấu hình key → `503 TRIAGE_DISABLED`; TypeSafe lỗi → `502`.
+- `GET /incidents` nhận thêm `category` (`ELECTRICAL`, `PLUMBING`, `APPLIANCE`, `DOOR_LOCK_WINDOW`, `WALL_CEILING_FLOOR`, `INTERNET`, `PEST_CLEANING`, `SHARED_AREA`, `OTHER`, hoặc `UNCLASSIFIED` = chưa phân loại) và `needsReview=true`; trả thêm `triageEnabled`.
+- Jev hỗ trợ tiếng Việt kém hơn tiếng Anh: nên chạy thử trên dữ liệu thật trước khi tin hoàn toàn vào kết quả.
+
+## Realtime: tự cập nhật và hoạt động
+
+Sau mọi thao tác ghi thành công (POST/PUT/PATCH/DELETE có người dùng đăng nhập, trừ `/auth`), webhook ngân hàng, IPN cổng SePay và phân loại sự cố, server phát hai loại sự kiện Socket.io (`realtime/liveUpdates.js`, `realtime/activity.js`):
+
+- `data:changed` `{ resources: ["contracts", "rooms", ...], at }`: chỉ nêu nhóm dữ liệu bị ảnh hưởng, không có bản ghi hay số tiền. Gửi tới phòng `scope:<landlordId>` (chủ trọ, quản lý, khách thuê của chuỗi); thay đổi của admin gửi `admins` + `landlords`. FE dùng `useLiveRefresh([...], refresh)` để trang tự tải lại ngầm.
+- `activity` `{ id, at, actor: { id, name, role }, action, message, details, room, branch, code, link }`: ai làm gì, phòng nào, cơ sở nào, mã hợp đồng / hóa đơn nào. Ví dụ `message`: "Nguyễn Văn An (Khách thuê) báo sự cố", `details`: "Phòng P.101 · Tòa Cầu Giấy · "Vỡ ống nước"". Chỉ gửi tới người được xem: `landlord:<id>`, `branch:<id>` (quản lý cơ sở đó), `user:<tenantId>` (khách thuê liên quan), `admins` (việc về gói dịch vụ). Danh sách hành động nằm trong `ACTIONS` của `realtime/activity.js`.
+- Phòng socket mới: `user:<userId>` (mọi tài khoản), `scope:<landlordId>`, `admins`, `landlords`; các phòng cũ (`landlord:`, `branch:`, `invoice:`) và sự kiện cũ (`payment:success`, `invoice_paid`, `incident:*`, `contract:deposit_received`) giữ nguyên.
+
+## Khóa / mở lại tài khoản khách thuê theo hợp đồng
+
+- Job `jobs/tenantAccess.js` chạy khi server khởi động và mỗi 6 giờ. Khách thuê bị khóa (`status: INACTIVE`, `deactivationReason: NO_ACTIVE_CONTRACT`) khi đồng thời:
+  - không còn hợp đồng đang chạy, hoặc hết hạn / trả phòng chưa quá `TENANT_LOCK_AFTER_DAYS` ngày (mặc định 30, tính theo `endDate`, hợp đồng đã thanh lý tính theo `actualEndDate`);
+  - không còn hóa đơn nào chưa trả (`ISSUED`, `PARTIALLY_PAID`, `UNPAID` còn tiền).
+- Khi khóa: tăng `authVersion` và xóa phiên đăng nhập (đăng xuất mọi thiết bị), ghi audit `DEACTIVATE_TENANT` (actor SYSTEM). Đăng nhập đúng mật khẩu nhận `403 TENANT_INACTIVE` kèm lời giải thích. Link hóa đơn công khai `/i/:token` vẫn dùng được.
+- Lập hợp đồng mới với cùng CCCD (cùng chủ trọ): tài khoản được mở lại về trạng thái trước khi khóa, **giữ nguyên mật khẩu khách đã đổi**, không cấp mật khẩu tạm, không bắt đổi mật khẩu; audit `REACTIVATE_TENANT`. Email/SĐT nhập trong hợp đồng mới (nếu có) vẫn phải khớp tài khoản cũ.
+- Tắt bằng `TENANT_AUTO_LOCK=false`.
+
+## Gia hạn hợp đồng
+
+`POST /contracts/:contractId/renew` (LANDLORD) `{ endDate, rentalPrice?, notes? }`:
+- Chỉ cho hợp đồng chưa thanh lý (`ACTIVE`/`EXPIRING_SOON`/`EXPIRED`) và chưa lập phiếu quyết toán (`CONTRACT_SETTLEMENT_PREPARED`). `endDate` phải sau ngày kết thúc hiện tại và ở tương lai.
+- Giữ nguyên mã hợp đồng, tiền cọc, khách thuê; `endDate`, `rentalPrice` được cập nhật (giá mới áp dụng cho hóa đơn tạo sau đó). Mỗi lần gia hạn thêm một mục vào `contract.renewals` (`previousEndDate`, `endDate`, `previousRentalPrice`, `rentalPrice`, `notes`, `renewedAt`, `renewedBy`). Audit `RENEW_CONTRACT`.
+- Khách thuê đã bị tạm khóa vì hết hạn được mở lại, giữ mật khẩu cũ (audit `REACTIVATE_TENANT`, lý do `CONTRACT_RENEWED`).
+
+## Tên đăng nhập theo từng chủ trọ
+
+- `users`: `email` và `username` (CCCD của khách thuê, SĐT của quản lý, email của chủ trọ) là duy nhất **trong từng chủ trọ** (index `{email, landlordId}`, `{username, landlordId}`), không còn duy nhất toàn hệ thống. Cùng một CCCD có thể có tài khoản ở nhiều chủ trọ. Chủ trọ và admin (không có `landlordId`) vẫn không trùng email với nhau. Server tự xóa index cũ `email_1`, `username_1` khi khởi động.
+- Đăng nhập: thử mật khẩu với mọi tài khoản trùng tên đăng nhập. Chỉ một tài khoản đúng mật khẩu → đăng nhập như cũ. Nhiều tài khoản cùng đúng mật khẩu → `POST /auth/login` trả `{ selectionRequired: true, accounts: [{ id, role, roleName, status, landlordName, places: ["Tòa Cầu Giấy – Phòng P.101", ...] }] }` (chưa tạo phiên, chưa đặt cookie). Client gửi lại `{ username, password, accountId }` để vào tài khoản đã chọn (mật khẩu được kiểm tra lại). `accountId` không thuộc danh sách khớp → 401.

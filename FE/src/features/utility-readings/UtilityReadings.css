@@ -39,6 +39,8 @@
   display: flex;
   align-items: center;
   gap: 14px;
+  flex: 1;
+  min-width: 320px;
 }
 
 .util-header-icon {
@@ -50,10 +52,106 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+}
+
+.util-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.util-branch-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.util-branch-select-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.util-picker-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--util-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.util-branch-select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.util-branch-select {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1.5px solid var(--util-border);
+  background: #ffffff;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--util-text-main);
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.util-branch-select:hover {
+  border-color: #94a3b8;
+}
+
+.util-branch-select:focus {
+  border-color: var(--util-primary-container);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
+}
+
+/* Role-based Scoping Badges */
+.util-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  line-height: 1.2;
+}
+
+.util-role-badge.manager {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.util-role-badge.landlord {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.util-period-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
 }
 
 .util-header-title {
-  margin: 0 0 4px 0;
+  margin: 0;
   font-family: "Plus Jakarta Sans", sans-serif;
   font-size: 17px;
   font-weight: 700;
@@ -67,17 +165,44 @@
   margin: 0;
   font-size: 13px;
   color: var(--util-text-muted);
+  display: flex;
+  align-items: center;
 }
 
 .util-header-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
+.util-control-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.util-control-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--util-text-muted);
+}
+
+.util-select-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.util-select-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--util-text-muted);
+  pointer-events: none;
+}
+
 .util-period-select {
-  padding: 8px 12px;
+  padding: 7px 12px 7px 30px;
   border-radius: 8px;
   border: 1px solid var(--util-border);
   background: #ffffff;
@@ -86,9 +211,40 @@
   color: var(--util-text-main);
   outline: none;
   cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.util-period-select:focus {
+  border-color: var(--util-primary-container);
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.15);
+}
+
+.util-view-switcher {
+  display: flex;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 8px;
+}
+
+.util-view-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--util-text-muted);
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.util-view-btn.is-active {
+  background: #ffffff;
+  color: var(--util-primary-container);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 /* 4 KPI Cards */
@@ -207,6 +363,69 @@
   color: #ffffff;
   border-color: var(--util-primary-container);
   font-weight: 600;
+}
+
+.util-filter-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.util-search-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.util-search-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--util-text-muted);
+  pointer-events: none;
+}
+
+.util-search-input {
+  padding: 6px 26px 6px 30px;
+  border-radius: 8px;
+  border: 1px solid var(--util-border);
+  background: #ffffff;
+  font-size: 13px;
+  color: var(--util-text-main);
+  outline: none;
+  width: 180px;
+  transition: all 0.15s ease;
+}
+
+.util-search-input:focus {
+  border-color: var(--util-primary-container);
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.15);
+  width: 210px;
+}
+
+.util-search-clear {
+  position: absolute;
+  right: 6px;
+  background: none;
+  border: none;
+  color: var(--util-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.util-search-clear:hover {
+  background: #f1f5f9;
+  color: var(--util-text-main);
+}
+
+.util-items-count {
+  font-size: 13px;
+  color: var(--util-text-muted);
+  white-space: nowrap;
 }
 
 /* Mobile Quick Entry Carousel / Step Wizard */

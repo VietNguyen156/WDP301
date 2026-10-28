@@ -1,0 +1,1188 @@
+/* ==========================================================================
+   DOMUS ERP - Unified Authentication & Sign In Portal (Auth.css)
+   Matches Enterprise Spec v3.4.2 Verbatim
+   ========================================================================== */
+
+:root {
+  --auth-surface: #faf8ff;
+  --auth-surface-lowest: #ffffff;
+  --auth-surface-low: #f2f3ff;
+  --auth-surface-container: #eaedff;
+  --auth-surface-high: #e2e7ff;
+  --auth-surface-highest: #dae2fd;
+  --auth-inverse-surface: #283044;
+  --auth-inverse-on-surface: #eef0ff;
+  --auth-inverse-primary: #80d5cb;
+  --auth-primary: #005c55;
+  --auth-primary-container: #0f766e;
+  --auth-primary-fixed: #9cf2e8;
+  --auth-on-primary-container: #a3faef;
+  --auth-secondary: #4b41e1;
+  --auth-secondary-container: #645efb;
+  --auth-secondary-fixed: #e2dfff;
+  --auth-tertiary-container: #a15600;
+  --auth-tertiary-fixed: #ffdcc3;
+  --auth-on-surface: #131b2e;
+  --auth-on-surface-variant: #3e4947;
+  --auth-outline: #6e7977;
+  --auth-outline-variant: #bdc9c6;
+  --auth-error: #ba1a1a;
+}
+
+/* Main Split Screen Portal Layout */
+.domus-portal-layout {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: row;
+  font-family: var(--font-body, "Inter", sans-serif);
+  color: var(--auth-on-surface);
+  background-color: var(--auth-surface);
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   LEFT PANEL: Enterprise Branding, Showcase & Architecture Trust
+   ========================================================================== */
+.domus-portal-left {
+  width: 50%;
+  background-color: var(--auth-inverse-surface);
+  color: var(--auth-inverse-on-surface);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 40px 48px;
+  overflow: hidden;
+  border-right: 1px solid rgba(110, 121, 119, 0.3);
+  box-sizing: border-box;
+}
+
+/* Atmospheric background blurs */
+.domus-glow-primary {
+  position: absolute;
+  top: -128px;
+  left: -128px;
+  width: 384px;
+  height: 384px;
+  background: rgba(15, 118, 110, 0.22);
+  border-radius: 9999px;
+  filter: blur(64px);
+  pointer-events: none;
+}
+
+.domus-glow-secondary {
+  position: absolute;
+  bottom: -96px;
+  right: -96px;
+  width: 320px;
+  height: 320px;
+  background: rgba(75, 65, 225, 0.16);
+  border-radius: 9999px;
+  filter: blur(64px);
+  pointer-events: none;
+}
+
+.domus-left-top,
+.domus-left-center,
+.domus-left-footer {
+  position: relative;
+  z-index: 10;
+}
+
+/* Top Brand Bar */
+.domus-brand-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.domus-brand-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.domus-brand-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background-color: var(--auth-primary-container);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(156, 242, 232, 0.22);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.domus-brand-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.domus-brand-name {
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.domus-version-pill {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background-color: rgba(15, 118, 110, 0.4);
+  color: var(--auth-on-primary-container);
+  border: 1px solid rgba(15, 118, 110, 0.55);
+}
+
+.domus-brand-sub {
+  font-size: 11px;
+  color: var(--auth-outline-variant);
+  margin: 2px 0 0;
+}
+
+.domus-webhook-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(6px);
+  font-size: 11px;
+  font-weight: 500;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+.domus-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.28);
+  animation: domusPulse 2s infinite;
+}
+
+@keyframes domusPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Headline & Value Pitch */
+.domus-hero-pitch {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.domus-verified-pill {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: rgba(0, 92, 85, 0.25);
+  border: 1px solid rgba(15, 118, 110, 0.45);
+  color: var(--auth-on-primary-container);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.domus-hero-title {
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
+  font-size: 29px;
+  line-height: 1.28;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  margin: 0;
+}
+
+.domus-hero-desc {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--auth-outline-variant);
+  max-width: 560px;
+  margin: 0;
+}
+
+/* Center Showcase Card & RBAC Box */
+.domus-left-center {
+  margin: 22px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.domus-showcase-card {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.28);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.domus-showcase-img {
+  width: 100%;
+  height: 192px;
+  object-fit: cover;
+  display: block;
+}
+
+.domus-showcase-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    var(--auth-inverse-surface) 0%,
+    rgba(40, 48, 68, 0.4) 55%,
+    transparent 100%
+  );
+}
+
+.domus-showcase-sla-bar {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(40, 48, 68, 0.86);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.domus-sla-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.domus-sla-icon {
+  color: var(--auth-on-primary-container);
+  flex-shrink: 0;
+}
+
+.domus-sla-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+}
+
+.domus-sla-sub {
+  font-size: 11px;
+  color: var(--auth-outline-variant);
+  margin: 2px 0 0;
+}
+
+.domus-sla-right {
+  text-align: right;
+}
+
+.domus-sla-metric {
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--auth-inverse-primary);
+}
+
+.domus-sla-label {
+  font-size: 10px;
+  color: var(--auth-outline-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+/* 4 Role Specifications Box */
+.domus-rbac-box {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 12px;
+  padding: 14px;
+  backdrop-filter: blur(6px);
+}
+
+.domus-rbac-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.domus-rbac-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.domus-rbac-icon {
+  color: var(--auth-primary-fixed);
+}
+
+.domus-rbac-tag {
+  font-size: 11px;
+  color: var(--auth-outline-variant);
+}
+
+.domus-rbac-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.domus-rbac-card {
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  transition: border-color 0.15s ease;
+}
+
+.domus-rbac-card:hover {
+  border-color: rgba(156, 242, 232, 0.4);
+}
+
+.domus-rbac-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.domus-rbac-badge {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.domus-rbac-badge.tone-landlord {
+  background: var(--auth-primary-container);
+  color: #ffffff;
+}
+
+.domus-rbac-badge.tone-manager {
+  background: var(--auth-secondary-container);
+  color: #ffffff;
+}
+
+.domus-rbac-badge.tone-tenant {
+  background: var(--auth-tertiary-container);
+  color: #ffffff;
+}
+
+.domus-rbac-badge.tone-admin {
+  background: var(--auth-surface-highest);
+  color: var(--auth-on-surface);
+}
+
+.domus-rbac-role-name {
+  font-size: 11px;
+  color: var(--auth-outline-variant);
+}
+
+.domus-rbac-card-desc {
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.88);
+  margin: 0;
+}
+
+.domus-rbac-highlight {
+  font-weight: 600;
+}
+
+.domus-rbac-highlight.tone-landlord {
+  color: var(--auth-on-primary-container);
+}
+
+.domus-rbac-highlight.tone-manager {
+  color: var(--auth-secondary-fixed);
+}
+
+.domus-rbac-highlight.tone-tenant {
+  color: var(--auth-tertiary-fixed);
+}
+
+.domus-rbac-highlight.tone-admin {
+  color: var(--auth-inverse-primary);
+}
+
+/* Left Footer */
+.domus-left-footer {
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--auth-outline-variant);
+}
+
+.domus-compliance-badges {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.domus-compliance-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.domus-compliance-item .icon-green {
+  color: #16a34a;
+}
+
+.domus-compliance-item .icon-teal {
+  color: var(--auth-primary-fixed);
+}
+
+.domus-compliance-item .icon-indigo {
+  color: var(--auth-secondary-fixed);
+}
+
+.domus-copyright {
+  font-size: 11px;
+}
+
+/* ==========================================================================
+   RIGHT PANEL: Multi-Role Authentication Form
+   ========================================================================== */
+.domus-portal-right {
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 40px 48px;
+  background-color: var(--auth-surface-lowest);
+  box-sizing: border-box;
+}
+
+/* Top Bar */
+.domus-right-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(189, 201, 198, 0.45);
+}
+
+.domus-portal-tag {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background-color: var(--auth-surface-high);
+  color: var(--auth-on-surface);
+  border: 1px solid rgba(189, 201, 198, 0.35);
+}
+
+.domus-support-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--auth-on-surface-variant);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.domus-support-link:hover {
+  color: var(--auth-primary);
+}
+
+/* Center Form Container */
+.domus-right-center {
+  max-width: 448px;
+  width: 100%;
+  margin: auto;
+  padding: 24px 0;
+}
+
+.domus-form-box {
+  width: 100%;
+  text-align: left;
+}
+
+.domus-form-header {
+  margin-bottom: 24px;
+}
+
+.domus-form-header h2 {
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
+  font-size: 26px;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--auth-on-surface);
+  margin: 0;
+}
+
+.domus-form-header p {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--auth-on-surface-variant);
+  margin: 6px 0 0;
+}
+
+/* Form Elements */
+.domus-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.domus-auth-row-2 {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 12px;
+}
+
+.domus-input-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.domus-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.domus-field-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--auth-on-surface);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.domus-required {
+  color: var(--auth-error);
+}
+
+.domus-hint-inline {
+  font-size: 11px;
+  color: var(--auth-outline);
+  font-weight: 500;
+}
+
+/* Dynamic Role Badge */
+.domus-role-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.domus-role-badge.tone-neutral {
+  background-color: var(--auth-surface-container);
+  color: var(--auth-on-surface-variant);
+  border: 1px solid rgba(189, 201, 198, 0.55);
+}
+
+.domus-role-badge.tone-typing {
+  background-color: var(--auth-surface-high);
+  color: var(--auth-on-surface-variant);
+  border: 1px solid rgba(189, 201, 198, 0.45);
+}
+
+.domus-role-badge.tone-landlord {
+  background-color: var(--auth-primary-container);
+  color: #ffffff;
+  border: 1px solid var(--auth-primary-container);
+}
+
+.domus-role-badge.tone-manager {
+  background-color: var(--auth-secondary-container);
+  color: #ffffff;
+  border: 1px solid var(--auth-secondary-container);
+}
+
+.domus-role-badge.tone-tenant {
+  background-color: var(--auth-tertiary-container);
+  color: #ffffff;
+  border: 1px solid var(--auth-tertiary-container);
+}
+
+.domus-role-badge.tone-admin {
+  background-color: var(--auth-inverse-surface);
+  color: var(--auth-inverse-on-surface);
+  border: 1px solid var(--auth-inverse-surface);
+}
+
+/* Input Wrapper */
+.domus-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(19, 27, 46, 0.04);
+}
+
+.domus-input-icon-left {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  padding-left: 13px;
+  display: flex;
+  align-items: center;
+  color: var(--auth-outline);
+  pointer-events: none;
+}
+
+.domus-input-icon-left.tone-landlord,
+.domus-input-icon-left.tone-admin {
+  color: var(--auth-primary);
+}
+
+.domus-input-icon-left.tone-manager {
+  color: var(--auth-secondary);
+}
+
+.domus-input-icon-left.tone-tenant {
+  color: var(--auth-tertiary-container);
+}
+
+.domus-text-input {
+  width: 100%;
+  height: 42px;
+  border-radius: 8px !important;
+  border: 1px solid var(--auth-outline-variant) !important;
+  padding: 9px 40px 9px 40px !important;
+  font-size: 14px !important;
+  color: var(--auth-on-surface) !important;
+  background-color: #ffffff !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.domus-text-input::placeholder {
+  color: rgba(110, 121, 119, 0.85);
+}
+
+.domus-text-input:focus {
+  outline: none !important;
+  border-color: var(--auth-primary) !important;
+  box-shadow: 0 0 0 2px rgba(0, 92, 85, 0.15) !important;
+}
+
+.domus-input-icon-right {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  padding-right: 13px;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+.domus-input-icon-right.tone-landlord,
+.domus-input-icon-right.tone-admin {
+  color: var(--auth-primary);
+}
+
+.domus-input-icon-right.tone-manager {
+  color: var(--auth-secondary);
+}
+
+.domus-input-icon-right.tone-tenant {
+  color: var(--auth-tertiary-container);
+}
+
+.domus-pwd-toggle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  padding: 0 13px;
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: var(--auth-outline);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.domus-pwd-toggle:hover {
+  color: var(--auth-on-surface);
+}
+
+/* Format Hint */
+.domus-format-hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--auth-outline);
+}
+
+.domus-format-hint.tone-landlord,
+.domus-format-hint.tone-admin {
+  color: var(--auth-primary);
+  font-weight: 500;
+}
+
+.domus-format-hint.tone-manager {
+  color: var(--auth-secondary);
+  font-weight: 500;
+}
+
+.domus-format-hint.tone-tenant {
+  color: var(--auth-tertiary-container);
+  font-weight: 500;
+}
+
+.domus-forgot-link {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--auth-primary);
+  text-decoration: none;
+}
+
+.domus-forgot-link:hover {
+  color: var(--auth-primary-container);
+  text-decoration: underline;
+}
+
+/* Remember Session */
+.domus-remember-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 2px;
+}
+
+.domus-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  color: var(--auth-on-surface-variant);
+}
+
+.domus-checkbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  accent-color: var(--auth-primary);
+  cursor: pointer;
+}
+
+/* Submit Button */
+.domus-submit-wrap {
+  padding-top: 6px;
+}
+
+.domus-submit-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background-color: var(--auth-primary-container);
+  color: #ffffff;
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
+  font-size: 15px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(15, 118, 110, 0.22);
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.domus-submit-btn:hover:not(:disabled) {
+  background-color: var(--auth-primary);
+}
+
+.domus-submit-btn:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.domus-submit-btn:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.domus-spin {
+  animation: domusSpin 1s linear infinite;
+}
+
+@keyframes domusSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Business Security Policy Warning Box */
+.domus-policy-notice {
+  margin-top: 20px;
+  padding: 14px;
+  border-radius: 8px;
+  background-color: var(--auth-surface-low);
+  border: 1px solid rgba(189, 201, 198, 0.55);
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+
+.domus-policy-icon {
+  color: var(--auth-secondary);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.domus-policy-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--auth-on-surface-variant);
+}
+
+.domus-policy-text strong {
+  color: var(--auth-on-surface);
+  font-weight: 600;
+}
+
+/* Register Landlord CTA Card */
+.domus-cta-divider {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(189, 201, 198, 0.45);
+}
+
+.domus-cta-card {
+  padding: 14px;
+  border-radius: 8px;
+  background-color: var(--auth-surface);
+  border: 1px solid rgba(189, 201, 198, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(19, 27, 46, 0.04);
+}
+
+.domus-cta-copy {
+  text-align: left;
+}
+
+.domus-cta-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--auth-on-surface);
+  margin: 0;
+}
+
+.domus-cta-sub {
+  font-size: 12px;
+  color: var(--auth-on-surface-variant);
+  margin: 2px 0 0;
+}
+
+.domus-cta-btn {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background-color: rgba(0, 92, 85, 0.1);
+  color: var(--auth-primary);
+  font-size: 12px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.domus-cta-btn:hover {
+  background-color: var(--auth-primary);
+  color: #ffffff;
+}
+
+/* Right Footer */
+.domus-right-footer {
+  padding-top: 16px;
+  border-top: 1px solid rgba(189, 201, 198, 0.35);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--auth-on-surface-variant);
+}
+
+.domus-policy-links {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.domus-policy-links a {
+  color: var(--auth-on-surface-variant);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.domus-policy-links a:hover {
+  color: var(--auth-primary);
+}
+
+.domus-shield-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--auth-outline);
+}
+
+/* Password Strength Bars (Used in Register & ForceChangePassword) */
+.domus-pwd-strength {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.domus-pwd-bars {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  flex: 1;
+}
+
+.domus-pwd-bar {
+  height: 4px;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  transition: background-color 0.2s ease;
+}
+
+.domus-pwd-bar.is-filled.tone-danger {
+  background: #dc2626;
+}
+.domus-pwd-bar.is-filled.tone-warning {
+  background: #d97706;
+}
+.domus-pwd-bar.is-filled.tone-info {
+  background: #0284c7;
+}
+.domus-pwd-bar.is-filled.tone-success {
+  background: #059669;
+}
+
+.domus-pwd-strength-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.domus-pwd-strength-label.tone-danger {
+  color: #dc2626;
+}
+.domus-pwd-strength-label.tone-warning {
+  color: #b45309;
+}
+.domus-pwd-strength-label.tone-info {
+  color: #0369a1;
+}
+.domus-pwd-strength-label.tone-success {
+  color: #047857;
+}
+
+/* Force Change Password Screen */
+.domus-force-pwd-screen {
+  min-height: 100dvh;
+  background-color: var(--auth-surface);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.domus-force-pwd-card {
+  max-width: 460px;
+  width: 100%;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 12px 32px -8px rgba(15, 23, 42, 0.08);
+  padding: 32px;
+}
+
+.domus-force-pwd-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.domus-force-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
+  font-size: 13px;
+  font-weight: 800;
+  color: #005c55;
+}
+
+.domus-security-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+.domus-user-badge-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  color: #0f766e;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.domus-user-badge-info {
+  min-width: 0;
+}
+
+.domus-pwd-checklist {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.domus-pwd-check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.domus-pwd-check-item.is-met {
+  color: #047857;
+  font-weight: 600;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 1024px) {
+  .domus-portal-layout {
+    flex-direction: column;
+  }
+
+  .domus-portal-left,
+  .domus-portal-right {
+    width: 100%;
+    padding: 32px 24px;
+  }
+
+  .domus-portal-left {
+    border-right: none;
+    border-bottom: 1px solid rgba(110, 121, 119, 0.3);
+  }
+}
+
+@media (max-width: 640px) {
+  .domus-rbac-grid,
+  .domus-auth-row-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .domus-webhook-status {
+    display: none;
+  }
+
+  .domus-cta-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .domus-cta-btn {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* Account chooser (same CCCD with several landlords) */
+.account-chooser h2 { margin: 0 0 6px; font-size: 22px; color: #0f172a; }
+.account-chooser-lead { margin: 0 0 16px; font-size: 14px; color: #475569; }
+.account-chooser ul { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 10px; }
+.account-choice {
+  width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 14px; text-align: left;
+  border: 1px solid #dbe4e2; border-radius: 12px; background: #ffffff; cursor: pointer; color: #0f172a;
+}
+.account-choice:hover:not(:disabled), .account-choice:focus-visible { border-color: #0f766e; background: #f0fdfa; outline: none; }
+.account-choice:disabled { opacity: 0.7; cursor: wait; }
+.account-choice.is-locked { background: #f8fafc; }
+.account-choice-icon { flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: #e6f4f1; color: #0f766e; }
+.account-choice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.account-choice-text strong { font-size: 14px; }
+.account-choice-text small { font-size: 12.5px; color: #64748b; }
+.account-choice-locked { display: inline-flex; align-items: center; gap: 4px; color: #92400e !important; }
+.account-chooser-back { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: #0f766e; font-weight: 600; font-size: 13px; cursor: pointer; padding: 4px 0; }

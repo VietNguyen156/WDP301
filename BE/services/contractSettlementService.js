@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { LIVE_CONTRACT_STATUSES, OWING_INVOICE_STATUSES } = require("../utils/statuses");
 const crypto = require("node:crypto");
 const Contract = require("../models/Contract");
 const Room = require("../models/Room");
@@ -16,8 +17,8 @@ const v = require("../utils/validation");
 const { paymentBalance, makeVietQr } = require("./financeCalculation");
 const audit = require("./auditService");
 const { vnDate } = require("../utils/vnTime");
-const liveStatuses = ["ACTIVE", "EXPIRING_SOON", "EXPIRED"];
-const payableStatuses = ["ISSUED", "PARTIALLY_PAID", "UNPAID"];
+const liveStatuses = LIVE_CONTRACT_STATUSES;
+const payableStatuses = OWING_INVOICE_STATUSES;
 const dayKey = vnDate;
 
 function validateCharges(body) {

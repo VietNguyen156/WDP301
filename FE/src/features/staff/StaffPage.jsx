@@ -1,16 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
 import {
   Users,
   Plus,
   KeyRound,
-  ShieldCheck,
   Building2,
   Phone,
   Mail,
   RefreshCw,
 } from "lucide-react";
-import { staffApi, branchApi, errorMessage } from "../../services/api";
-import { useToast } from "../../context/ToastContext";
 import {
   Button,
   Field,
@@ -18,121 +14,39 @@ import {
   FormError,
   LoadingState,
   EmptyState,
+  CredentialsModal,
 } from "../../components/ui";
-import { CredentialsModal } from "../../components/ui/CredentialsModal";
+import { useStaffManagement } from "../../hooks/useStaffManagement";
 
 export default function StaffPage() {
-  const toast = useToast();
-  const [staffList, setStaffList] = useState([]);
-  const [branches, setBranches] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  // Modal create states
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [email, setEmail] = useState("");
-  const [assignedBranches, setAssignedBranches] = useState([]);
-  const [busy, setBusy] = useState(false);
-  const [formError, setFormError] = useState("");
-
-  // Credentials dialog for newly created or reset staff
-  const [issuedCreds, setIssuedCreds] = useState(null);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const [staffRes, branchRes] = await Promise.all([
-        staffApi.list({ limit: 50 }),
-        branchApi.list({ limit: 100 }),
-      ]);
-      setStaffList(staffRes?.items || []);
-      setBranches(branchRes?.items || []);
-    } catch (err) {
-      setError(errorMessage(err));
-      toast.error(errorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  async function handleCreateStaff(e) {
-    e.preventDefault();
-    setBusy(true);
-    setFormError("");
-
-    try {
-      const res = await staffApi.create({
-        name: name.trim(),
-        phoneNumber: phoneNumber.trim(),
-        email: email.trim() || undefined,
-        assignedBranches,
-      });
-
-      toast.success("Cấp tài khoản Quản lý cơ sở thành công!");
-      setIsCreateOpen(false);
-      setName("");
-      setPhoneNumber("");
-      setEmail("");
-      setAssignedBranches([]);
-
-      // Trigger credentials modal with temporary password
-      if (res?.credentials) {
-        setIssuedCreds({
-          credentials: res.credentials,
-          recipientName: res.user?.name || name,
-          roleLabel: "Quản lý cơ sở (Property Manager)",
-        });
-      }
-      loadData();
-    } catch (err) {
-      const msg = errorMessage(err);
-      setFormError(msg);
-      toast.error(msg);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleResetPassword(staffMember) {
-    if (
-      !window.confirm(
-        `Bạn có chắc chắn muốn cấp lại mật khẩu tạm cho Quản lý "${staffMember.name}" (${staffMember.username || staffMember.phoneNumber})? Phiên làm việc cũ của họ sẽ bị thu hồi.`,
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const res = await staffApi.resetPassword(
-        staffMember._id || staffMember.id,
-      );
-      toast.success("Đã cấp lại mật khẩu tạm thời thành công!");
-      if (res?.credentials) {
-        setIssuedCreds({
-          credentials: res.credentials,
-          recipientName: staffMember.name,
-          roleLabel: "Quản lý cơ sở (Cấp lại mật khẩu)",
-        });
-      }
-    } catch (err) {
-      toast.error(errorMessage(err));
-    }
-  }
-
-  function toggleBranch(branchId) {
-    setAssignedBranches((prev) =>
-      prev.includes(branchId)
-        ? prev.filter((id) => id !== branchId)
-        : [...prev, branchId],
-    );
-  }
+  const {
+    staffList,
+    branches,
+    loading,
+    error,
+    loadData,
+    isCreateOpen,
+    openCreateModal,
+    closeCreateModal,
+    name,
+    setName,
+    phoneNumber,
+    setPhoneNumber,
+    email,
+    setEmail,
+    assignedBranches,
+    toggleBranch,
+    busy,
+    formError,
+    handleCreateStaff,
+    resettingStaff,
+    setResettingStaff,
+    resetBusy,
+    confirmResetPassword,
+    issuedCreds,
+    setIssuedCreds,
+    resolveAssignedBranchNames,
+  } = useStaffManagement();
 
   return (
     <div className="staff-management-page">
@@ -147,13 +61,13 @@ export default function StaffPage() {
         <div className="page-actions">
           <Button
             variant="secondary"
-            onClick={loadData}
+            onClick={() => loadData()}
             title="Làm mới danh sách"
           >
             <RefreshCw size={15} />
             <span>Làm mới</span>
           </Button>
-          <Button onClick={() => setIsCreateOpen(true)}>
+          <Button onClick={openCreateModal}>
             <Plus size={16} />
             <span>Cấp tài khoản Quản lý</span>
           </Button>
@@ -166,14 +80,14 @@ export default function StaffPage() {
         <EmptyState
           title="Không thể tải dữ liệu"
           description={error}
-          action={<Button onClick={loadData}>Thử lại</Button>}
+          action={<Button onClick={() => loadData()}>Thử lại</Button>}
         />
       ) : staffList.length === 0 ? (
         <EmptyState
           title="Chưa có Quản lý cơ sở nào"
           description="Chủ trọ có thể cấp tài khoản cho nhân sự quản lý tòa nhà, chốt số điện nước và phụ trách vận hành chi nhánh."
           action={
-            <Button onClick={() => setIsCreateOpen(true)}>
+            <Button onClick={openCreateModal}>
               <Plus size={16} />
               Cấp tài khoản Quản lý đầu tiên
             </Button>
@@ -202,14 +116,9 @@ export default function StaffPage() {
               </thead>
               <tbody>
                 {staffList.map((item) => {
-                  const assignedBranchNames = (item.assignedBranches || [])
-                    .map((bId) => {
-                      const found = branches.find(
-                        (b) => String(b._id) === String(bId),
-                      );
-                      return found?.name || bId;
-                    })
-                    .join(", ");
+                  const assignedBranchNames = resolveAssignedBranchNames(
+                    item.assignedBranches,
+                  );
 
                   return (
                     <tr key={item._id || item.id}>
@@ -268,7 +177,7 @@ export default function StaffPage() {
                         <Button
                           variant="secondary"
                           compact
-                          onClick={() => handleResetPassword(item)}
+                          onClick={() => setResettingStaff(item)}
                           title="Cấp lại mật khẩu ngẫu nhiên cho nhân sự này"
                         >
                           <KeyRound size={14} />
@@ -289,7 +198,7 @@ export default function StaffPage() {
         <Modal
           title="Cấp tài khoản Quản lý cơ sở mới"
           subtitle="Hệ thống tự động sinh mật khẩu tạm thời. Quản lý sẽ bắt buộc đổi mật khẩu ở lần đăng nhập đầu tiên."
-          onClose={() => setIsCreateOpen(false)}
+          onClose={closeCreateModal}
           busy={busy}
         >
           <form onSubmit={handleCreateStaff}>
@@ -352,7 +261,9 @@ export default function StaffPage() {
                       return (
                         <label
                           key={b._id}
-                          className={`branch-checkbox-card ${checked ? "selected" : ""}`}
+                          className={`branch-checkbox-card ${
+                            checked ? "selected" : ""
+                          }`}
                         >
                           <input
                             type="checkbox"
@@ -379,13 +290,49 @@ export default function StaffPage() {
                 type="button"
                 variant="secondary"
                 disabled={busy}
-                onClick={() => setIsCreateOpen(false)}
+                onClick={closeCreateModal}
               >
                 Hủy
               </Button>
-              <Button busy={busy}>Cấp tài khoản & Nhận mật khẩu tạm</Button>
+              <Button busy={busy}>Cấp tài khoản &amp; Nhận mật khẩu tạm</Button>
             </footer>
           </form>
+        </Modal>
+      )}
+
+      {/* Modal Xác nhận cấp lại mật khẩu tạm (thay thế window.confirm) */}
+      {resettingStaff && (
+        <Modal
+          title="Xác nhận cấp lại mật khẩu tạm"
+          subtitle={`Tài khoản: ${resettingStaff.name} (${
+            resettingStaff.username || resettingStaff.phoneNumber
+          })`}
+          onClose={() => !resetBusy && setResettingStaff(null)}
+          busy={resetBusy}
+        >
+          <p style={{ fontSize: "14px", lineHeight: 1.55, color: "#334155" }}>
+            Bạn có chắc chắn muốn sinh mật khẩu tạm mới cho Quản lý{" "}
+            <strong>{resettingStaff.name}</strong>? Toàn bộ phiên đăng nhập hiện
+            tại của nhân sự này sẽ bị thu hồi và họ sẽ phải đổi mật khẩu ở lần
+            đăng nhập kế tiếp.
+          </p>
+          <footer className="modal-footer" style={{ marginTop: "24px" }}>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={resetBusy}
+              onClick={() => setResettingStaff(null)}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="button"
+              busy={resetBusy}
+              onClick={confirmResetPassword}
+            >
+              Xác nhận cấp lại
+            </Button>
+          </footer>
         </Modal>
       )}
 

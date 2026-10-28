@@ -26,6 +26,8 @@ import {
 import { adminApi, errorMessage } from "../../services/api";
 import { useToast } from "../../context/ToastContext";
 import { LoadingState, ErrorState, EmptyState, Button, Modal, Pagination } from "../../components/ui";
+import { useLiveRefresh } from "../../hooks/useLiveRefresh";
+import { useDebounced } from "../../hooks/useResource";
 
 export function AdminLandlordsView({ onNavigateTab }) {
   const toast = useToast();
@@ -37,6 +39,8 @@ export function AdminLandlordsView({ onNavigateTab }) {
 
   // Filters
   const [search, setSearch] = useState("");
+  // Query the API once typing pauses, not on every keystroke.
+  const debouncedSearch = useDebounced(search);
   const [statusFilter, setStatusFilter] = useState(""); // "" | "ACTIVE" | "SUSPENDED"
 
   // SePay Configuration Panel Selection
@@ -54,12 +58,12 @@ export function AdminLandlordsView({ onNavigateTab }) {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchLandlords = useCallback(async () => {
-    setLoading(true);
+  const fetchLandlords = useCallback(async (silent) => {
+    if (silent !== true) setLoading(true);
     setError(null);
     try {
       const params = { page, limit: 10 };
-      if (search.trim()) params.search = search.trim();
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
       if (statusFilter) params.status = statusFilter;
       const res = await adminApi.listLandlords(params);
       const items = res?.items || [];
@@ -75,7 +79,8 @@ export function AdminLandlordsView({ onNavigateTab }) {
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter, selectedForSepay]);
+  }, [page, debouncedSearch, statusFilter, selectedForSepay]);
+  useLiveRefresh(["admin","plans","subscription"], () => fetchLandlords(true));
 
   useEffect(() => {
     fetchLandlords();

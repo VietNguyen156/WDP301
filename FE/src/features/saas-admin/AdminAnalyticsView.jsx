@@ -20,6 +20,7 @@ import { adminApi, errorMessage } from "../../services/api";
 import { money } from "../../utils/format";
 import { useToast } from "../../context/ToastContext";
 import { LoadingState, ErrorState, EmptyState, Button } from "../../components/ui";
+import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 
 export function AdminAnalyticsView({ onNavigateTab }) {
   const toast = useToast();
@@ -35,8 +36,8 @@ export function AdminAnalyticsView({ onNavigateTab }) {
   );
   const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
 
-  const fetchStats = useCallback(async () => {
-    setLoading(true);
+  const fetchStats = useCallback(async (silent) => {
+    if (silent !== true) setLoading(true);
     setError(null);
     try {
       const [statsRes, landlordsRes] = await Promise.allSettled([
@@ -59,6 +60,7 @@ export function AdminAnalyticsView({ onNavigateTab }) {
       setLoading(false);
     }
   }, [from, to]);
+  useLiveRefresh(["admin","plans","subscription"], () => fetchStats(true));
 
   useEffect(() => {
     fetchStats();

@@ -568,6 +568,20 @@ export function SaaSPlansModal({
           </div>
         )}
 
+        {plansData?.includedFeatures?.length > 0 && (
+          <div className="plans-included">
+            <strong>Mọi gói đều có đầy đủ tính năng, chỉ khác số cơ sở, phòng và quản lý:</strong>
+            <ul>
+              {plansData.includedFeatures.map((feat) => (
+                <li key={feat}>
+                  <CheckCircle2 size={13} className="feat-check" />
+                  <span>{feat}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Lưới danh sách gói cước theo thời gian thực */}
         <div className="plans-cards-grid">
           {items.map((plan) => {
@@ -658,13 +672,10 @@ export function SaaSPlansModal({
                 )}
 
                 <div className="plan-features-list">
-                  <span className="features-title">Tính năng bao gồm:</span>
-                  {(plan.features || []).map((feat, idx) => (
-                    <div key={idx} className="feat-item">
-                      <CheckCircle2 size={14} className="feat-check" />
-                      <span>{feat}</span>
-                    </div>
-                  ))}
+                  <div className="feat-item">
+                    <CheckCircle2 size={14} className="feat-check" />
+                    <span>Đầy đủ mọi tính năng</span>
+                  </div>
                 </div>
 
                 <div className="plan-action-wrap">

@@ -644,6 +644,11 @@
   border-color: #bbf7d0;
 }
 
+.inspector-bento-box.highlight-warning {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
 .inspector-bento-label {
   font-size: 11px;
   color: #64748b;
@@ -962,3 +967,535 @@
   border: 1px solid #fecaca;
   color: #991b1b;
 }
+
+/* 9. Contract Detail Modal Modern Styles */
+.contract-detail-container {
+  padding: 18px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #fbfcfe;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: calc(88vh - 130px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* The container scrolls; its sections keep their full height instead of shrinking
+   (an overflow:hidden section would otherwise collapse to 0px). */
+.contract-detail-container > * {
+  flex-shrink: 0;
+}
+
+.contract-detail-container::-webkit-scrollbar {
+  width: 6px;
+}
+.contract-detail-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.contract-detail-container::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+.contract-detail-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.7);
+}
+
+/* Hero Header Banner */
+.contract-hero-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(135deg, #f0fdfa 0%, #ffffff 60%, #f8fafc 100%);
+  border: 1px solid #ccfbf1;
+  border-radius: 14px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.contract-hero-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.contract-hero-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0f766e 0%, #005c55 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 92, 85, 0.25);
+  flex-shrink: 0;
+}
+
+.contract-hero-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f766e;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+
+.contract-hero-title {
+  font-family: var(--font-heading, 'Plus Jakarta Sans', sans-serif);
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.contract-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: #64748b;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.contract-code-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.contract-copy-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.contract-copy-btn:hover {
+  color: #0f766e;
+  background: #e2e8f0;
+}
+
+/* 2-Way Electronic Signing Banner */
+.contract-signing-card {
+  border-radius: 12px;
+  padding: 14px 18px;
+  transition: all 0.2s ease;
+}
+
+.contract-signing-card.pending {
+  background: linear-gradient(180deg, #fffdf5 0%, #fffbeb 100%);
+  border: 1px solid #fde68a;
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.05);
+}
+
+.contract-signing-card.verified {
+  background: linear-gradient(180deg, #f7fee7 0%, #f0fdf4 100%);
+  border: 1px solid #bbf7d0;
+  box-shadow: 0 1px 3px rgba(22, 163, 74, 0.05);
+}
+
+.contract-signing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.contract-signing-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.contract-signing-card.pending .contract-signing-title {
+  color: #b45309;
+}
+
+.contract-signing-card.verified .contract-signing-title {
+  color: #166534;
+}
+
+.contract-sign-status-pill {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.contract-sign-status-pill.pending {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.contract-sign-status-pill.verified {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.contract-signing-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.contract-sign-party-box {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.contract-sign-party-box.signed {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.contract-sign-party-box.waiting {
+  border-color: #fde68a;
+  background: #ffffff;
+}
+
+.contract-sign-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #0f766e;
+  color: #ffffff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(15, 118, 110, 0.2);
+}
+
+.contract-sign-action-btn:hover {
+  background: #115e59;
+}
+
+.contract-signing-footer {
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(203, 213, 225, 0.6);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 3-Column Bento for Parties & Duration */
+.contract-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.contract-bento-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  transition: all 0.15s ease;
+  min-width: 0;
+}
+
+.contract-bento-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+}
+
+.contract-card-tag {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 10px;
+  width: fit-content;
+}
+
+.contract-card-tag.landlord {
+  background: #ecfeff;
+  color: #0e7490;
+  border: 1px solid #cffafe;
+}
+
+.contract-card-tag.tenant {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.contract-card-tag.duration {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
+}
+
+.contract-party-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  min-width: 0;
+}
+
+.contract-party-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+.contract-party-name {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.contract-party-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 6px;
+  word-break: break-word;
+}
+
+.contract-party-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* 3-Column Financial Grid */
+.contract-finance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.contract-finance-card {
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.15s ease;
+}
+
+.contract-finance-card.rent {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+.contract-finance-card.deposit-paid {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.contract-finance-card.deposit-pending {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.contract-finance-card.meters {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.contract-finance-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.contract-finance-val {
+  font-family: var(--font-heading, 'Plus Jakarta Sans', sans-serif);
+  font-size: 20px;
+  font-weight: 700;
+  margin: 6px 0 2px;
+  letter-spacing: -0.02em;
+}
+
+.contract-finance-sub {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+/* Accordion Legal Terms */
+.contract-terms-box {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.contract-terms-toggle {
+  width: 100%;
+  padding: 12px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8fafc;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.contract-terms-toggle:hover {
+  background: #f1f5f9;
+}
+
+.contract-terms-content {
+  padding: 16px 20px;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+@media (max-width: 768px) {
+  .contract-bento-grid,
+  .contract-finance-grid,
+  .contract-signing-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Contract articles (always shown, also when printing) */
+.contract-terms-header { display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: #f8fafc; }
+.contract-article { font-size: 12.5px; line-height: 1.65; color: #334155; }
+.contract-article + .contract-article { margin-top: 14px; padding-top: 12px; border-top: 1px dashed #e2e8f0; }
+.contract-article h4 { margin: 0 0 6px; font-size: 13px; color: #0f766e; }
+.contract-article strong { display: block; margin-top: 4px; color: #1e293b; }
+.contract-article ul { margin: 2px 0 0; padding-left: 18px; color: #475569; }
+@media print {
+  .contract-terms-box { box-shadow: none; overflow: visible; }
+  .contract-article { break-inside: avoid; }
+}
+
+/* "In bản Hợp đồng": print the whole contract, not just the part visible in the modal.
+   Every ancestor of the contract drops its fixed position, height cap and scroll clipping;
+   everything beside it (sidebar, page, modal header/footer) is hidden. */
+@media print {
+  @page { size: A4; margin: 12mm; }
+  html body *:has(.contract-detail-container) {
+    position: static !important;
+    display: block !important;
+    inset: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    transform: none !important;
+    animation: none !important;
+  }
+  html body *:has(.contract-detail-container) > :not(:has(.contract-detail-container)):not(.contract-detail-container) {
+    display: none !important;
+  }
+  html body .contract-detail-container {
+    display: block !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  html body .contract-detail-container > * + * {
+    margin-top: 14px;
+  }
+  .contract-detail-container > * {
+    break-inside: avoid;
+  }
+  .contract-detail-container > .contract-terms-box {
+    break-inside: auto;
+  }
+  .contract-detail-container button {
+    display: none !important;
+  }
+}
+
+/* Deposit transfer QR (deposit not received yet) */
+.contract-deposit-qr { display: flex; gap: 20px; align-items: flex-start; padding: 16px 18px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; }
+.contract-deposit-qr img { flex-shrink: 0; border-radius: 8px; background: #ffffff; border: 1px solid #fde68a; }
+.contract-deposit-qr-info { min-width: 0; font-size: 12.5px; color: #78350f; }
+.contract-deposit-qr-info h4 { margin: 0 0 8px; font-size: 14px; color: #92400e; }
+.contract-deposit-qr-info dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; }
+.contract-deposit-qr-info dt { color: #a16207; }
+.contract-deposit-qr-info dd { margin: 0; overflow-wrap: anywhere; color: #451a03; }
+.contract-deposit-qr-info p { margin: 10px 0 0; color: #92400e; }
+.contract-deposit-qr-missing { margin: 0; font-size: 12.5px; color: #92400e; }
+@media (max-width: 600px) { .contract-deposit-qr { flex-direction: column; align-items: center; } }
+
+/* Contract renewal (phụ lục gia hạn) */
+.contract-renewals { padding: 14px 18px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff; font-size: 13px; color: #334155; }
+.contract-renewals h4 { margin: 0 0 8px; font-size: 13px; color: #0f766e; }
+.contract-renewals ol { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.contract-renewal-note { color: #64748b; }
+.contract-renew-form { display: grid; gap: 12px; }
+.contract-renew-presets { display: inline-flex; gap: 6px; }
+.contract-renew-presets button { padding: 6px 12px; border-radius: 8px; border: 1px solid #cbd5e1; background: #ffffff; font-size: 13px; font-weight: 600; color: #334155; cursor: pointer; }
+.contract-renew-presets button.is-active { border-color: #0f766e; background: #f0fdfa; color: #0f766e; }
+.contract-renew-note { margin: 0; font-size: 12.5px; color: #64748b; }

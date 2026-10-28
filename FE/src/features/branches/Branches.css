@@ -1,0 +1,577 @@
+/* ==========================================================================
+   Branches Suite CSS - PropTech DOMUS ERP
+   Compliant with docs/PROJECT_RULES.md & frontend-design guidelines
+   ========================================================================== */
+
+:root {
+  --branch-primary: var(--primary, #005c55);
+  --branch-primary-container: var(--primary-container, #0f766e);
+  --branch-secondary: var(--secondary, #4b41e1);
+  --branch-surface: var(--surface-lowest, #ffffff);
+  --branch-border: var(--border-color, #e2e8f0);
+  --branch-text-main: var(--neutral-900, #0f172a);
+  --branch-text-muted: var(--neutral-500, #64748b);
+  --branch-radius: var(--radius-lg, 12px);
+}
+
+.branch-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+/* Command Header */
+.branch-header-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.branch-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.branch-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.branch-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.branch-page-title {
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--branch-text-main);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.branch-role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.branch-role-chip.landlord {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.branch-role-chip.manager {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.branch-subtitle {
+  font-size: 13.5px;
+  color: var(--branch-text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.branch-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* 4 KPI Summary Cards */
+.branch-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 1024px) {
+  .branch-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 540px) {
+  .branch-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.branch-kpi-card {
+  background: var(--branch-surface);
+  border: 1px solid var(--branch-border);
+  border-radius: var(--branch-radius);
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.branch-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  border-color: #cbd5e1;
+}
+
+.branch-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.branch-kpi-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--branch-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.branch-kpi-icon-box {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.branch-kpi-card:hover .branch-kpi-icon-box {
+  transform: scale(1.08);
+}
+
+.branch-kpi-value {
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--branch-text-main);
+  line-height: 1.15;
+  margin: 4px 0 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.branch-kpi-sub {
+  font-size: 12px;
+  color: var(--branch-text-muted);
+  line-height: 1.4;
+}
+
+.branch-kpi-progress {
+  width: 100%;
+  height: 4px;
+  background-color: #f1f5f9;
+  border-radius: 9999px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.branch-kpi-progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--branch-primary);
+  transition: width 0.4s ease;
+}
+
+/* Toolbar & Filters */
+.branch-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--branch-surface);
+  border: 1px solid var(--branch-border);
+  border-radius: var(--branch-radius);
+  padding: 12px 18px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.branch-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 280px;
+}
+
+.branch-search-wrap {
+  width: 220px;
+  min-width: 180px;
+}
+
+.branch-select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.branch-select-icon {
+  position: absolute;
+  left: 10px;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.branch-select {
+  padding: 7px 12px 7px 30px;
+  border-radius: 8px;
+  border: 1px solid var(--branch-border);
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--branch-text-main);
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.branch-select:hover {
+  border-color: #94a3b8;
+}
+
+.branch-select:focus {
+  border-color: var(--branch-primary);
+  box-shadow: 0 0 0 2px rgba(0, 92, 85, 0.15);
+}
+
+.branch-quick-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.branch-chip-btn {
+  padding: 5px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--branch-border);
+  background: #ffffff;
+  color: var(--branch-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.branch-chip-btn:hover {
+  background: #f8fafc;
+  color: var(--branch-text-main);
+  border-color: #cbd5e1;
+}
+
+.branch-chip-btn.is-active {
+  background: var(--branch-primary-container);
+  color: #ffffff;
+  border-color: var(--branch-primary-container);
+  box-shadow: 0 1px 2px rgba(15, 118, 110, 0.2);
+}
+
+.branch-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.branch-view-switcher {
+  display: flex;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 8px;
+}
+
+.branch-view-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--branch-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.branch-view-btn.is-active {
+  background: #ffffff;
+  color: var(--branch-primary-container);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Property Cards Grid */
+.branch-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
+}
+
+.branch-card {
+  background: var(--branch-surface);
+  border: 1px solid var(--branch-border);
+  border-radius: var(--branch-radius);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.branch-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  border-color: #cbd5e1;
+}
+
+.branch-card-stripe {
+  height: 4px;
+  width: 100%;
+}
+
+.branch-card-stripe.stripe-full {
+  background: #059669;
+}
+
+.branch-card-stripe.stripe-has-vacancy {
+  background: #d97706;
+}
+
+.branch-card-stripe.stripe-inactive {
+  background: #94a3b8;
+}
+
+.branch-card-body {
+  padding: 18px 20px 14px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.branch-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.branch-card-title {
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
+  font-size: 16.5px;
+  font-weight: 700;
+  color: var(--branch-text-main);
+  text-decoration: none;
+  line-height: 1.3;
+  transition: color 0.15s ease;
+}
+
+.branch-card-title:hover {
+  color: var(--branch-primary);
+}
+
+.branch-occupancy-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.branch-occupancy-pill.full {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.branch-occupancy-pill.has-vacant {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.branch-occupancy-pill.empty {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.branch-card-address {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--branch-text-muted);
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
+
+.branch-stats-mini {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.branch-stat-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.branch-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--branch-text-muted);
+  text-transform: uppercase;
+}
+
+.branch-stat-num {
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--branch-text-main);
+  margin-top: 2px;
+}
+
+.branch-stat-sub {
+  font-size: 11px;
+  color: var(--branch-text-muted);
+}
+
+.branch-details-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.branch-detail-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.branch-pricing-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.branch-pricing-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.branch-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  background: #ffffff;
+  border-top: 1px solid #f1f5f9;
+}
+
+.branch-card-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid var(--branch-border);
+  background: #ffffff;
+  color: var(--branch-text-main);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.branch-card-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: var(--branch-primary);
+}
+
+.branch-card-btn.primary {
+  background: var(--branch-primary);
+  color: #ffffff;
+  border-color: var(--branch-primary);
+}
+
+.branch-card-btn.primary:hover {
+  background: var(--branch-primary-container);
+  border-color: var(--branch-primary-container);
+}
+
+.branch-card-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--branch-border);
+  background: #ffffff;
+  color: var(--branch-text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.branch-card-icon-btn:hover {
+  background: #f8fafc;
+  color: var(--branch-text-main);
+  border-color: #94a3b8;
+}
+
+.branch-card-icon-btn.danger:hover {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
