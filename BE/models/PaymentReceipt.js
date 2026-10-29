@@ -24,6 +24,8 @@ const schema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "UnmatchedPayment",
     },
+    // Set when the transfer paid a contract deposit ("COC <contract code>").
+    contractId: { type: mongoose.Schema.Types.ObjectId, ref: "Contract" },
   },
   { timestamps: true },
 );

@@ -244,7 +244,7 @@ export default function ContractForm({
       const res = await contractApi.create(payload);
 
       toast.success(
-        `Đã tạo hợp đồng thành công cho phòng ${selectedRoom?.roomNumber || ""}. Phòng chuyển trạng thái Đang thuê (RENTED).`
+        `Đã tạo hợp đồng thành công cho phòng ${selectedRoom?.roomNumber || ""}. Phòng chuyển trạng thái Đang thuê (RENTED). Hợp đồng đã được Chủ trọ xác nhận tự động.`
       );
 
       // Check if credentials returned for new tenant
@@ -498,13 +498,13 @@ export default function ContractForm({
           {/* STEP 2: Khách thuê, CCCD & Dịch vụ */}
           {step === 2 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {/* Zero-Touch Provisioning Banner (PROJECT_RULES Section 08 & 11) */}
-              <div style={{ padding: "12px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, fontSize: 12.5, color: "#166534", lineHeight: 1.45 }}>
-                <strong style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+              {/* Banner tự động kích hoạt tài khoản Cổng cư dân */}
+              <div style={{ padding: "12px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, fontSize: 12.5, color: "#166534", lineHeight: 1.5 }}>
+                <strong style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
                   <ShieldCheck size={16} color="#16a34a" />
-                  Cơ chế cấp tài khoản tự động (Zero-Touch Provisioning):
+                  Tự động cấp tài khoản Cổng cư dân:
                 </strong>
-                Hệ thống sẽ tự động cấp tài khoản cho khách thuê với <strong>Username là Số CCCD 12 số</strong>. Mật khẩu tạm ngẫu nhiên sẽ được hiển thị ngay sau khi tạo để bạn bàn giao cho khách (Bãi bỏ hoàn toàn OTP theo quy chuẩn 14/10/2026).
+                Hệ thống sẽ tự động khởi tạo tài khoản cho khách thuê với <strong>Tên đăng nhập là Số CCCD (12 chữ số)</strong>. Mật khẩu tạm thời sẽ được tạo ngẫu nhiên và hiển thị ngay sau khi hoàn tất hợp đồng để bạn sao chép, bàn giao cho khách (khách thuê sẽ đổi mật khẩu riêng ở lần đăng nhập đầu tiên).
               </div>
 
               {/* Thông tin Đại diện ký hợp đồng */}
@@ -676,7 +676,8 @@ export default function ContractForm({
       {issuedCredentials && (
         <CredentialsModal
           credentials={issuedCredentials}
-          tenantName={issuedCredentials.tenantName}
+          recipientName={issuedCredentials.tenantName}
+          roleLabel="Khách thuê"
           roomNumber={issuedCredentials.roomNumber}
           onClose={() => {
             setIssuedCredentials(null);

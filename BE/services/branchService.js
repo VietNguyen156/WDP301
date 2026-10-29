@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Branch = require("../models/Branch");
 const Room = require("../models/Room");
+const User = require("../models/User");
 const {
   getBranchScope,
   scoped,
@@ -18,7 +19,27 @@ async function get(req, id, session = null) {
     .session(session)
     .lean();
   if (!branch) throw new NotFoundError("Không tìm thấy cơ sở");
-  return branch;
+  const landlordObjectId = new mongoose.Types.ObjectId(getBranchScope(req).landlordId);
+  const managers = await User.find({
+    landlordId: landlordObjectId,
+    role: "PROPERTY_MANAGER",
+    isDeleted: false,
+    $or: [
+      { assignedBranches: branch._id },
+      { _id: { $in: branch.managerIds || [] } },
+    ],
+  })
+    .select("_id name phoneNumber email assignedBranches")
+    .lean();
+  return {
+    ...branch,
+    managers: managers.map((m) => ({
+      _id: m._id,
+      name: m.name,
+      phoneNumber: m.phoneNumber,
+      email: m.email,
+    })),
+  };
 }
 async function list(req) {
   const { page, limit, skip } = v.pagination(req.query),
@@ -37,31 +58,72 @@ async function list(req) {
       .lean(),
     Branch.countDocuments(query),
   ]);
-  const stats = await Room.aggregate([
-    {
-      $match: {
-        landlordId: new mongoose.Types.ObjectId(getBranchScope(req).landlordId),
-        branchId: { $in: items.map((b) => b._id) },
-        isDeleted: false,
+  const branchIds = items.map((b) => b._id);
+  const landlordObjectId = new mongoose.Types.ObjectId(getBranchScope(req).landlordId);
+  const [stats, managers] = await Promise.all([
+    Room.aggregate([
+      {
+        $match: {
+          landlordId: landlordObjectId,
+          branchId: { $in: branchIds },
+          isDeleted: false,
+        },
       },
-    },
-    {
-      $group: {
-        _id: "$branchId",
-        total: { $sum: 1 },
-        rented: { $sum: { $cond: [{ $eq: ["$status", "RENTED"] }, 1, 0] } },
+      {
+        $group: {
+          _id: "$branchId",
+          total: { $sum: 1 },
+          rented: { $sum: { $cond: [{ $eq: ["$status", "RENTED"] }, 1, 0] } },
+        },
       },
-    },
+    ]),
+    branchIds.length > 0
+      ? User.find({
+          landlordId: landlordObjectId,
+          role: "PROPERTY_MANAGER",
+          isDeleted: false,
+          $or: [
+            { assignedBranches: { $in: branchIds } },
+            { _id: { $in: items.flatMap((b) => b.managerIds || []) } },
+          ],
+        })
+          .select("_id name phoneNumber email assignedBranches")
+          .lean()
+      : [],
   ]);
   const statsByBranch = new Map(stats.map((stat) => [String(stat._id), stat]));
+  const managersByBranch = new Map();
+  for (const m of managers) {
+    for (const bId of m.assignedBranches || []) {
+      const key = String(bId);
+      if (!managersByBranch.has(key)) managersByBranch.set(key, []);
+      managersByBranch.get(key).push({
+        _id: m._id,
+        name: m.name,
+        phoneNumber: m.phoneNumber,
+        email: m.email,
+      });
+    }
+  }
+
   return {
-    items: items.map((b) => ({
-      ...b,
-      roomStats: statsByBranch.get(String(b._id)) || {
-        total: 0,
-        rented: 0,
-      },
-    })),
+    items: items.map((b) => {
+      const assigned = managersByBranch.get(String(b._id)) || [];
+      const fromIds = managers.filter(
+        (m) =>
+          (b.managerIds || []).some((id) => String(id) === String(m._id)) &&
+          !assigned.some((a) => String(a._id) === String(m._id))
+      );
+      const allManagers = [...assigned, ...fromIds];
+      return {
+        ...b,
+        managers: allManagers,
+        roomStats: statsByBranch.get(String(b._id)) || {
+          total: 0,
+          rented: 0,
+        },
+      };
+    }),
     total,
     page,
     limit,

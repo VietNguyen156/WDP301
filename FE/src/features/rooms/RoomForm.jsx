@@ -44,13 +44,13 @@ export default function RoomForm({
           fromRoomNumber: 101,
           toRoomNumber: 105,
           prefix: "P.",
-          basePrice: 0,
+          basePrice: "",
           maxOccupants: 2,
         }
       : {
           roomNumber: room?.roomNumber || "",
           floor: room?.floor || 1,
-          basePrice: room?.basePrice || 0,
+          basePrice: room?.basePrice || "",
           maxOccupants: room?.maxOccupants || 2,
           status: room?.status || "EMPTY",
           amenities: room?.amenities?.join(", ") || "",
@@ -160,6 +160,13 @@ export default function RoomForm({
       floorStart >= 1 &&
       floorEnd >= floorStart &&
       (!floorChanged || floorEnd <= branchFloorLimit);
+
+    // Rent is required (the field may be on the other tab, where the browser cannot flag it).
+    if (!manager && !(Number.isSafeInteger(form.basePrice) && form.basePrice > 0)) {
+      if (!bulk) setActiveTab("basic");
+      setError("Vui lòng nhập giá thuê niêm yết lớn hơn 0.");
+      return;
+    }
 
     if (!hasValidFloorRange) {
       setError(
@@ -404,7 +411,7 @@ export default function RoomForm({
                 <Field
                   label="Giá thuê niêm yết chuẩn (₫/tháng)"
                   type="number"
-                  min="0"
+                  min="1"
                   required
                   value={form.basePrice}
                   onChange={change("basePrice")}
@@ -436,7 +443,7 @@ export default function RoomForm({
                       Phân bố từ Tầng {form.fromFloor} đến Tầng {form.toFloor}. Mỗi
                       tầng gồm các phòng từ {form.prefix}
                       {form.fromRoomNumber} đến {form.prefix}
-                      {form.toRoomNumber} với giá thuê chuẩn {money(form.basePrice)}
+                      {form.toRoomNumber} với giá thuê chuẩn {form.basePrice ? money(form.basePrice) : "(chưa nhập)"}
                       /tháng.
                     </p>
                   </div>
@@ -467,8 +474,8 @@ export default function RoomForm({
                     <Field
                       label="Giá thuê niêm yết (₫/tháng)"
                       type="number"
-                      min="0"
-                      required
+                      min="1"
+                          required
                       value={form.basePrice}
                       onChange={change("basePrice")}
                     />

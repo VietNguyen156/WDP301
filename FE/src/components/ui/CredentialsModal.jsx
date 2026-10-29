@@ -1,23 +1,26 @@
 import { useState } from "react";
-import { KeyRound, Copy, Check, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Copy, Check, AlertTriangle, ShieldCheck } from "lucide-react";
 import { Modal, Button } from "../ui";
 import { useToast } from "../../context/ToastContext";
 
-export function CredentialsModal({ credentials, recipientName, roleLabel, onClose }) {
+export function CredentialsModal({ credentials, recipientName, tenantName, roleLabel, onClose }) {
   const [copied, setCopied] = useState(false);
   const toast = useToast();
 
   if (!credentials) return null;
 
   const { username, temporaryPassword } = credentials;
+  const name = recipientName || tenantName || "Người dùng";
+  const role = roleLabel || (tenantName ? "Khách thuê" : "Thành viên");
+  const portalUrl = typeof window !== "undefined" ? window.location.origin : "";
 
   function handleCopy() {
     const textToCopy = `[DOMUS ERP] Thông tin tài khoản được cấp:
-- Họ tên: ${recipientName || "Người dùng"}
-- Vai trò: ${roleLabel || "Thành viên"}
+- Họ và tên: ${name}
+- Vai trò: ${role}
 - Tên đăng nhập: ${username}
 - Mật khẩu tạm: ${temporaryPassword}
-(Lưu ý: Bạn bắt buộc phải đổi mật khẩu riêng ở lần đăng nhập đầu tiên tại: http://localhost:5173)`;
+(Lưu ý: Bạn bắt buộc phải đổi mật khẩu riêng ở lần đăng nhập đầu tiên tại: ${portalUrl})`;
 
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
@@ -46,12 +49,12 @@ export function CredentialsModal({ credentials, recipientName, roleLabel, onClos
         <div className="credentials-display-card">
           <div className="cred-field-group">
             <span className="cred-label">Người nhận:</span>
-            <strong className="cred-value">{recipientName || "—"}</strong>
+            <strong className="cred-value">{name}</strong>
           </div>
 
           <div className="cred-field-group">
             <span className="cred-label">Vai trò:</span>
-            <span className="cred-badge">{roleLabel || "Người dùng"}</span>
+            <span className="cred-badge">{role}</span>
           </div>
 
           <div className="cred-field-group highlight">

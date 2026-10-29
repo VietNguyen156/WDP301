@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { LIVE_CONTRACT_STATUSES } = require("../utils/statuses");
 const Room = require("../models/Room");
 const Contract = require("../models/Contract");
 const branchService = require("./branchService");
@@ -42,7 +43,7 @@ async function list(req) {
       .limit(limit)
       .populate({
         path: "currentContractId",
-        select: "tenantId",
+        select: "tenantId landlordId branchId isDeleted",
         match: {
           landlordId: branch.landlordId,
           branchId: branch._id,
@@ -50,7 +51,7 @@ async function list(req) {
         },
         populate: {
           path: "tenantId",
-          select: "name",
+          select: "name landlordId isDeleted",
           match: { landlordId: branch.landlordId, isDeleted: false },
         },
       })
@@ -189,7 +190,7 @@ async function remove(req) {
         roomId: before._id,
         landlordId: before.landlordId,
         isDeleted: false,
-        status: { $in: ["ACTIVE", "EXPIRING_SOON", "EXPIRED"] },
+        status: { $in: LIVE_CONTRACT_STATUSES },
       }).session(session))
     )
       throw new BusinessRuleError("Phòng còn hợp đồng chưa thanh lý");

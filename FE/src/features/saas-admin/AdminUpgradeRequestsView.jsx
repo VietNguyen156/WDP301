@@ -19,6 +19,7 @@ import {
   Modal,
   Pagination,
 } from "../../components/ui";
+import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 
 const STATUS_FILTERS = [
   { value: "PENDING", label: "Chờ duyệt", icon: Clock },
@@ -89,8 +90,8 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchRequests = useCallback(async () => {
-    setLoading(true);
+  const fetchRequests = useCallback(async (silent) => {
+    if (silent !== true) setLoading(true);
     setError(null);
     try {
       const res = await adminApi.listUpgradeRequests({
@@ -106,6 +107,7 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
       setLoading(false);
     }
   }, [page, statusFilter]);
+  useLiveRefresh(["admin","plans"], () => fetchRequests(true));
 
   useEffect(() => {
     fetchRequests();

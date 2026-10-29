@@ -1,5 +1,6 @@
 // Shared by every money-in flow: guard the invoice state, then book a SUCCESS payment and audit it.
 const { Payment, User } = require("../../models");
+const { OWING_INVOICE_STATUSES } = require("../../utils/statuses");
 const { AppError } = require("../../utils/errors");
 const { paymentBalance, makeVietQr } = require("../financeCalculation");
 const { recordAudit } = require("../auditService");
@@ -13,7 +14,7 @@ function assertPayable(invoice) {
       409,
       "INVOICE_ALREADY_PAID",
     );
-  if (!["ISSUED", "PARTIALLY_PAID", "UNPAID"].includes(invoice.status)) {
+  if (!OWING_INVOICE_STATUSES.includes(invoice.status)) {
     throw new AppError("Hóa đơn chưa phát hành", 409, "INVOICE_NOT_ISSUED");
   }
 }

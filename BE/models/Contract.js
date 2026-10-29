@@ -15,10 +15,22 @@ const contractSchema = new mongoose.Schema(
       deductionAmount: Number, outstandingDebt: Number, totalCharges: Number,
       refundedDepositAmount: Number, remainingDue: Number,
     },
-    confirmedByBothParties: { type: Boolean, default: false },
     mutationVersion: { type: Number, default: 0, select: false },
     electricImage: String,
     waterImage: String,
+
+    // Xác nhận hợp đồng điện tử 2 chiều (Hợp đồng điện tử theo pháp luật Việt Nam)
+    landlordConfirmedAt: { type: Date },
+    landlordConfirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    tenantConfirmedAt: { type: Date },
+    tenantConfirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    confirmedByBothParties: { type: Boolean, default: false },
+    contractSigningLocation: { type: String, default: "Online qua Cổng cư dân điện tử" },
+    contractTerms: {
+      paymentDueDays: { type: Number, default: 5 }, // Hạn thanh toán (ngày)
+      latePaymentPenaltyRate: { type: Number, default: 0.5 }, // Phạt chậm đóng (%/ngày)
+      terminationNoticeDays: { type: Number, default: 30 }, // Thời gian báo trước chấm dứt (ngày)
+    },
     landlordId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -60,6 +72,19 @@ const contractSchema = new mongoose.Schema(
       type: Number,
       required: true, // Giá thuê thỏa thuận thực tế (VNĐ/tháng)
     },
+    // Phụ lục gia hạn: mỗi lần gia hạn ghi lại ngày kết thúc và giá thuê trước / sau.
+    renewals: [
+      {
+        _id: false,
+        previousEndDate: { type: Date, required: true },
+        endDate: { type: Date, required: true },
+        previousRentalPrice: Number,
+        rentalPrice: Number,
+        notes: { type: String, trim: true },
+        renewedAt: { type: Date, default: Date.now },
+        renewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      },
+    ],
     // Tiền cọc phòng
     depositAmount: {
       type: Number,
@@ -70,6 +95,11 @@ const contractSchema = new mongoose.Schema(
       enum: ["PAID", "UNPAID", "REFUNDED", "PARTIALLY_REFUNDED", "APPLIED"],
       default: "UNPAID",
     },
+    // Set when the landlord confirms the deposit after the contract was created.
+    depositReceivedAt: Date,
+    depositReceivedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    // Bank reference when the deposit was booked automatically from a transfer.
+    depositReferenceCode: String,
 
     // Chỉ số ban đầu khi bàn giao chìa khóa
     initialElectricIndex: {
@@ -146,6 +176,8 @@ const contractSchema = new mongoose.Schema(
 contractSchema.index({ landlordId: 1, contractCode: 1 }, { unique: true });
 contractSchema.index({ landlordId: 1, status: 1 });
 contractSchema.index({ landlordId: 1, roomId: 1, status: 1 });
+// List pages: newest first within one landlord.
+contractSchema.index({ landlordId: 1, isDeleted: 1, createdAt: -1 });
 
 require('./propertyValidators')(contractSchema, ['rentalPrice', 'depositAmount', 'initialElectricIndex', 'initialWaterIndex', 'finalElectricIndex', 'finalWaterIndex', 'refundedDepositAmount']);
 require('./propertyValidators')(contractSchema.path('deductions').schema, ['amount']);

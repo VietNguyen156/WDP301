@@ -1,8 +1,9 @@
 // Bank transfers reported by SePay (classic webhook) or Bank Hub IPN: dedupe, match the invoice
 // from the transfer content and book it, or keep the money as an unmatched payment.
 const mongoose = require("mongoose");
+const { LIVE_CONTRACT_STATUSES, OWING_INVOICE_STATUSES } = require("../../utils/statuses");
 const crypto = require("node:crypto");
-const { Invoice, Payment, UnmatchedPayment, User } = require("../../models");
+const { Invoice, Payment, UnmatchedPayment, User, Contract } = require("../../models");
 const PaymentReceipt = require("../../models/PaymentReceipt");
 const { AppError } = require("../../utils/errors");
 const validate = require("../../utils/financeValidation");
@@ -11,6 +12,12 @@ const { simulatorEnabled } = require("../../utils/paymentSimulator");
 const { systemActor } = require("../../utils/systemActor");
 const { parseVnDateTime } = require("../../utils/vnTime");
 const { applyPayment } = require("./applyPayment");
+const audit = require("../auditService");
+
+const DEPOSIT_PENDING_STATUSES = LIVE_CONTRACT_STATUSES;
+// Deposit transfer content: "COC HDT<year><12 hex>" (contract code HDT-<year>-<hex> without dashes).
+const DEPOSIT_TOKEN = /COC\s*HDT(\d{4})([A-F0-9]{12})/g;
+const depositSyntax = (contractCode) => `COC ${contractCode.replace(/[^a-zA-Z0-9]/g, "")}`;
 
 function normalizeWebhook(body) {
   if (!body || !["in", "out"].includes(body.transferType))
@@ -63,6 +70,7 @@ function duplicateReceipt(receipt, landlord, incoming) {
     duplicate: true,
     paymentId: receipt.paymentId,
     unmatchedPaymentId: receipt.unmatchedPaymentId,
+    contractId: receipt.contractId,
   };
 }
 
@@ -131,6 +139,49 @@ async function invoiceFromContent(landlordId, content, session) {
   return picked.size === 1 ? [...picked.values()][0] : null;
 }
 
+// The one contract named by a "COC ..." token in the content; several different codes -> none.
+async function depositContractFromContent(landlordId, content, session) {
+  const codes = new Set(
+    [...content.toUpperCase().matchAll(DEPOSIT_TOKEN)].map(([, year, hex]) => `HDT-${year}-${hex}`),
+  );
+  if (codes.size !== 1) return null;
+  return Contract.findOne({ landlordId, contractCode: [...codes][0], isDeleted: false }).session(session);
+}
+
+// Why a matched deposit transfer cannot be booked; null when it can.
+function depositProblem(contract, amount) {
+  if (contract.depositStatus !== "UNPAID") return "Hợp đồng đã ghi nhận tiền cọc trước đó";
+  if (!DEPOSIT_PENDING_STATUSES.includes(contract.status)) return `Hợp đồng không còn hiệu lực: ${contract.status}`;
+  if (amount !== contract.depositAmount)
+    return `Số tiền ${amount.toLocaleString("vi-VN")}đ khác tiền cọc ${contract.depositAmount.toLocaleString("vi-VN")}đ`;
+  return null;
+}
+
+async function bookDeposit(contract, incoming, landlord, session) {
+  contract.depositStatus = "PAID";
+  contract.depositReceivedAt = incoming.transactionDate;
+  contract.depositReferenceCode = incoming.referenceCode;
+  await contract.save({ session });
+  await audit.record(
+    {
+      actor: systemActor(landlord._id),
+      landlordId: landlord._id,
+      action: "RECEIVE_CONTRACT_DEPOSIT",
+      entityType: "CONTRACT",
+      entityId: contract._id,
+      before: { depositStatus: "UNPAID" },
+      after: {
+        depositStatus: "PAID",
+        depositAmount: contract.depositAmount,
+        depositReceivedAt: incoming.transactionDate,
+        referenceCode: incoming.referenceCode,
+        gateway: incoming.gateway,
+      },
+    },
+    session,
+  );
+}
+
 async function processWebhook(body) {
   const incoming = normalizeWebhook(body);
   if (body.transferType === "out") return { ignored: true };
@@ -176,12 +227,23 @@ async function receiveTransfer(incoming, body, landlordFilter) {
       );
       // Plans without automatic reconciliation still keep the money for manual matching.
       const autoMatch = !suspended && await hasFeature(landlord._id, "SEPAY_WEBHOOK", session);
-      const invoice = autoMatch
+      // A deposit transfer ("COC <contract code>") is checked before invoice codes.
+      const contract = autoMatch
+        ? await depositContractFromContent(landlord._id, incoming.content, session)
+        : null;
+      const depositIssue = contract && depositProblem(contract, incoming.amount);
+      if (contract && !depositIssue) {
+        await bookDeposit(contract, incoming, landlord, session);
+        receipt.contractId = contract._id;
+        await receipt.save({ session });
+        return { depositReceived: true, contract };
+      }
+      const invoice = autoMatch && !contract
         ? await invoiceFromContent(landlord._id, incoming.content, session)
         : null;
       if (
         !invoice ||
-        !["ISSUED", "PARTIALLY_PAID", "UNPAID"].includes(invoice.status) ||
+        !OWING_INVOICE_STATUSES.includes(invoice.status) ||
         (invoice.bankSnapshot?.accountNumber &&
           invoice.bankSnapshot.accountNumber !== incoming.accountNumber)
       ) {
@@ -199,16 +261,18 @@ async function receiveTransfer(incoming, body, landlordFilter) {
                 ? `Tài khoản chủ trọ đang bị khóa (${landlord.status}); đối soát sau khi mở khóa`
                 : !autoMatch
                   ? "Gói hiện tại chưa bao gồm đối soát SePay tự động; vui lòng gán hóa đơn thủ công"
-                  : invoice
-                    ? `Hóa đơn không thể nhận tiền: ${invoice.status}`
-                    : "Không xác định được hóa đơn",
+                  : contract
+                    ? `Tiền cọc hợp đồng ${contract.contractCode} chưa được ghi nhận: ${depositIssue}`
+                    : invoice
+                      ? `Hóa đơn không thể nhận tiền: ${invoice.status}`
+                      : "Không xác định được hóa đơn",
             },
           ],
           { session },
         );
         receipt.unmatchedPaymentId = unmatched._id;
         await receipt.save({ session });
-        return { unmatched: true, unmatchedPaymentId: unmatched._id };
+        return { unmatched: true, unmatchedPaymentId: unmatched._id, landlordId: landlord._id, amount: incoming.amount };
       }
       const result = await applyPayment(
         {
@@ -251,7 +315,7 @@ async function simulatePublicPayment(token) {
   const invoice = await Invoice.findOne({
     publicAccessToken: token,
     isDeleted: false,
-    status: { $in: ["ISSUED", "PARTIALLY_PAID", "UNPAID"] },
+    status: { $in: OWING_INVOICE_STATUSES },
   }).lean();
   if (!invoice || invoice.remainingAmount <= 0)
     throw new AppError("Hóa đơn không còn khoản cần thanh toán", 409, "INVOICE_ALREADY_PAID");
@@ -274,4 +338,38 @@ async function simulatePublicPayment(token) {
   return result;
 }
 
-module.exports = { processWebhook, receiveTransfer, simulatePublicPayment };
+// Sandbox helper on the contract page: fakes the tenant's deposit transfer (deposit amount,
+// standard "COC ..." content) through the same path as a real bank notification.
+async function simulateDepositTransfer(contract) {
+  if (!simulatorEnabled())
+    throw new AppError("Giả lập thanh toán chỉ dùng trong môi trường thử nghiệm", 403, "SIMULATOR_DISABLED");
+  const landlord = await User.findById(contract.landlordId).select("bankConfig").lean();
+  const suffix = crypto.randomBytes(6).toString("hex").toUpperCase();
+  const incoming = {
+    accountNumber: landlord?.bankConfig?.accountNumber || "SANDBOX",
+    referenceCode: `SIM-${suffix}`,
+    amount: contract.depositAmount,
+    transactionDate: new Date(),
+    gateway: "SANDBOX_SIMULATOR",
+    content: depositSyntax(contract.contractCode),
+    gatewayTransactionId: `SIM:${suffix}`,
+  };
+  const result = await receiveTransfer(
+    incoming,
+    { simulator: true, contractCode: contract.contractCode },
+    { _id: contract.landlordId },
+  );
+  if (result.unmatched) {
+    const unmatched = await UnmatchedPayment.findById(result.unmatchedPaymentId).select("notes").lean();
+    return { ...result, reason: unmatched?.notes };
+  }
+  return result;
+}
+
+module.exports = {
+  processWebhook,
+  receiveTransfer,
+  simulatePublicPayment,
+  simulateDepositTransfer,
+  depositSyntax,
+};

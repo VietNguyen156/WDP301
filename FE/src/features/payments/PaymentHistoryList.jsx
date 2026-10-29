@@ -11,9 +11,10 @@ import {
   formatDate,
   getPaymentMethodMeta,
 } from "../../utils/formatters";
+import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 
 export function PaymentHistoryList() {
-  const { selectedBranchId, user } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
 
   const [activeSubTab, setActiveSubTab] = useState("ledger"); // "ledger" or "unmatched"
@@ -22,16 +23,17 @@ export function PaymentHistoryList() {
 
   // Filters
   const [methodFilter, setMethodFilter] = useState("ALL");
-  const [branchFilter, setBranchFilter] = useState(selectedBranchId || "");
+  // No global branch switcher: payments of every branch in scope.
+  const [branchFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
 
   const canReviewCashReports = user?.role === "LANDLORD";
   // Unmatched bank transfers (/payments/unmatched) are landlord-only; tenants/managers would get 403.
   const canReviewUnmatched = user?.role === "LANDLORD";
 
-  const loadPayments = useCallback(async () => {
+  const loadPayments = useCallback(async (silent) => {
     try {
-      setLoading(true);
+      if (silent !== true) setLoading(true);
       const res = await paymentService.getPayments({
         paymentMethod: methodFilter,
         branchId: branchFilter,
@@ -47,6 +49,7 @@ export function PaymentHistoryList() {
       setLoading(false);
     }
   }, [methodFilter, branchFilter, toast]);
+  useLiveRefresh(["payments"], () => loadPayments(true));
 
   useEffect(() => {
     if (activeSubTab === "ledger") {
@@ -54,9 +57,6 @@ export function PaymentHistoryList() {
     }
   }, [loadPayments, activeSubTab]);
 
-  useEffect(() => {
-    setBranchFilter(selectedBranchId || "");
-  }, [selectedBranchId]);
 
   async function approveCashReport(paymentId) {
     try {

@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const { FEATURE_KEYS } = require("../utils/planFeatures");
 
 const saasPlanSchema = new mongoose.Schema(
   {
@@ -41,17 +40,7 @@ const saasPlanSchema = new mongoose.Schema(
       type: Number,
       default: 1, // Số nhân viên quản lý tối đa
     },
-    features: [
-      {
-        type: String, // Danh sách tính năng hiển thị (vd: Auto VietQR, SMS Noti, Webhook SePay...)
-      },
-    ],
-    // Tính năng được backend chặn theo gói (danh mục trong utils/planFeatures.js).
-    // Không đặt (undefined) = gói cũ trước khi có cờ, được dùng mọi tính năng.
-    featureFlags: {
-      type: [{ type: String, enum: FEATURE_KEYS }],
-      default: undefined,
-    },
+    // Mọi gói có đủ tính năng (utils/planFeatures.js); gói chỉ khác hạn ngạch và giá.
     isActive: {
       type: Boolean,
       default: true,

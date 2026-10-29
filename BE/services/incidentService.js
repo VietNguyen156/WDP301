@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { LIVE_CONTRACT_STATUSES } = require("../utils/statuses");
 const Incident = require("../models/Incident");
 const Room = require("../models/Room");
 const Contract = require("../models/Contract");
@@ -6,6 +7,7 @@ const User = require("../models/User");
 const branchService = require("./branchService");
 const audit = require("./auditService");
 const { requireFeature } = require("./planFeatures");
+const incidentTriage = require("./incidentTriage");
 const {
   getTenantScope,
   scoped,
@@ -21,9 +23,10 @@ const {
 const v = require("../utils/validation");
 
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
+const CATEGORIES = [...Object.values(incidentTriage.CATEGORY_OPTIONS), "OTHER"];
 const STATUSES = ["PENDING", "IN_PROGRESS", "SOLVED", "CLOSED", "REJECTED"];
 const COST_PAYERS = ["LANDLORD", "TENANT", "NONE"];
-const LIVE_CONTRACT = ["ACTIVE", "EXPIRING_SOON", "EXPIRED"];
+const LIVE_CONTRACT = LIVE_CONTRACT_STATUSES;
 // PENDING -> IN_PROGRESS -> SOLVED -> CLOSED; SOLVED may be reopened, PENDING may be rejected.
 const TRANSITIONS = {
   PENDING: ["IN_PROGRESS", "REJECTED"],
@@ -103,6 +106,11 @@ async function list(req) {
     v.choice(req.query.priority, PRIORITIES, "Mức ưu tiên");
     filter.priority = req.query.priority;
   }
+  if (req.query.category) {
+    v.choice(req.query.category, [...CATEGORIES, "UNCLASSIFIED"], "Loại sự cố");
+    filter.category = req.query.category === "UNCLASSIFIED" ? { $exists: false } : req.query.category;
+  }
+  if (req.query.needsReview === "true") filter["triage.needsReview"] = true;
   const query = scoped(await scope(req), filter);
   const [items, total, groups] = await Promise.all([
     populate(
@@ -123,6 +131,7 @@ async function list(req) {
     page,
     limit,
     stats: Object.fromEntries(groups.map((g) => [g._id, g.count])),
+    triageEnabled: incidentTriage.enabled(),
   };
 }
 
@@ -341,4 +350,36 @@ async function updateCost(req) {
   });
 }
 
-module.exports = { list, get, create, updateStatus, updateCost };
+// Background triage right after a report is created. A tenant's report gets the suggested
+// priority; a staff member's own priority is kept and the suggestion is only stored.
+async function triageAfterCreate(incident, reporterRole) {
+  if (!incidentTriage.enabled()) return null;
+  try {
+    const triaged = await incidentTriage.triage(incident._id, { applyPriority: reporterRole === "TENANT" });
+    return triaged && populate(Incident.findById(triaged._id)).lean();
+  } catch (error) {
+    console.error(`Phân loại sự cố ${incident._id} thất bại:`, error.message);
+    return null;
+  }
+}
+
+// Staff re-runs the triage on demand; this applies both category and priority.
+async function retriage(req) {
+  await requireIncidents(req);
+  const incident = await find(req, req.params.incidentId);
+  if (!["PENDING", "IN_PROGRESS"].includes(incident.status))
+    throw new BusinessRuleError("Chỉ phân loại lại sự cố đang chờ hoặc đang xử lý");
+  const before = { category: incident.category, priority: incident.priority };
+  const triaged = await incidentTriage.triage(incident._id, { applyPriority: true });
+  await audit.log({
+    req,
+    action: "TRIAGE_INCIDENT",
+    entityType: "INCIDENT",
+    entityId: incident._id,
+    before,
+    after: { category: triaged.category, priority: triaged.priority, needsReview: triaged.triage?.needsReview },
+  });
+  return populate(Incident.findById(incident._id)).lean();
+}
+
+module.exports = { list, get, create, updateStatus, updateCost, triageAfterCreate, retriage };

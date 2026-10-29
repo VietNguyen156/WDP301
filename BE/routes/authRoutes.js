@@ -4,7 +4,7 @@ const service = require("../services/authService");
 const { authenticateAccount } = require("../middlewares/auth");
 const { AppError, ForbiddenError } = require("../utils/errors");
 const respond = require("../utils/response");
-const { clientUrl } = require("../utils/appUrls");
+const { isAllowedOrigin } = require("../utils/appUrls");
 // FE and API on different domains (e.g. Vercel + Render) need SameSite=None, which browsers
 // only accept together with Secure: so Secure follows SameSite, not NODE_ENV. This lets a
 // deployed "development" build (sandbox payments, simulator on) keep users signed in.
@@ -25,7 +25,7 @@ router.use((req, res, next) => {
   if (
     req.method === "POST" &&
     req.headers.origin &&
-    req.headers.origin !== clientUrl()
+    !isAllowedOrigin(req.headers.origin)
   )
     throw new ForbiddenError("Nguồn yêu cầu không hợp lệ");
   next();
@@ -39,6 +39,8 @@ router.post(
   }),
   async (req, res) => {
     const { refreshToken, ...data } = await service.login(req.body);
+    // Several accounts matched: no session yet, the client shows the account chooser.
+    if (data.selectionRequired) return respond(res, data, 200, "Chọn tài khoản để tiếp tục");
     const legacyCookie = cookieOptions();
     delete legacyCookie.maxAge;
     res.clearCookie("refreshToken", { ...legacyCookie, path: "/api/v1/auth" });

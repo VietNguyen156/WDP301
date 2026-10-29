@@ -3,22 +3,19 @@ const { currentSubscription } = require("./quotaService");
 const {
   PLAN_FEATURES,
   FEATURE_KEYS,
-  DEFAULT_FLAGS,
+  INCLUDED_FEATURES,
 } = require("../utils/planFeatures");
 
-// Plans saved before flags existed (featureFlags unset) keep every feature.
-const planHas = (plan, feature) =>
-  !Array.isArray(plan?.featureFlags) || plan.featureFlags.includes(feature);
-
+// Every plan includes every feature; only a landlord without a current subscription is blocked.
 async function hasFeature(landlordId, feature, session = null) {
   const subscription = await currentSubscription(landlordId, session);
-  return !!subscription?.planId && planHas(subscription.planId, feature);
+  return !!subscription?.planId;
 }
 
 async function requireFeature(landlordId, feature, session = null) {
   if (!(await hasFeature(landlordId, feature, session)))
     throw new ForbiddenError(
-      `Gói hiện tại chưa bao gồm tính năng "${PLAN_FEATURES[feature]}". Vui lòng nâng cấp gói.`,
+      `Cần có gói dịch vụ đang hoạt động để dùng tính năng "${PLAN_FEATURES[feature]}".`,
       "FEATURE_NOT_IN_PLAN",
     );
 }
@@ -26,8 +23,7 @@ async function requireFeature(landlordId, feature, session = null) {
 module.exports = {
   PLAN_FEATURES,
   FEATURE_KEYS,
-  DEFAULT_FLAGS,
-  planHas,
+  INCLUDED_FEATURES,
   hasFeature,
   requireFeature,
 };

@@ -5,6 +5,7 @@ import { paymentService } from "../../services/paymentService";
 import { useToast } from "../../context/ToastContext";
 import { ResolveUnmatchedModal } from "./ResolveUnmatchedModal";
 import { formatCurrency, formatDate } from "../../utils/formatters";
+import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 
 export function UnmatchedPaymentList() {
   const { toast } = useToast();
@@ -14,9 +15,9 @@ export function UnmatchedPaymentList() {
   const [selectedUnmatched, setSelectedUnmatched] = useState(null);
   const [isResolveOpen, setIsResolveOpen] = useState(false);
 
-  const loadUnmatched = useCallback(async () => {
+  const loadUnmatched = useCallback(async (silent) => {
     try {
-      setLoading(true);
+      if (silent !== true) setLoading(true);
       const res = await paymentService.listUnmatched({ status: statusFilter });
       const list = Array.isArray(res) ? res : res?.data || [];
       setUnmatchedList(list);
@@ -27,6 +28,7 @@ export function UnmatchedPaymentList() {
       setLoading(false);
     }
   }, [statusFilter, toast]);
+  useLiveRefresh(["unmatched"], () => loadUnmatched(true));
 
   useEffect(() => {
     loadUnmatched();

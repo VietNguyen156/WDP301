@@ -6,7 +6,6 @@ const auditLogSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true,
     },
     actorRole: {
       type: String,
@@ -16,17 +15,14 @@ const auditLogSchema = new mongoose.Schema(
     landlordId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      index: true,
     },
     action: {
       type: String,
       required: true, // vd: CREATE_INVOICE, CANCEL_INVOICE, CONFIRM_CASH_PAYMENT, CHANGE_PRICING, RESOLVE_UNMATCHED_PAYMENT
-      index: true,
     },
     entityType: {
       type: String,
       required: true, // vd: INVOICE, CONTRACT, ROOM, BRANCH, PRICING, USER
-      index: true,
     },
     entityId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -44,13 +40,23 @@ const auditLogSchema = new mongoose.Schema(
     userAgent: {
       type: String,
     },
+    // Set by auditService from the retention policy; entries without it never expire.
+    expiresAt: {
+      type: Date,
+    },
   },
   {
     timestamps: { createdAt: true, updatedAt: false }, // Chỉ cần thời gian tạo log
   },
 );
 
+// Landlord history, one entity's history, and the admin audit page (newest first, optionally by action/type).
 auditLogSchema.index({ landlordId: 1, createdAt: -1 });
 auditLogSchema.index({ entityType: 1, entityId: 1, createdAt: -1 });
+auditLogSchema.index({ createdAt: -1 });
+auditLogSchema.index({ action: 1, createdAt: -1 });
+auditLogSchema.index({ entityType: 1, createdAt: -1 });
+// Old entries are removed by MongoDB once expiresAt passes.
+auditLogSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model("AuditLog", auditLogSchema);

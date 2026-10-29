@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { OWING_INVOICE_STATUSES } = require("../utils/statuses");
 const User = require("../models/User");
 const Invoice = require("../models/Invoice");
 const audit = require("./auditService");
@@ -15,12 +16,13 @@ const v = require("../utils/validation");
 
 // Only fields that are not the account's login name; email/phone/CCCD logins stay fixed.
 const EDITABLE = {
-  LANDLORD: ["name", "phoneNumber"],
+  // hometown is the landlord's permanent address on contracts (Bên A).
+  LANDLORD: ["name", "phoneNumber", "hometown"],
   PROPERTY_MANAGER: ["name", "email"],
   TENANT: ["name", "phoneNumber", "email", "hometown"],
   SUPER_ADMIN: ["name"],
 };
-const OPEN_INVOICE = ["ISSUED", "PARTIALLY_PAID", "UNPAID"];
+const OPEN_INVOICE = OWING_INVOICE_STATUSES;
 const BANK_FIELDS = ["bankCode", "bankName", "accountNumber", "accountName"];
 
 const mask = (number) => number && `****${number.slice(-4)}`;

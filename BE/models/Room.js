@@ -91,7 +91,8 @@ const roomSchema = new mongoose.Schema(
 roomSchema.index({ landlordId: 1, branchId: 1, roomNumber: 1 }, { unique: true });
 // Compound Index hỗ trợ thống kê tỷ lệ lấp đầy cực nhanh theo Chủ trọ
 roomSchema.index({ landlordId: 1, status: 1 });
-roomSchema.index({ landlordId: 1, branchId: 1, isDeleted: 1 });
+// Rooms of a branch in display order (floor, then room number).
+roomSchema.index({ landlordId: 1, branchId: 1, isDeleted: 1, floor: 1, roomNumber: 1 });
 
 require('./propertyValidators')(roomSchema, ['floor', 'basePrice', 'maxOccupants', 'currentElectricIndex', 'currentWaterIndex', 'electricityPrice', 'waterPrice']);
 require('./propertyValidators')(roomSchema.path('services').schema, ['price']);

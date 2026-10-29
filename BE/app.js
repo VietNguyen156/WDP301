@@ -3,18 +3,21 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const errorHandler = require("./middlewares/errorHandler");
 const { ForbiddenError, NotFoundError } = require("./utils/errors");
-const { clientUrl } = require("./utils/appUrls");
+const { clientUrl, isAllowedOrigin } = require("./utils/appUrls");
 
 const app = express();
 app.disable("x-powered-by");
 // Behind a hosting proxy (Render, Railway...) set TRUST_PROXY=1 so req.ip is the real client:
 // rate limits and audit logs depend on it. Leave unset when the app is reached directly.
 if (process.env.TRUST_PROXY)
-  app.set("trust proxy", Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY);
+  app.set(
+    "trust proxy",
+    Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY,
+  );
 
 app.use(
   cors({
-    origin: clientUrl(),
+    origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
     credentials: true,
   }),
 );
@@ -46,6 +49,9 @@ app.get("/", (req, res) =>
     },
   }),
 );
+
+// After every successful write: refresh hints + activity feed over Socket.io.
+app.use(require("./realtime/liveUpdates").liveUpdates);
 
 // Support both /api/v1 and /api base paths
 app.use("/api/v1", require("./routes"));

@@ -172,6 +172,8 @@ export function AuthProvider({ children }) {
     }
 
     const data = await authApi.login(firstArg);
+    // Same CCCD with several landlords: no session yet, the login page shows the chooser.
+    if (data?.selectionRequired) return data;
     setAccessToken(data.token);
     setToken(data.token);
     setUser(data.user);
@@ -197,8 +199,26 @@ export function AuthProvider({ children }) {
   }
 
   async function changePassword({ currentPassword, newPassword }) {
+    const accountIdentifier = user?.username || user?.email || user?.phoneNumber;
     const res = await authApi.changePassword({ currentPassword, newPassword });
-    // After password change, all sessions are revoked by backend
+
+    // Automatically log in with the new password so user seamlessly enters the app
+    if (accountIdentifier && newPassword) {
+      try {
+        // accountId: sign back into this same account even if the CCCD exists with other landlords.
+        const accountId = user?.id || user?._id;
+        const loginPayload = accountIdentifier.includes("@")
+          ? { email: accountIdentifier, password: newPassword, accountId }
+          : { username: accountIdentifier, password: newPassword, accountId };
+        const data = await login(loginPayload);
+        setMustChangePassword(false);
+        return data;
+      } catch (loginErr) {
+        console.warn("Tự động đăng nhập sau khi đổi mật khẩu thất bại, chuyển về màn hình đăng nhập:", loginErr);
+      }
+    }
+
+    // Fallback: Clear session and force manual login if auto-login fails
     setAccessToken(null);
     setToken("");
     setUser(null);

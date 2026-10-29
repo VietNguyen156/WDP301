@@ -12,6 +12,7 @@ import { adminApi, errorMessage } from "../../services/api";
 import { money } from "../../utils/format";
 import { useToast } from "../../context/ToastContext";
 import { LoadingState, ErrorState, EmptyState, Button, Modal, Pagination } from "../../components/ui";
+import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 
 export function AdminInvoicesView() {
   const toast = useToast();
@@ -40,8 +41,8 @@ export function AdminInvoicesView() {
     };
   });
 
-  const fetchInvoices = useCallback(async () => {
-    setLoading(true);
+  const fetchInvoices = useCallback(async (silent) => {
+    if (silent !== true) setLoading(true);
     setError(null);
     try {
       const params = { page, limit: 20 };
@@ -55,6 +56,7 @@ export function AdminInvoicesView() {
       setLoading(false);
     }
   }, [page, statusFilter]);
+  useLiveRefresh(["admin","plans","subscription"], () => fetchInvoices(true));
 
   useEffect(() => {
     fetchInvoices();

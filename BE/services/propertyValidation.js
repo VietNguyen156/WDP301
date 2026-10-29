@@ -92,7 +92,10 @@ function room(body, creating = false, manager = false) {
   if (creating || body.roomNumber !== undefined)
     v.text(body.roomNumber, "Số phòng");
   if (body.floor !== undefined) v.number(body.floor, "Tầng", 1, 100);
-  if (body.basePrice !== undefined) v.number(body.basePrice, "Giá thuê");
+  // Rent is required when the landlord creates a room and can never be set back to 0.
+  if (creating && !manager && body.basePrice === undefined)
+    throw new ValidationError("Vui lòng nhập giá thuê niêm yết");
+  if (body.basePrice !== undefined) v.number(body.basePrice, "Giá thuê", 1);
   for (const key of ["electricityPrice", "waterPrice"])
     if (body[key] !== undefined) v.number(body[key], key);
   if (body.waterBillingType !== undefined)
@@ -143,7 +146,8 @@ function bulk(body) {
       "Khoảng số phòng phải cùng một tầng, ví dụ 101–105",
     );
   if (body.prefix !== undefined) v.text(body.prefix, "Tiền tố", false);
-  if (body.basePrice !== undefined) v.number(body.basePrice, "Giá thuê");
+  if (body.basePrice === undefined) throw new ValidationError("Vui lòng nhập giá thuê niêm yết");
+  v.number(body.basePrice, "Giá thuê", 1);
   if (body.maxOccupants !== undefined)
     v.number(body.maxOccupants, "Số người tối đa", 1, 30);
   const rooms = [];
@@ -152,7 +156,7 @@ function bulk(body) {
       rooms.push({
         floor,
         roomNumber: `${body.prefix || ""}${floor}${String(n).padStart(2, "0")}`,
-        basePrice: body.basePrice || 0,
+        basePrice: body.basePrice,
         maxOccupants: body.maxOccupants || 2,
       });
     }

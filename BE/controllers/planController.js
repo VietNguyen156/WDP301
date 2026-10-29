@@ -1,4 +1,6 @@
 const service = require("../services/saasPlanService");
+const { chainChanged } = require("../realtime/liveUpdates");
+const activity = require("../realtime/activity");
 const respond = require("../utils/response");
 const requests = require("../services/upgradeRequestService");
 const payments = require("../services/saasPaymentService");
@@ -11,4 +13,13 @@ exports.listInvoices = async (req, res) => respond(res, await payments.listMine(
 exports.checkout = async (req, res) => respond(res, await payments.checkout(req), 201);
 exports.verifyPayment = async (req, res) => respond(res, await payments.verifyPayment(req));
 // SePay only needs HTTP 200 with {"success": true}.
-exports.gatewayIpn = async (req, res) => res.json({ success: true, ...(await payments.handleIpn(req.body)) });
+exports.gatewayIpn = async (req, res) => {
+  const { invoiceId, landlordId, ...result } = await payments.handleIpn(req.body);
+  res.json({ success: true, ...result });
+  if (result.paid) {
+    chainChanged(landlordId, ["plans", "subscription"], { admins: true });
+    activity
+      .system({ label: "thanh toán gói dịch vụ qua cổng SePay", kind: "platformInvoice", id: invoiceId })
+      .catch(() => {});
+  }
+};

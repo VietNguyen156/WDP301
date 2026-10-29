@@ -1,4 +1,14 @@
 import React, { useEffect, useState } from "react";
+import {
+  Link2,
+  Trash2,
+  Send,
+  QrCode,
+  Banknote,
+  AlertTriangle,
+  Tag,
+  Copy,
+} from "lucide-react";
 import { Modal } from "../../components/ui/Modal";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
@@ -80,9 +90,12 @@ export function InvoiceDetailModal({
       onClose();
     } catch (err) {
       const errorCode = err.response?.data?.errorCode;
+      const isLandlord = role === "LANDLORD";
       const message =
         errorCode === "BANK_NOT_CONFIGURED"
-          ? "Chưa cấu hình tài khoản ngân hàng nhận tiền. Vào Hồ sơ > Tài khoản ngân hàng, nhập ngân hàng, số tài khoản và tên chủ tài khoản trước khi phát hành."
+          ? isLandlord
+            ? "Chưa thể phát hành: Bạn cần thiết lập tài khoản ngân hàng nhận tiền tại mục Hồ sơ cá nhân trước khi phát hành hóa đơn."
+            : "Chưa thể phát hành: Chủ trọ chưa cấu hình tài khoản ngân hàng nhận tiền VietQR cho cơ sở này."
           : err.response?.data?.message ||
             err.message ||
             "Phát hành hóa đơn thất bại";
@@ -102,12 +115,12 @@ export function InvoiceDetailModal({
       )}`}
       maxWidth="840px"
       footer={
-        <div style={{ display: "flex", gap: "10px", width: "100%", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", gap: "10px", width: "100%", justifyContent: "space-between", flexWrap: "wrap" }}>
           <div style={{ display: "flex", gap: "8px" }}>
             {perms.canShareLink && canSharePublicInvoice(invoice.status) && (
-              <Button variant="outline" size="sm" onClick={copyPublicLink}>
-                <span className="material-symbols-outlined" style={{ fontSize: "17px" }}>link</span>
-                Sao chép link khách
+              <Button variant="outline" size="sm" onClick={copyPublicLink} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <Link2 size={15} />
+                <span>Sao chép link khách</span>
               </Button>
             )}
             {perms.canCancel && (!invoice.paidAmount || invoice.paidAmount === 0) && invoice.status !== "CANCELLED" && (
@@ -118,9 +131,10 @@ export function InvoiceDetailModal({
                   onClose();
                   onOpenCancelInvoice?.(invoice);
                 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: "17px" }}>delete</span>
-                Hủy hóa đơn
+                <Trash2 size={15} />
+                <span>Hủy hóa đơn</span>
               </Button>
             )}
           </div>
@@ -131,8 +145,10 @@ export function InvoiceDetailModal({
                 size="md"
                 loading={issuing}
                 onClick={handleIssueInvoice}
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
-                🚀 Phát hành hóa đơn
+                <Send size={15} />
+                <span>Phát hành hóa đơn</span>
               </Button>
             )}
             {perms.canPayOnline && isPayable && (
@@ -140,9 +156,10 @@ export function InvoiceDetailModal({
                 variant="primary"
                 size="md"
                 onClick={() => window.open(publicLink, "_blank", "noopener")}
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: "17px" }}>qr_code_2</span>
-                Thanh toán qua VietQR
+                <QrCode size={15} />
+                <span>Thanh toán qua VietQR</span>
               </Button>
             )}
             {perms.canCollectCash && isPayable && (
@@ -153,9 +170,10 @@ export function InvoiceDetailModal({
                   onClose();
                   onOpenCashPayment?.(invoice);
                 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: "17px" }}>payments</span>
-                {perms.isManager ? "Báo cáo thu tiền mặt" : "Thu tiền mặt ngay"}
+                <Banknote size={15} />
+                <span>{perms.isManager ? "Báo cáo thu tiền mặt" : "Thu tiền mặt ngay"}</span>
               </Button>
             )}
             <Button variant="outline" size="md" onClick={onClose}>
@@ -175,9 +193,15 @@ export function InvoiceDetailModal({
               borderRadius: "var(--radius-md)",
               color: "var(--error-text)",
               fontSize: "0.88rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
             }}
           >
-            ⚠️ <strong>Hóa đơn này đã bị hủy:</strong> {invoice.cancellationReason || "Không có lý do cụ thể"}
+            <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+            <div>
+              <strong>Hóa đơn này đã bị hủy:</strong> {invoice.cancellationReason || "Không có lý do cụ thể"}
+            </div>
           </div>
         )}
 
@@ -323,7 +347,10 @@ export function InvoiceDetailModal({
                 {invoice.additionalFees?.map((fee, idx) => (
                   <tr key={`fee-${idx}`}>
                     <td style={{ color: "var(--warning-text)", fontWeight: "500" }}>
-                      ⚠️ Phát sinh: {fee.reason}
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                        <AlertTriangle size={13} />
+                        <span>Phát sinh: {fee.reason}</span>
+                      </span>
                     </td>
                     <td style={{ color: "var(--neutral-500)" }}>Khoản bổ sung</td>
                     <td style={{ textAlign: "right" }}>-</td>
@@ -337,7 +364,10 @@ export function InvoiceDetailModal({
                 {invoice.discount?.amount > 0 && (
                   <tr>
                     <td style={{ color: "var(--success-text)", fontWeight: "500" }}>
-                      🎁 Khấu trừ: {invoice.discount.reason || "Ưu đãi"}
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                        <Tag size={13} />
+                        <span>Khấu trừ: {invoice.discount.reason || "Ưu đãi"}</span>
+                      </span>
                     </td>
                     <td style={{ color: "var(--neutral-500)" }}>Giảm trừ trực tiếp</td>
                     <td style={{ textAlign: "right" }}>-</td>
@@ -411,8 +441,9 @@ export function InvoiceDetailModal({
                 >
                   {invoice.paymentSyntax || invoice.invoiceCode}
                 </code>
-                <Button size="sm" variant="outline" onClick={copyPaymentSyntax}>
-                  📋 Chép cú pháp
+                <Button size="sm" variant="outline" onClick={copyPaymentSyntax} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                  <Copy size={13} />
+                  <span>Chép cú pháp</span>
                 </Button>
               </div>
             </div>

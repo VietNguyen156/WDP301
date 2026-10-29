@@ -118,7 +118,7 @@ export default function BankHubModal({ isOpen, onClose, purpose = "LINK", onSync
       onClose={onClose}
       title={isLink ? "Liên kết tài khoản qua SePay Bank Hub" : "Hủy liên kết tài khoản SePay Bank Hub"}
       subtitle="Giao diện xác thực bảo mật trực tiếp được cung cấp bởi SePay Sandbox/Production"
-      wide
+      maxWidth="760px"
       footer={
         <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#64748b" }}>
@@ -131,7 +131,8 @@ export default function BankHubModal({ isOpen, onClose, purpose = "LINK", onSync
         </div>
       }
     >
-      <div style={{ minHeight: "560px", display: "flex", flexDirection: "column" }}>
+      {/* position: relative keeps the syncing overlay inside the modal body */}
+      <div style={{ position: "relative", display: "flex", flexDirection: "column" }}>
         {loading && (
           <div style={{ padding: "60px 20px", textAlign: "center" }}>
             <LoadingState message="Đang khởi tạo phiên kết nối an toàn với SePay Bank Hub..." />
@@ -159,7 +160,7 @@ export default function BankHubModal({ isOpen, onClose, purpose = "LINK", onSync
               {error}
             </p>
             <p style={{ margin: 0, fontSize: "12px", color: "#7f1d1d" }}>
-              * Lưu ý: Tính năng SePay Bank Hub yêu cầu tài khoản chủ trọ sử dụng gói có tính năng <strong>SEPAY_WEBHOOK</strong> (Gói Starter trở lên) và cấu hình khóa API trong hệ thống.
+              * Lưu ý: Tính năng SePay Bank Hub yêu cầu chủ trọ có <strong>gói dịch vụ đang hiệu lực</strong> và hệ thống đã cấu hình khóa API SePay.
             </p>
             <div style={{ marginTop: "8px" }}>
               <Button type="button" variant="secondary" onClick={onClose}>
@@ -193,9 +194,13 @@ export default function BankHubModal({ isOpen, onClose, purpose = "LINK", onSync
             src={linkData.hostedLinkUrl}
             title="SePay Bank Hub Hosted Link"
             allow="clipboard-write"
+            // SePay's page puts its "Tiếp tục" button at the bottom of the frame: the frame must fit in
+            // the modal (90vh minus header, footer and padding) or that button ends up off screen.
             style={{
+              display: "block",
               width: "100%",
-              height: "580px",
+              height: "min(640px, calc(90vh - 190px))",
+              minHeight: "360px",
               border: "none",
               borderRadius: "8px",
               backgroundColor: "#ffffff",

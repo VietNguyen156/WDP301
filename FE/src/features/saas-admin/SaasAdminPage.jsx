@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { lazy, Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   ShieldCheck,
@@ -10,14 +10,18 @@ import {
   Sparkles,
   ArrowUpCircle,
 } from "lucide-react";
-import { AdminAnalyticsView } from "./AdminAnalyticsView";
-import { AdminPlansView } from "./AdminPlansView";
-import { AdminLandlordsView } from "./AdminLandlordsView";
-import { AdminSubscriptionsView } from "./AdminSubscriptionsView";
-import { AdminInvoicesView } from "./AdminInvoicesView";
-import { AdminUpgradeRequestsView } from "./AdminUpgradeRequestsView";
-import { AdminSecurityView } from "./AdminSecurityView";
+import { LoadingState } from "../../components/ui";
 import "./SaasAdmin.css";
+
+// Each tab is its own chunk, fetched the first time the admin opens it.
+const tab = (load, name) => lazy(() => load().then((m) => ({ default: m[name] })));
+const AdminAnalyticsView = tab(() => import("./AdminAnalyticsView"), "AdminAnalyticsView");
+const AdminPlansView = tab(() => import("./AdminPlansView"), "AdminPlansView");
+const AdminLandlordsView = tab(() => import("./AdminLandlordsView"), "AdminLandlordsView");
+const AdminSubscriptionsView = tab(() => import("./AdminSubscriptionsView"), "AdminSubscriptionsView");
+const AdminInvoicesView = tab(() => import("./AdminInvoicesView"), "AdminInvoicesView");
+const AdminUpgradeRequestsView = tab(() => import("./AdminUpgradeRequestsView"), "AdminUpgradeRequestsView");
+const AdminSecurityView = tab(() => import("./AdminSecurityView"), "AdminSecurityView");
 
 const TABS = [
   { id: "analytics", label: "Tổng quan Hệ thống", icon: LayoutDashboard },
@@ -90,6 +94,7 @@ export default function SaasAdminPage({ initialTab = "analytics" }) {
       </div>
 
       {/* 3. Tab Views */}
+      <Suspense fallback={<LoadingState />}>
       {activeTab === "analytics" && (
         <AdminAnalyticsView onNavigateTab={handleTabChange} />
       )}
@@ -105,6 +110,7 @@ export default function SaasAdminPage({ initialTab = "analytics" }) {
       )}
       {activeTab === "invoices" && <AdminInvoicesView />}
       {activeTab === "security" && <AdminSecurityView />}
+      </Suspense>
     </div>
   );
 }

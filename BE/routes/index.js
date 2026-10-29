@@ -23,6 +23,8 @@ router.use("/bank-hub", require("./bankHubRoutes"));
 
 // Dashboard
 router.use("/dashboard", require("./dashboardRoutes"));
+router.use("/search", require("./searchRoutes"));
+router.use("/notifications", require("./notificationRoutes"));
 
 // Admin User Management
 router.use("/admin", require("./adminRoutes"));

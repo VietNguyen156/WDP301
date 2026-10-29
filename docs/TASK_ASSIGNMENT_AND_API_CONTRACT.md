@@ -36,24 +36,30 @@ BE/controllers/roomController.js
 BE/routes/roomRoutes.js
 BE/controllers/contractController.js
 BE/routes/contractRoutes.js
+BE/controllers/accountController.js
+BE/routes/accountRoutes.js
 BE/models/Branch.js
 BE/models/Room.js
 BE/models/Contract.js
+BE/models/User.js
 FE/src/features/branches/
 FE/src/features/rooms/
 FE/src/features/contracts/
+FE/src/features/tenants/
 ```
 
 **Them vao ownership:**
 
-- Authentication middleware.
+- Authentication middleware & Session token management.
 - `getTenantScope()` va `getBranchScope()`.
 - Authorization theo role.
 - Error classes va response format.
 - Quota guard cho branch, room va manager.
 - Audit helper dung chung.
+- Xac nhan hop dong dien tu 2 chieu (`confirmByLandlord`, `confirmByTenant`, `confirmedByBothParties`).
+- Quan ly danh ba khach thue da tieu chi (`GET /api/v1/accounts/tenants`).
 
-**Ban giao:** auth contract, scope helper, model branch/room/contract va quota interface.
+**Ban giao:** auth contract, scope helper, model branch/room/contract/user va quota interface.
 
 ### DEV 2 - Operations
 
@@ -104,13 +110,17 @@ BE/controllers/saasPlanController.js
 BE/routes/saasPlanRoutes.js
 BE/controllers/adminController.js
 BE/routes/adminRoutes.js
+BE/controllers/searchController.js
+BE/routes/searchRoutes.js
+BE/services/searchService.js
 BE/services/analyticsService.js
+FE/src/components/layout/
 FE/src/features/dashboard/
 FE/src/features/admin/
 BE/realtime/
 ```
 
-**Nghiep vu:** Socket.io, dashboard landlord, SaaS plan, landlord directory, subscription, MRR va admin analytics.
+**Nghiep vu:** Socket.io, dashboard landlord, SaaS plan, landlord directory, subscription, MRR, admin analytics, Global Search Engine (`GET /api/v1/search`), va Modular Layout framework (`AppLayout`, `Sidebar`, `TopBar`, `PublicLayout`, `GlobalSearch`).
 
 ## 4. API contract chung
 
@@ -218,9 +228,12 @@ GET  /api/v1/contracts?status=ACTIVE&branchId=<id>
 POST /api/v1/contracts
 GET  /api/v1/contracts/:contractId
 POST /api/v1/contracts/:contractId/terminate
+POST /api/v1/contracts/:contractId/confirm/landlord
+POST /api/v1/contracts/:contractId/confirm/tenant
+GET  /api/v1/accounts/tenants?search=&status=&hometown=&page=1&limit=20
 ```
 
-POST body:
+POST body tao hop dong:
 
 ```json
 {
@@ -242,7 +255,65 @@ POST body:
 }
 ```
 
-Contract creation must atomically create/link tenant, update room to `RENTED` and create contract.
+Contract creation must atomically create/link tenant, update room to `RENTED` and create contract. Neu tao moi Tenant, response HTTP 201 tra ve object `tenantCredentials: { username, temporaryPassword, mustChangePassword: true }`.
+
+#### Xac nhan Hop dong Dien tu 2 Ben:
+
+- `POST /api/v1/contracts/:contractId/confirm/landlord`:
+  - Quyen: `LANDLORD` (so huu hop dong).
+  - Body: `{}` (khong bat buoc payload; xac thuc qua JWT).
+  - Cap nhat: `landlordConfirmedAt`, `landlordConfirmedBy`, va tu dong tinh `confirmedByBothParties = !!contract.tenantConfirmedAt`.
+- `POST /api/v1/contracts/:contractId/confirm/tenant`:
+  - Quyen: `TENANT` (dung tai khoan dai dien trong hop dong).
+  - Body: `{}` (khong bat buoc payload).
+  - Cap nhat: `tenantConfirmedAt`, `tenantConfirmedBy`, va tu dong tinh `confirmedByBothParties = !!contract.landlordConfirmedAt`.
+- Response xac nhan thanh cong (HTTP 200):
+
+```json
+{
+  "success": true,
+  "message": "Xác nhận hợp đồng thành công",
+  "data": {
+    "contract": {
+      "id": "contract_id",
+      "contractCode": "HD-2026-0001",
+      "landlordConfirmedAt": "2026-10-27T08:00:00.000Z",
+      "tenantConfirmedAt": "2026-10-27T08:30:00.000Z",
+      "confirmedByBothParties": true,
+      "status": "ACTIVE"
+    }
+  }
+}
+```
+
+#### Danh ba Khach thue (Tenant Directory):
+
+- `GET /api/v1/accounts/tenants?search=&status=&hometown=&page=&limit=`:
+  - Quyen: `LANDLORD`, `PROPERTY_MANAGER` (theo assignedBranches).
+  - Response (HTTP 200):
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "_id": "user_id",
+        "name": "Nguyen Van A",
+        "username": "001234567890",
+        "phoneNumber": "0912345678",
+        "email": "tenant@example.com",
+        "citizenId": "001234567890",
+        "hometown": "Ha Noi",
+        "status": "ACTIVE",
+        "roomName": "P.101",
+        "branchName": "Co so Cau Giay"
+      }
+    ],
+    "pagination": { "page": 1, "limit": 20, "total": 1, "totalPages": 1 }
+  }
+}
+```
 
 ### 4.5 Utility Reading
 
@@ -455,6 +526,67 @@ Quota error:
 }
 ```
 
+### 4.11 Global Quick Search Engine
+
+```http
+GET /api/v1/search?q=<keyword>
+```
+
+- Quyen: `LANDLORD`, `PROPERTY_MANAGER`
+- Tham so:
+  - `q`: Tu khoa tim kiem (it nhat 1 ky tu; neu rong se tra ve mang ket qua rong).
+- Pham vi tim kiem:
+  - `branches`: Tim theo ten co so, dia chi.
+  - `rooms`: Tim theo ten phong.
+  - `contracts`: Tim theo ma hop dong, ten khach thue, so CCCD, so dien thoai.
+  - `invoices`: Tim theo ma hoa don `invoiceCode`.
+- Bao mat: Tu dong gioi han theo `landlordId` va `assignedBranches` cua nguoi goi.
+- Response (HTTP 200):
+
+```json
+{
+  "success": true,
+  "data": {
+    "branches": [
+      {
+        "id": "branch_id",
+        "title": "Co so Cau Giay",
+        "subtitle": "Quan Cau Giay, Ha Noi",
+        "type": "branch",
+        "link": "/branches"
+      }
+    ],
+    "rooms": [
+      {
+        "id": "room_id",
+        "title": "P.101",
+        "subtitle": "Co so Cau Giay - Tang 1",
+        "type": "room",
+        "link": "/rooms"
+      }
+    ],
+    "contracts": [
+      {
+        "id": "contract_id",
+        "title": "HD-2026-0001 - Nguyen Van A",
+        "subtitle": "P.101 - CCCD: 001234567890",
+        "type": "contract",
+        "link": "/contracts"
+      }
+    ],
+    "invoices": [
+      {
+        "id": "invoice_id",
+        "title": "HD2026100001",
+        "subtitle": "P.101 - 3.850.000 đ (Chưa thu)",
+        "type": "invoice",
+        "link": "/invoices"
+      }
+    ]
+  }
+}
+```
+
 ## 5. Response va error code
 
 Thanh cong:
@@ -487,12 +619,17 @@ INVALID_ID
 VALIDATION_ERROR
 QUOTA_EXCEEDED
 BRANCH_SCOPE_FORBIDDEN
+BANK_NOT_CONFIGURED
 INVOICE_ALREADY_PAID
 INVOICE_CANCELLED
 PAYMENT_AMOUNT_INVALID
 PAYMENT_REFERENCE_DUPLICATED
 READING_LOWER_THAN_PREVIOUS
 READING_ALREADY_BILLED
+CONTRACT_ALREADY_CONFIRMED
+CONTRACT_TERMINATED_CANNOT_CONFIRM
+TENANT_CONFIRM_FORBIDDEN
+SEARCH_QUERY_INVALID
 ```
 
 ## 6. Realtime contract

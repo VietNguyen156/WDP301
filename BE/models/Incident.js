@@ -52,6 +52,33 @@ const incidentSchema = new mongoose.Schema(
       enum: ["LOW", "MEDIUM", "HIGH", "URGENT"],
       default: "MEDIUM",
     },
+    // Loại sự cố, do TypeSafe phân loại (services/incidentTriage.js); chưa phân loại = không có.
+    category: {
+      type: String,
+      enum: [
+        "ELECTRICAL",
+        "PLUMBING",
+        "APPLIANCE",
+        "DOOR_LOCK_WINDOW",
+        "WALL_CEILING_FLOOR",
+        "INTERNET",
+        "PEST_CLEANING",
+        "SHARED_AREA",
+        "OTHER",
+      ],
+    },
+    // Kết quả phân loại tự động gần nhất.
+    triage: {
+      _id: false,
+      status: { type: String, enum: ["DONE", "FAILED"] },
+      model: String,
+      suggestedPriority: { type: String, enum: ["LOW", "MEDIUM", "HIGH", "URGENT"] },
+      needsReview: Boolean,
+      reasons: [String],
+      signals: mongoose.Schema.Types.Mixed,
+      error: String,
+      at: Date,
+    },
     status: {
       type: String,
       enum: ["PENDING", "IN_PROGRESS", "SOLVED", "RESOLVED", "CLOSED", "REJECTED"],
@@ -106,9 +133,12 @@ const incidentSchema = new mongoose.Schema(
 );
 
 incidentSchema.index({ landlordId: 1, status: 1 });
+incidentSchema.index({ landlordId: 1, category: 1 });
 incidentSchema.index({ landlordId: 1, branchId: 1, status: 1 });
 
 incidentSchema.index({ landlordId: 1, contractId: 1 });
+// List pages: newest first within one landlord.
+incidentSchema.index({ landlordId: 1, isDeleted: 1, createdAt: -1 });
 
 require("./propertyValidators")(incidentSchema, ["repairCost"]);
 module.exports = mongoose.model("Incident", incidentSchema);

@@ -43,9 +43,14 @@ const userSchema = new mongoose.Schema(
         "PENDING_ACTIVATION",
         "REJECTED",
         "SUSPENDED",
+        "INACTIVE", // khách thuê bị tự khóa khi không còn hợp đồng (jobs/tenantAccess.js)
       ],
       default: "ACTIVE",
     },
+    // Tự khóa / mở lại tài khoản khách thuê theo hợp đồng
+    deactivatedAt: Date,
+    deactivationReason: String,
+    statusBeforeDeactivation: String,
 
     // Dành cho LANDLORD (Chủ chuỗi trọ)
     subscriptionId: {
@@ -110,8 +115,11 @@ const userSchema = new mongoose.Schema(
   },
 );
 
-userSchema.index({ email: 1 }, { unique: true, partialFilterExpression: { email: { $type: "string" } } });
-userSchema.index({ username: 1 }, { unique: true, partialFilterExpression: { username: { $type: "string" } } });
+// Login names are unique per landlord, not platform-wide: the same CCCD / phone / email can have
+// an account with each landlord they rent from or work for. Landlords and admins have no
+// landlordId, so among themselves email and username stay unique.
+userSchema.index({ email: 1, landlordId: 1 }, { unique: true, partialFilterExpression: { email: { $type: "string" } } });
+userSchema.index({ username: 1, landlordId: 1 }, { unique: true, partialFilterExpression: { username: { $type: "string" } } });
 userSchema.pre("validate", function () {
   if (this.role === "LANDLORD" && this.email) this.username = this.email;
   if (this.role === "PROPERTY_MANAGER" && this.phoneNumber) this.username = this.phoneNumber;

@@ -95,7 +95,8 @@ const branchSchema = new mongoose.Schema(
 
 // Compound Index để tra cứu cơ sở của một Chủ trọ nhanh
 branchSchema.index({ landlordId: 1, name: 1 });
-branchSchema.index({ landlordId: 1, isDeleted: 1 });
+// List pages: newest first within one landlord.
+branchSchema.index({ landlordId: 1, isDeleted: 1, createdAt: -1 });
 
 require('./propertyValidators')(branchSchema, ['totalFloors', 'defaultElectricityPrice', 'defaultWaterPrice', 'billingCycleDay', 'paymentDueDays']);
 require('./propertyValidators')(branchSchema.path('defaultServices').schema, ['price']);

@@ -11,8 +11,7 @@ const v = require("../utils/validation");
 const audit = require("./auditService");
 const quota = require("./quotaService");
 const { accountView } = require("./authService");
-const { FEATURE_KEYS, PLAN_FEATURES } = require("../utils/planFeatures");
-const { planHas } = require("./planFeatures");
+const { INCLUDED_FEATURES } = require("../utils/planFeatures");
 const upgradeRequests = require("./upgradeRequestService");
 const quotas = ["maxBranches", "maxRooms", "maxManagers"];
 
@@ -23,8 +22,6 @@ function validate(body, creating = false) {
     "price",
     "billingCycle",
     ...quotas,
-    "features",
-    "featureFlags",
     "isActive",
     "trialDays",
   ]);
@@ -45,21 +42,6 @@ function validate(body, creating = false) {
     v.choice(body.billingCycle, ["MONTHLY", "YEARLY"], "Chu kỳ");
   if (body.isActive !== undefined && typeof body.isActive !== "boolean")
     throw new ValidationError("isActive phải là boolean");
-  if (body.features !== undefined) {
-    if (!Array.isArray(body.features) || body.features.length > 50)
-      throw new ValidationError("Danh sách tính năng không hợp lệ");
-    body.features.forEach((feature) => v.text(feature, "Tính năng"));
-  }
-  if (body.featureFlags !== undefined) {
-    if (
-      !Array.isArray(body.featureFlags) ||
-      body.featureFlags.some((flag) => !FEATURE_KEYS.includes(flag))
-    )
-      throw new ValidationError(
-        `featureFlags chỉ nhận: ${FEATURE_KEYS.join(", ")}`,
-      );
-    body.featureFlags = [...new Set(body.featureFlags)];
-  }
   return body;
 }
 
@@ -71,7 +53,7 @@ async function list(req) {
     v.choice(req.query.isActive, ["true", "false"], "isActive");
     filter.isActive = req.query.isActive === "true";
   }
-  const [items, total] = await Promise.all([
+  const [plans, total] = await Promise.all([
     SaaSPlan.find(filter)
       .sort({ price: 1, _id: 1 })
       .skip(skip)
@@ -79,7 +61,23 @@ async function list(req) {
       .lean(),
     SaaSPlan.countDocuments(filter),
   ]);
-  return { items, total, page, limit };
+  // Live subscriptions per plan, so the admin sees which plans are in use before editing.
+  const counts = await Subscription.aggregate([
+    {
+      $match: {
+        planId: { $in: plans.map((p) => p._id) },
+        isDeleted: false,
+        $or: [
+          { status: "ACTIVE", endDate: { $gt: new Date() } },
+          { status: "PENDING_PAYMENT" },
+        ],
+      },
+    },
+    { $group: { _id: "$planId", count: { $sum: 1 } } },
+  ]);
+  const inUse = new Map(counts.map((c) => [String(c._id), c.count]));
+  const items = plans.map((plan) => ({ ...plan, subscriptionCount: inUse.get(String(plan._id)) || 0 }));
+  return { items, total, page, limit, includedFeatures: INCLUDED_FEATURES };
 }
 
 async function create(req) {
@@ -190,8 +188,7 @@ async function catalog(req) {
       maxBranches: plan.maxBranches,
       maxRooms: plan.maxRooms,
       maxManagers: plan.maxManagers,
-      features: plan.features || [],
-      featureFlags: FEATURE_KEYS.filter((key) => planHas(plan, key)),
+      features: INCLUDED_FEATURES,
       isCurrent: String(plan._id) === String(current?.plan.id),
       isPending: String(plan._id) === String(pending?.plan.id),
       isRequested: String(plan._id) === String(upgradeRequest?.planId?._id),
@@ -206,7 +203,7 @@ async function catalog(req) {
     upgradeRequest,
     usage,
     items,
-    featureCatalog: PLAN_FEATURES,
+    includedFeatures: INCLUDED_FEATURES,
   };
 }
 

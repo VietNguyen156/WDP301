@@ -25,6 +25,7 @@ import {
   FormError,
 } from "../../components/ui";
 import { useToast } from "../../context/ToastContext";
+import { AddressAutocomplete } from "../../components/ui/AddressAutocomplete";
 import { useAuth } from "../../context/AuthContext";
 
 const initial = {
@@ -47,6 +48,7 @@ export default function BranchForm({ branch, onClose, onSaved }) {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const toast = useToast();
+  const isLandlord = user?.role === "LANDLORD";
   const [activeTab, setActiveTab] = useState("info"); // 'info' | 'pricing' | 'services' | 'vietqr'
 
   const [freshProfile, setFreshProfile] = useState(profile);
@@ -261,11 +263,11 @@ export default function BranchForm({ branch, onClose, onSaved }) {
                   )}
 
                   <div className="span-2">
-                    <Field
+                    <AddressAutocomplete
                       label="Địa chỉ chi tiết"
                       required
                       value={form.address}
-                      onChange={change("address")}
+                      onChange={(address) => setForm((current) => ({ ...current, address }))}
                       placeholder="Ví dụ: Số 18 Ngõ 233 Xuân Thủy, Phường Dịch Vọng Hậu, Quận Cầu Giấy, Hà Nội"
                       hint="Địa chỉ in tự động trên bản hợp đồng thuê và hóa đơn gửi cho khách."
                     />
@@ -609,24 +611,26 @@ export default function BranchForm({ branch, onClose, onSaved }) {
                       <span style={{ fontSize: "12px", color: "#005c55", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
                         <Check size={14} /> Tài khoản nhận tiền đã liên kết (áp dụng toàn chuỗi)
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onClose();
-                          navigate("/profile");
-                        }}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "var(--primary, #005c55)",
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                          textDecoration: "underline",
-                        }}
-                      >
-                        Đổi tài khoản nhận tiền →
-                      </button>
+                      {isLandlord && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            navigate("/profile");
+                          }}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "var(--primary, #005c55)",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                          }}
+                        >
+                          Đổi tài khoản nhận tiền →
+                        </button>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -646,38 +650,44 @@ export default function BranchForm({ branch, onClose, onSaved }) {
                       <AlertTriangle size={24} color="#d97706" style={{ flexShrink: 0, marginTop: "2px" }} />
                       <div>
                         <strong style={{ color: "#92400e", fontSize: "14px" }}>
-                          Chưa cấu hình tài khoản ngân hàng nhận tiền!
+                          {isLandlord
+                            ? "Chưa thiết lập tài khoản ngân hàng nhận tiền"
+                            : "Cơ sở chưa liên kết tài khoản ngân hàng thụ hưởng"}
                         </strong>
                         <p style={{ margin: "4px 0 0", color: "#b45309", fontSize: "13px", lineHeight: 1.5 }}>
-                          Chủ trọ chưa thiết lập tài khoản ngân hàng VietQR. Bạn sẽ không thể phát hành hóa đơn thu tiền tại cơ sở này nếu chưa cài đặt tài khoản (hệ thống sẽ báo lỗi <code>BANK_NOT_CONFIGURED</code>).
+                          {isLandlord
+                            ? "Để khởi tạo mã VietQR thanh toán cho khách thuê và kích hoạt đối soát tự động qua SePay, bạn vui lòng thiết lập tài khoản ngân hàng nhận tiền. Hóa đơn thu tiền chỉ có thể phát hành khi đã liên kết tài khoản hợp lệ."
+                            : "Chủ trọ chưa cài đặt tài khoản ngân hàng VietQR cho hệ thống. Để có thể phát hành hóa đơn thu tiền tại cơ sở này, vui lòng thông báo Chủ trọ hoàn tất thiết lập trong mục Cài đặt tài khoản."}
                         </p>
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onClose();
-                          navigate("/profile");
-                        }}
-                        style={{
-                          padding: "8px 14px",
-                          borderRadius: "8px",
-                          backgroundColor: "#005c55",
-                          color: "#ffffff",
-                          border: "none",
-                          fontWeight: 600,
-                          fontSize: "13px",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                        }}
-                      >
-                        <CreditCard size={15} /> Thiết lập tài khoản ngân hàng ngay
-                      </button>
-                    </div>
+                    {isLandlord && (
+                      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            navigate("/profile");
+                          }}
+                          style={{
+                            padding: "8px 14px",
+                            borderRadius: "8px",
+                            backgroundColor: "#005c55",
+                            color: "#ffffff",
+                            border: "none",
+                            fontWeight: 600,
+                            fontSize: "13px",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                          }}
+                        >
+                          <CreditCard size={15} /> Thiết lập tài khoản ngân hàng ngay
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 

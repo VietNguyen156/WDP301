@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { LIVE_CONTRACT_STATUSES } = require("../utils/statuses");
 const UtilityReading = require("../models/UtilityReading");
 const Room = require("../models/Room");
 const Contract = require("../models/Contract");
@@ -23,7 +24,7 @@ const { vnDate, currentPeriod, periodRange } = require("../utils/vnTime");
 
 const ABNORMAL_RATIO = 2.5;
 const AVERAGE_WINDOW = 3;
-const BILLABLE_CONTRACT = ["ACTIVE", "EXPIRING_SOON", "EXPIRED"];
+const BILLABLE_CONTRACT = LIVE_CONTRACT_STATUSES;
 const READING_FIELDS = [
   "electricNewIndex",
   "waterNewIndex",
