@@ -444,5 +444,8 @@ async function update(req) {
     return { ...present(reading), ...draft };
   });
 }
+async function updateUtility() {
+  console.log("hihi");
+}
 
 module.exports = { list, get, create, update };
