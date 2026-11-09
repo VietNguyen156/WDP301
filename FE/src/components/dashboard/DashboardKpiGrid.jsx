@@ -1,5 +1,12 @@
 import { Link } from "react-router-dom";
-import { TrendingUp, Receipt, Percent, Building2 } from "lucide-react";
+import {
+  TrendingUp,
+  TrendingDown,
+  Wallet,
+  Receipt,
+  Percent,
+  Building2,
+} from "lucide-react";
 import { formatCurrency } from "../../utils/formatters";
 
 export default function DashboardKpiGrid({
@@ -8,6 +15,13 @@ export default function DashboardKpiGrid({
   activeBranchesCount,
   totalActiveContracts,
 }) {
+  const paidOutAmount = financialMetrics.paidOutAmount || 0;
+  const receivedAmount =
+    financialMetrics.receivedAmount ?? financialMetrics.actualRevenue ?? 0;
+  const netCashFlow =
+    financialMetrics.netCashFlow ?? receivedAmount - paidOutAmount;
+  const isNetPositive = netCashFlow >= 0;
+
   return (
     <section className="stitch-kpi-grid">
       {/* KPI 1: Thực Thu Kỳ Này */}
@@ -49,7 +63,145 @@ export default function DashboardKpiGrid({
         </div>
       </div>
 
-      {/* KPI 2: Hóa Đơn & Công Nợ Chưa Thu */}
+      {/* KPI 2: Tổng Chi Trong Tháng (paidOutAmount) */}
+      <div
+        className="stitch-kpi-card"
+        style={{
+          border:
+            paidOutAmount > 0
+              ? "1px solid rgba(217, 119, 6, 0.35)"
+              : "1px solid var(--dash-border)",
+          background:
+            paidOutAmount > 0
+              ? "linear-gradient(to bottom right, #ffffff, #fffbeb)"
+              : "#ffffff",
+        }}
+      >
+        <div className="stitch-kpi-header">
+          <div>
+            <p
+              className="stitch-kpi-title"
+              style={{ color: paidOutAmount > 0 ? "#b45309" : "#64748b" }}
+            >
+              Tổng chi trong tháng (Phiếu chi)
+            </p>
+            <div className="stitch-kpi-value-row">
+              <span
+                className="stitch-kpi-value"
+                style={{ color: paidOutAmount > 0 ? "#b45309" : "#131b2e" }}
+              >
+                {paidOutAmount > 0
+                  ? `−${formatCurrency(paidOutAmount)}`
+                  : formatCurrency(0)}
+              </span>
+            </div>
+          </div>
+          <div
+            className="stitch-kpi-icon"
+            style={{ backgroundColor: "#fffbeb", color: "#d97706" }}
+          >
+            <TrendingDown size={22} />
+          </div>
+        </div>
+        <div
+          className="stitch-kpi-footer"
+          style={{
+            borderTopColor:
+              paidOutAmount > 0
+                ? "rgba(253, 230, 138, 0.75)"
+                : "var(--dash-border-subtle)",
+          }}
+        >
+          <span>Chi sửa chữa &amp; vận hành</span>
+          <Link
+            to="/payments?tab=expenses"
+            style={{
+              color: "#b45309",
+              fontWeight: 700,
+              textDecoration: "underline",
+            }}
+          >
+            Xem sổ phiếu chi →
+          </Link>
+        </div>
+      </div>
+
+      {/* KPI 3: Dòng Tiền Ròng (Thu - Chi / netCashFlow) */}
+      <div
+        className="stitch-kpi-card"
+        style={{
+          border: isNetPositive
+            ? "1px solid rgba(15, 118, 110, 0.35)"
+            : "1px solid rgba(220, 38, 38, 0.4)",
+          background: isNetPositive
+            ? "linear-gradient(to bottom right, #ffffff, #f0fdfa)"
+            : "linear-gradient(to bottom right, #ffffff, #fff5f5)",
+        }}
+      >
+        <div className="stitch-kpi-header">
+          <div>
+            <p
+              className="stitch-kpi-title"
+              style={{ color: isNetPositive ? "#0f766e" : "#dc2626" }}
+            >
+              Dòng tiền ròng (Thu − Chi)
+            </p>
+            <div className="stitch-kpi-value-row">
+              <span
+                className="stitch-kpi-value"
+                style={{ color: isNetPositive ? "#0f766e" : "#dc2626" }}
+              >
+                {netCashFlow < 0
+                  ? `−${formatCurrency(Math.abs(netCashFlow))}`
+                  : `${netCashFlow > 0 ? "+" : ""}${formatCurrency(netCashFlow)}`}
+              </span>
+              <span
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  padding: "2px 8px",
+                  borderRadius: "9999px",
+                  backgroundColor: isNetPositive ? "#ccfbf1" : "#fee2e2",
+                  color: isNetPositive ? "#0f766e" : "#dc2626",
+                }}
+              >
+                {isNetPositive ? "Thặng dư" : "Thâm hụt"}
+              </span>
+            </div>
+          </div>
+          <div
+            className="stitch-kpi-icon"
+            style={{
+              backgroundColor: isNetPositive ? "#ccfbf1" : "#fef2f2",
+              color: isNetPositive ? "#0f766e" : "#dc2626",
+            }}
+          >
+            <Wallet size={22} />
+          </div>
+        </div>
+        <div
+          className="stitch-kpi-footer"
+          style={{
+            borderTopColor: isNetPositive
+              ? "rgba(153, 246, 228, 0.75)"
+              : "rgba(254, 202, 202, 0.7)",
+          }}
+        >
+          <span>
+            Thu dòng tiền: <strong>{formatCurrency(receivedAmount)}</strong>
+          </span>
+          <span
+            style={{
+              color: paidOutAmount > 0 ? "#b45309" : "#64748b",
+              fontWeight: 600,
+            }}
+          >
+            Trừ chi: −{formatCurrency(paidOutAmount)}
+          </span>
+        </div>
+      </div>
+
+      {/* KPI 4: Hóa Đơn & Công Nợ Chưa Thu */}
       <div
         className="stitch-kpi-card"
         style={{

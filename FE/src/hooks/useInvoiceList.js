@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { invoiceService } from "../services/invoiceService";
+import { branchService } from "../services/branchService";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { publicInvoiceUrl, canSharePublicInvoice } from "../utils/publicLink";
@@ -32,9 +33,14 @@ export function useInvoiceList(externalSearchTerm = "") {
 
   // Filters & Pagination
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [branchFilter] = useState("");
+  const [branchFilter, setBranchFilterState] = useState("");
   const [billingPeriodFilter, setBillingPeriodFilter] = useState("");
   const [page, setPage] = useState(1);
+  // Changing a filter goes back to the first page.
+  const setBranchFilter = useCallback((value) => {
+    setBranchFilterState(value);
+    setPage(1);
+  }, []);
 
   // Modals & Selected row for Stitch Flyout Drawer
   const [selectedInvoiceState, setSelectedInvoice] = useState(null);
@@ -50,6 +56,16 @@ export function useInvoiceList(externalSearchTerm = "") {
   const perms = invoicePermissions(user?.role);
   const canGenerateInvoices = perms.canGenerate;
   const header = INVOICE_HEADER[user?.role] || INVOICE_HEADER.LANDLORD;
+
+  // Branch filter options (landlord: all branches, manager: assigned ones; tenants have none).
+  const branchResource = useResource(
+    () => (perms.isTenant ? Promise.resolve([]) : branchService.getBranches()),
+    [perms.isTenant],
+  );
+  const branches = useMemo(() => {
+    const data = branchResource.data;
+    return Array.isArray(data) ? data : data?.items || [];
+  }, [branchResource.data]);
 
   const invoiceResource = useResource(
     async () => {
@@ -146,10 +162,9 @@ export function useInvoiceList(externalSearchTerm = "") {
       (inv) =>
         inv.invoiceCode?.toLowerCase().includes(term) ||
         inv.tenantId?.name?.toLowerCase().includes(term) ||
+        inv.tenantId?.phoneNumber?.includes(term) ||
         inv.roomId?.roomNumber?.toLowerCase().includes(term) ||
-        inv.roomId?.name?.toLowerCase().includes(term) ||
-        (typeof inv.tenantId === "string" &&
-          inv.tenantId.toLowerCase().includes(term)),
+        inv.branchId?.name?.toLowerCase().includes(term),
     );
   }, [invoices, activeSearch]);
 
@@ -215,6 +230,8 @@ export function useInvoiceList(externalSearchTerm = "") {
     statusFilter,
     setStatusFilter,
     branchFilter,
+    setBranchFilter,
+    branches,
     billingPeriodFilter,
     setBillingPeriodFilter,
     page,

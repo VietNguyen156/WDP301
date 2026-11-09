@@ -417,3 +417,69 @@ svg {
 .animate-slide-in {
   animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+
+/* Top-Layer Toast Notifications (always above <dialog> modals & ::backdrop) */
+.toast-stack,
+.toast-stack[popover] {
+  position: fixed !important;
+  top: 20px !important;
+  right: 24px !important;
+  bottom: auto !important;
+  left: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+  width: 400px !important;
+  max-width: calc(100vw - 32px) !important;
+  z-index: 2147483647 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  pointer-events: none !important;
+}
+
+.toast-stack:empty {
+  display: none !important;
+}
+
+.toast {
+  pointer-events: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  background: #ffffff !important;
+  border: 1px solid #bbf7d0 !important;
+  border-left: 4px solid #16a34a !important;
+  border-radius: 10px !important;
+  box-shadow: 0 12px 32px -4px rgba(15, 23, 42, 0.22), 0 4px 12px rgba(15, 23, 42, 0.1) !important;
+  padding: 14px 16px !important;
+  color: #14532d !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  line-height: 1.5 !important;
+}
+
+.toast.error {
+  background: #ffffff !important;
+  border-color: #fecaca !important;
+  border-left-color: #dc2626 !important;
+  color: #991b1b !important;
+}
+
+.toast.warning {
+  background: #ffffff !important;
+  border-color: #fde68a !important;
+  border-left-color: #d97706 !important;
+  color: #92400e !important;
+}
+
+.toast.info {
+  background: #ffffff !important;
+  border-color: #bae6fd !important;
+  border-left-color: #0284c7 !important;
+  color: #075985 !important;
+}

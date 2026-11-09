@@ -8,18 +8,12 @@ import {
   ShieldAlert,
   Mail,
   Phone,
-  Terminal,
-  Activity,
   CheckCircle2,
-  Building2,
   Users,
-  Settings2,
-  Play,
-  Save,
-  Eye,
-  EyeOff,
-  RefreshCw,
-  ExternalLink,
+  Landmark,
+  Link2,
+  Link2Off,
+  Info,
   ShieldCheck,
   FileSpreadsheet,
 } from "lucide-react";
@@ -39,18 +33,12 @@ export function AdminLandlordsView({ onNavigateTab }) {
 
   // Filters
   const [search, setSearch] = useState("");
-  // Query the API once typing pauses, not on every keystroke.
   const debouncedSearch = useDebounced(search);
   const [statusFilter, setStatusFilter] = useState(""); // "" | "ACTIVE" | "SUSPENDED"
 
-  // SePay Configuration Panel Selection
+  // Landlord shown in the banking side panel.
   const [selectedForSepay, setSelectedForSepay] = useState(null);
-  const [showToken, setShowToken] = useState(false);
-  const [showSecret, setShowSecret] = useState(false);
-  const [autoReconcile, setAutoReconcile] = useState(true);
-  const [regexPattern, setRegexPattern] = useState("^(DOMUS|ANCU)[-_]?(T[0-9]{2})[-_]?(P[0-9]{3,4})[-_]?(HD[0-9]+)$");
-  const [pingRunning, setPingRunning] = useState(false);
-  const [pingOutput, setPingOutput] = useState(null);
+  const [bankingSummary, setBankingSummary] = useState(null);
 
   // Status Modal
   const [selectedLandlord, setSelectedLandlord] = useState(null);
@@ -69,18 +57,18 @@ export function AdminLandlordsView({ onNavigateTab }) {
       const items = res?.items || [];
       setLandlords(items);
       setTotal(res?.total || 0);
+      setBankingSummary(res?.bankingSummary || null);
 
-      // Auto-select first landlord for SePay side-panel if none selected
-      if (!selectedForSepay && items.length > 0) {
-        setSelectedForSepay(items[0]);
-      }
+      setSelectedForSepay((current) =>
+        (current && items.find((l) => l._id === current._id)) || items[0] || null,
+      );
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch, statusFilter, selectedForSepay]);
-  useLiveRefresh(["admin","plans","subscription"], () => fetchLandlords(true));
+  }, [page, debouncedSearch, statusFilter]);
+  useLiveRefresh(["admin", "plans", "subscription"], () => fetchLandlords(true));
 
   useEffect(() => {
     fetchLandlords();
@@ -88,25 +76,6 @@ export function AdminLandlordsView({ onNavigateTab }) {
 
   function handleSelectSepay(landlord) {
     setSelectedForSepay(landlord);
-    setPingOutput(null);
-  }
-
-  function handlePingTest() {
-    if (!selectedForSepay) return;
-    setPingRunning(true);
-    setPingOutput(null);
-    setTimeout(() => {
-      setPingRunning(false);
-      setPingOutput({
-        status: "UNAVAILABLE",
-        message: "Chưa có API kiểm tra kết nối SePay.",
-      });
-    }, 700);
-  }
-
-  function handleSaveSepayConfig() {
-    if (!selectedForSepay) return;
-    toast.success(`Đã lưu & kích hoạt cổng SePay Webhook cho Chủ trọ "${selectedForSepay.name}".`);
   }
 
   function openStatusModal(landlord, nextStatus) {
@@ -130,7 +99,7 @@ export function AdminLandlordsView({ onNavigateTab }) {
       toast.success(
         actionStatus === "SUSPENDED"
           ? `Đã tạm khóa Chủ trọ "${selectedLandlord.name}". Phiên đăng nhập toàn chuỗi đã bị thu hồi.`
-          : `Đã mở khóa hoạt động cho Chủ trọ "${selectedLandlord.name}".`
+          : `Đã mở khóa hoạt động cho Chủ trọ "${selectedLandlord.name}".`,
       );
       setSelectedLandlord(null);
       fetchLandlords();
@@ -141,13 +110,40 @@ export function AdminLandlordsView({ onNavigateTab }) {
     }
   }
 
-  // Derived counts for KPI cards
+  function handleExportLandlordsCsv() {
+    if (!landlords.length) {
+      toast.info("Không có dữ liệu Chủ trọ để xuất CSV.");
+      return;
+    }
+    const headers = ["ID", "HoTen", "Email", "SoDienThoai", "TrangThai", "GoiSaaS", "NganHang", "SoTaiKhoan", "NguonLienKet"];
+    const rows = landlords.map((l) => [
+      l._id,
+      `"${(l.name || "").replace(/"/g, '""')}"`,
+      `"${(l.email || l.username || "").replace(/"/g, '""')}"`,
+      `"${(l.phoneNumber || "").replace(/"/g, '""')}"`,
+      l.status || "",
+      l.subscriptionId?.planId?.code || "NONE",
+      `"${(l.bankConfig?.bankName || l.bankConfig?.bankCode || "").replace(/"/g, '""')}"`,
+      `"${(l.bankConfig?.accountNumber || "").replace(/"/g, '""')}"`,
+      l.banking?.source || "NONE",
+    ]);
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `domus-landlords-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Đã xuất danh sách ${landlords.length} Chủ trọ ra file CSV.`);
+  }
+
   const activeCount = landlords.filter((l) => l.status === "ACTIVE").length;
-  const pendingCount = landlords.filter((l) => !l.bankConfig?.accountNumber).length;
+  const unmatchedOnPage = landlords.reduce((sum, l) => sum + (l.banking?.pendingUnmatched || 0), 0);
 
   return (
     <div className="admin-view-body animate-fade-in">
-      {/* 1. Quick KPI Ribbon (Stitch Screen 1d02c624) */}
+      {/* 1. Quick KPI Ribbon */}
       <div className="admin-kpi-ribbon">
         <div className="admin-kpi-card">
           <div className="admin-kpi-top">
@@ -165,49 +161,75 @@ export function AdminLandlordsView({ onNavigateTab }) {
 
         <div className="admin-kpi-card">
           <div className="admin-kpi-top">
-            <span className="admin-kpi-label">Cơ sở / Tòa nhà vận hành</span>
-            <div className="admin-kpi-icon secondary">
-              <Building2 size={18} />
-            </div>
-          </div>
-          <div className="admin-kpi-num">-</div>
-          <div className="admin-kpi-sub secondary">
-            <span>Chưa có dữ liệu cơ sở và phòng từ API admin</span>
-          </div>
-        </div>
-
-        <div className="admin-kpi-card">
-          <div className="admin-kpi-top">
-            <span className="admin-kpi-label">Webhook SePay Uptime</span>
+            <span className="admin-kpi-label">Đã liên kết Bank Hub</span>
             <div className="admin-kpi-icon success">
-              <Activity size={18} />
+              <Link2 size={18} />
             </div>
           </div>
-          <div className="admin-kpi-num">-</div>
+          <div className="admin-kpi-num">{bankingSummary?.linked ?? "-"}</div>
           <div className="admin-kpi-sub success">
             <span className="live-dot" />
-            <span>Chưa có dữ liệu uptime và độ trễ từ API</span>
+            <span>Chủ trọ tự liên kết, nhận đối soát tự động</span>
           </div>
         </div>
 
         <div className="admin-kpi-card">
           <div className="admin-kpi-top">
-            <span className="admin-kpi-label">Chờ cấu hình SePay</span>
+            <span className="admin-kpi-label">Chưa liên kết ngân hàng</span>
             <div className="admin-kpi-icon warning">
-              <Terminal size={18} />
+              <Link2Off size={18} />
             </div>
           </div>
-          <div className="admin-kpi-num">{pendingCount}</div>
+          <div className="admin-kpi-num">
+            {bankingSummary ? bankingSummary.none + bankingSummary.manual : "-"}
+          </div>
           <div className="admin-kpi-sub warning">
             <span className="live-dot warning" />
-            <span>Cần Super Admin phê duyệt cổng</span>
+            <span>
+              {bankingSummary?.manual
+                ? `${bankingSummary.manual} chỉ nhập STK tay (chỉ có VietQR)`
+                : "Chủ trọ liên kết trong Hồ sơ › Ngân hàng"}
+            </span>
+          </div>
+        </div>
+
+        <div className="admin-kpi-card">
+          <div className="admin-kpi-top">
+            <span className="admin-kpi-label">Giao dịch chưa khớp</span>
+            <div className="admin-kpi-icon secondary">
+              <Landmark size={18} />
+            </div>
+          </div>
+          <div className="admin-kpi-num">{unmatchedOnPage}</div>
+          <div className="admin-kpi-sub secondary">
+            <span>Chờ chủ trọ gán hóa đơn (trang hiện tại)</span>
           </div>
         </div>
       </div>
 
-      {/* 2. Control & Search Bar */}
-      <div className="admin-control-bar">
-        <div className="admin-filters-left">
+      {/* 2. Control & Search Toolbar */}
+      <div className="admin-surface-toolbar">
+        <div className="admin-toolbar-left">
+          <div className="plans-segmented" role="tablist" aria-label="Trạng thái tài khoản">
+            {[
+              { value: "", label: "Tất cả trạng thái" },
+              { value: "ACTIVE", label: "Đang hoạt động" },
+              { value: "SUSPENDED", label: "Đang bị tạm khóa" },
+            ].map((item) => (
+              <button
+                key={item.value || "ALL"}
+                type="button"
+                className={statusFilter === item.value ? "is-active" : ""}
+                onClick={() => {
+                  setStatusFilter(item.value);
+                  setPage(1);
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
           <div style={{ position: "relative", minWidth: 280 }}>
             <Search
               size={15}
@@ -216,8 +238,8 @@ export function AdminLandlordsView({ onNavigateTab }) {
             <input
               type="text"
               className="admin-input"
-              style={{ paddingLeft: 32 }}
-              placeholder="Tìm theo ID chủ trọ, email, tên..."
+              style={{ paddingLeft: 32, width: "100%" }}
+              placeholder="Tìm theo tên chủ trọ, email, số điện thoại..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -225,23 +247,30 @@ export function AdminLandlordsView({ onNavigateTab }) {
               }}
             />
           </div>
-
-          <select
-            className="admin-select"
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">Tất cả trạng thái</option>
-            <option value="ACTIVE">Đang hoạt động</option>
-            <option value="SUSPENDED">Đang bị tạm khóa</option>
-          </select>
         </div>
 
-        <div style={{ fontSize: 13, color: "var(--on-surface-variant)" }}>
-          Đang hiển thị: <strong>{landlords.length}</strong> / <strong>{total}</strong> Chủ trọ
+        <div className="admin-toolbar-right">
+          <span style={{ fontSize: 13, color: "var(--on-surface-variant)" }}>
+            Hiển thị <strong>{landlords.length}</strong> / <strong>{total}</strong> Chủ trọ
+          </span>
+          <button
+            type="button"
+            className="stitch-btn-secondary"
+            onClick={handleExportLandlordsCsv}
+          >
+            <FileSpreadsheet size={14} />
+            <span>Xuất CSV</span>
+          </button>
+          {onNavigateTab && (
+            <button
+              type="button"
+              className="stitch-btn-secondary"
+              onClick={() => onNavigateTab("security")}
+            >
+              <ShieldCheck size={14} />
+              <span>Nhật ký Kiểm toán</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -253,11 +282,11 @@ export function AdminLandlordsView({ onNavigateTab }) {
             <div className="admin-card-header">
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <h2 className="admin-card-title">Danh sách Chủ trọ & Giám sát SePay</h2>
+                  <h2 className="admin-card-title">Danh sách Chủ trọ & Tài khoản nhận tiền</h2>
                   <span className="stitch-badge-live">Live Data</span>
                 </div>
                 <p className="admin-card-subtitle">
-                  Phê duyệt thông tin ngân hàng thụ hưởng và phân quyền định danh Webhook.
+                  Nhấn vào một dòng Chủ trọ để tra cứu chi tiết tài khoản ngân hàng thụ hưởng và trạng thái đối soát SePay bên phải.
                 </p>
               </div>
             </div>
@@ -280,7 +309,7 @@ export function AdminLandlordsView({ onNavigateTab }) {
                       <th>Liên hệ</th>
                       <th>STK Thụ hưởng</th>
                       <th>Gói SaaS</th>
-                      <th>Trạng thái Webhook</th>
+                      <th>Đối soát tự động</th>
                       <th style={{ textAlign: "right" }}>Thao tác</th>
                     </tr>
                   </thead>
@@ -334,7 +363,7 @@ export function AdminLandlordsView({ onNavigateTab }) {
                             {bank?.accountNumber ? (
                               <div style={{ fontSize: 12 }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                  <span className="bank-tag">{bank.bankName || bank.bankCode || "Chưa cập nhật"}</span>
+                                  <span className="bank-tag">{bank.bankName || bank.bankCode || "Ngân hàng"}</span>
                                   <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
                                     {bank.accountNumber}
                                   </span>
@@ -345,7 +374,12 @@ export function AdminLandlordsView({ onNavigateTab }) {
                               </div>
                             ) : (
                               <div style={{ fontSize: 11.5, color: "#94a3b8" }}>
-                                <span className="bank-tag unconfigured">Chưa gắn STK</span>
+                                <span className="bank-tag unconfigured">Chưa liên kết</span>
+                              </div>
+                            )}
+                            {l.banking?.source && (
+                              <div style={{ fontSize: 10.5, color: "#64748b", marginTop: 2 }}>
+                                {l.banking.source === "BANK_HUB" ? "Qua Bank Hub" : "Nhập tay trong hồ sơ"}
                               </div>
                             )}
                           </td>
@@ -363,14 +397,23 @@ export function AdminLandlordsView({ onNavigateTab }) {
                               <span className="status-pill suspended">
                                 <ShieldAlert size={12} /> Đã khóa
                               </span>
-                            ) : bank?.accountNumber ? (
+                            ) : l.banking?.autoReconcile ? (
                               <span className="status-pill active">
-                                <span className="live-dot" /> Đang kết nối
+                                <span className="live-dot" /> Đang bật
+                              </span>
+                            ) : l.banking?.source === "BANK_HUB" ? (
+                              <span className="status-pill pending" title="Đã liên kết nhưng gói dịch vụ không còn hiệu lực">
+                                <span className="live-dot warning" /> Tạm dừng (gói)
                               </span>
                             ) : (
                               <span className="status-pill pending">
-                                <span className="live-dot warning" /> Chờ cấu hình
+                                <span className="live-dot warning" /> Chưa liên kết
                               </span>
+                            )}
+                            {l.banking?.pendingUnmatched > 0 && (
+                              <div style={{ fontSize: 10.5, color: "#b45309", marginTop: 2 }}>
+                                {l.banking.pendingUnmatched} giao dịch chưa khớp
+                              </div>
                             )}
                           </td>
                           <td style={{ textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
@@ -378,11 +421,11 @@ export function AdminLandlordsView({ onNavigateTab }) {
                               <button
                                 type="button"
                                 className="admin-action-btn primary"
-                                title="Mở cấu hình SePay"
+                                title="Xem tài khoản nhận tiền và đối soát"
                                 onClick={() => handleSelectSepay(l)}
                               >
-                                <Settings2 size={13} />
-                                <span>SePay</span>
+                                <Landmark size={13} />
+                                <span>Ngân hàng</span>
                               </button>
                               {isSuspended ? (
                                 <button
@@ -419,248 +462,100 @@ export function AdminLandlordsView({ onNavigateTab }) {
           </div>
         </div>
 
-        {/* Right Column: SePay Technical Configuration Panel */}
+        {/* Right Column: receiving bank account & reconciliation (read-only monitoring) */}
         <div className="admin-bento-col-right">
           <div className="admin-sepay-panel">
             <div className="sepay-panel-header">
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div className="terminal-icon-box">
-                  <Terminal size={18} />
+                  <Landmark size={18} />
                 </div>
                 <div>
-                  <h3 className="sepay-panel-title">Cấu hình SePay Webhook Chuyên sâu</h3>
-                  <p className="sepay-panel-subtitle">Quyền thiết lập độc quyền của Super Admin</p>
+                  <h3 className="sepay-panel-title">Tài khoản nhận tiền & Đối soát</h3>
+                  <p className="sepay-panel-subtitle">Chủ trọ tự liên kết qua SePay Bank Hub · chỉ xem</p>
                 </div>
               </div>
-              <span className="session-tag">SESSION #{selectedForSepay?._id ? selectedForSepay._id.slice(-4) : "9842"}</span>
             </div>
 
             {selectedForSepay ? (
-              <div className="sepay-form-body">
-                {/* 1. Landlord Identifier */}
-                <div className="sepay-field-row">
-                  <div className="sepay-field">
-                    <label>Mã Định danh Landlord ID</label>
-                    <div className="readonly-input-wrap">
-                      <input
-                        type="text"
-                        readOnly
-                        value={`landlord_${selectedForSepay._id}`}
-                        className="sepay-input readonly"
-                      />
-                      <Lock size={13} className="field-icon-trailing" />
+              (() => {
+                const l = selectedForSepay;
+                const bank = l.bankConfig;
+                const banking = l.banking || {};
+                const sub = l.subscriptionId;
+                const fmt = (d) => (d ? new Date(d).toLocaleString("vi-VN") : "—");
+                return (
+                  <div className="sepay-form-body">
+                    <dl className="admin-bank-grid">
+                      <dt>Chủ trọ</dt>
+                      <dd>
+                        <strong>{l.name}</strong>
+                      </dd>
+                      <dt>Liên kết</dt>
+                      <dd>
+                        {banking.source === "BANK_HUB" ? (
+                          <span className="status-pill active">
+                            <Link2 size={12} /> Bank Hub · {fmt(banking.linkedAt)}
+                          </span>
+                        ) : banking.source === "MANUAL" ? (
+                          <span className="status-pill pending">Nhập STK tay (chỉ VietQR)</span>
+                        ) : (
+                          <span className="status-pill pending">
+                            <Link2Off size={12} /> Chưa liên kết
+                          </span>
+                        )}
+                      </dd>
+                      <dt>Ngân hàng</dt>
+                      <dd>{bank?.bankName || bank?.bankCode || "—"}</dd>
+                      <dt>Số tài khoản</dt>
+                      <dd style={{ fontFamily: "monospace", fontWeight: 600 }}>{bank?.accountNumber || "—"}</dd>
+                      <dt>Chủ tài khoản</dt>
+                      <dd style={{ textTransform: "uppercase" }}>{bank?.accountName || "—"}</dd>
+                      <dt>Gói dịch vụ</dt>
+                      <dd>
+                        {sub?.planId?.name || "Không có"}
+                        {sub && ` · ${sub.displayStatus === "ACTIVE" ? "đang hiệu lực" : "hết hiệu lực"}`}
+                      </dd>
+                      <dt>Đối soát tự động</dt>
+                      <dd>
+                        {banking.autoReconcile ? (
+                          <span className="status-pill active">
+                            <span className="live-dot" /> Đang bật
+                          </span>
+                        ) : (
+                          <span className="status-pill pending">
+                            <span className="live-dot warning" /> Không hoạt động
+                          </span>
+                        )}
+                      </dd>
+                      <dt>Chuyển khoản gần nhất</dt>
+                      <dd>{fmt(banking.lastTransferAt)}</dd>
+                      <dt>Giao dịch chưa khớp</dt>
+                      <dd style={{ color: banking.pendingUnmatched ? "#b45309" : undefined, fontWeight: 600 }}>
+                        {banking.pendingUnmatched || 0}
+                      </dd>
+                    </dl>
+
+                    <div className="admin-bank-note">
+                      <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                      <div>
+                        {banking.autoReconcile
+                          ? "Tiền chuyển vào tài khoản này được SePay báo về và tự gạch nợ hóa đơn / tiền cọc theo nội dung chuyển khoản."
+                          : l.status !== "ACTIVE"
+                            ? "Tài khoản chủ trọ đang bị khóa: tiền vào vẫn được giữ ở “Giao dịch chưa khớp”, đối soát sau khi mở khóa."
+                            : banking.source === "BANK_HUB"
+                              ? "Đã liên kết nhưng gói dịch vụ không còn hiệu lực: giao dịch vào “Giao dịch chưa khớp” để chủ trọ gán tay."
+                              : "Chủ trọ cần vào Hồ sơ › Ngân hàng để liên kết tài khoản qua SePay Bank Hub. Quản trị không nhập thay số tài khoản hay khóa API."}
+                      </div>
                     </div>
                   </div>
-                  <div className="sepay-field">
-                    <label>Tên Chủ trọ / Chuỗi</label>
-                    <input
-                      type="text"
-                      readOnly
-                      value={selectedForSepay.name}
-                      className="sepay-input readonly"
-                    />
-                  </div>
-                </div>
-
-                {/* 2. Webhook Endpoint */}
-                <div className="sepay-field">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                    <label>Webhook URL DOMUS ERP Endpoint</label>
-                    <span className="ssl-badge">SSL TLS 1.3 Active</span>
-                  </div>
-                  <div className="endpoint-input-wrap">
-                    <span className="method-tag">POST</span>
-                    <input
-                      type="text"
-                      readOnly
-                      value={`https://api.domuschain.vn/v1/webhook/landlords/${selectedForSepay._id}`}
-                      className="sepay-input endpoint"
-                    />
-                  </div>
-                  <small className="field-help">
-                    Super Admin gán link này vào SePay Dashboard của chủ trọ để nhận IPN real-time.
-                  </small>
-                </div>
-
-                {/* 3. API Token & Secret */}
-                <div className="sepay-field">
-                  <label>SePay API Token (Cấp cho chủ trọ)</label>
-                  <div className="password-input-wrap">
-                    <input
-                      type={showToken ? "text" : "password"}
-                      value={`SP_LIVE_TOKEN_${selectedForSepay._id.toUpperCase()}_DOMUS`}
-                      readOnly
-                      className="sepay-input mono"
-                    />
-                    <button
-                      type="button"
-                      className="toggle-eye-btn"
-                      onClick={() => setShowToken(!showToken)}
-                    >
-                      {showToken ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="sepay-field">
-                  <label>Webhook Signing Secret (HMAC-SHA256)</label>
-                  <div className="password-input-wrap">
-                    <input
-                      type={showSecret ? "text" : "password"}
-                      value={`whsec_${selectedForSepay._id}_DOMUS_ENCRYPTED`}
-                      readOnly
-                      className="sepay-input mono"
-                    />
-                    <button
-                      type="button"
-                      className="toggle-eye-btn"
-                      onClick={() => setShowSecret(!showSecret)}
-                    >
-                      {showSecret ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* 4. Regex Filter Setting */}
-                <div className="sepay-field">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                    <label>Cài đặt Regex lọc tự động mã hóa đơn theo tòa</label>
-                    <span style={{ fontSize: 10, color: "var(--secondary)", fontFamily: "monospace" }}>Regex v2.4</span>
-                  </div>
-                  <input
-                    type="text"
-                    value={regexPattern}
-                    onChange={(e) => setRegexPattern(e.target.value)}
-                    className="sepay-input mono highlight"
-                  />
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#64748b", marginTop: 4 }}>
-                    <span>Ví dụ khớp: <strong style={{ color: "var(--on-surface)" }}>DOMUS_T01_P302_HD8921</strong></span>
-                    <span style={{ color: "#059669", fontWeight: 600 }}>✓ Cú pháp chuẩn</span>
-                  </div>
-                </div>
-
-                {/* 5. Auto Reconcile Toggle */}
-                <div className="sepay-toggle-box">
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: "var(--on-surface)" }}>
-                      Kích hoạt gạch nợ tự động cho chủ trọ này
-                    </div>
-                    <div style={{ fontSize: 11.5, color: "var(--on-surface-variant)" }}>
-                      Tự động đối soát hóa đơn phòng và đổi trạng thái Đã thanh toán khi SePay IPN khớp.
-                    </div>
-                  </div>
-                  <label className="switch">
-                    <input
-                      type="checkbox"
-                      checked={autoReconcile}
-                      onChange={(e) => setAutoReconcile(e.target.checked)}
-                    />
-                    <span className="slider round" />
-                  </label>
-                </div>
-
-                {/* 6. Test Ping Terminal Box */}
-                <div className="sepay-terminal-box">
-                  <div className="terminal-box-header">
-                    <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, color: "#80d5cb" }}>
-                      <Activity size={13} />
-                      Test Ping Kết Nối SePay & Ngân hàng
-                    </span>
-                    <span className="terminal-status-badge">
-                      {pingOutput ? pingOutput.status : "READY"}
-                    </span>
-                  </div>
-                  <div className="terminal-box-content">
-                    {pingRunning ? (
-                      <p>&gt; Đang gửi gói tin kiểm thử Handshake tới SePay Gateway...</p>
-                    ) : pingOutput ? (
-                      <>
-                        <p>&gt; Handshake: SePay Gate IP {pingOutput.ip} ... SUCCESS ({pingOutput.latency})</p>
-                        <p>&gt; Bank Account Mapping: {pingOutput.bankMatch} [{pingOutput.accountNum}] ... VERIFIED</p>
-                        <p>&gt; Webhook HMAC Signature ... {pingOutput.hmac}</p>
-                      </>
-                    ) : (
-                      <>
-                        <p>&gt; Nhấn &quot;Ping Thử Nghiệm&quot; để kiểm tra luồng định tuyến IPN và chữ ký số.</p>
-                        <p>&gt; Trạng thái cổng: Sẵn sàng thử nghiệm.</p>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* 7. Action Buttons */}
-                <div className="sepay-panel-actions">
-                  <button
-                    type="button"
-                    className="admin-btn-secondary"
-                    onClick={() => setSelectedForSepay(null)}
-                  >
-                    Đóng panel
-                  </button>
-                  <button
-                    type="button"
-                    className="admin-btn-ping"
-                    onClick={handlePingTest}
-                    disabled={pingRunning}
-                  >
-                    <Play size={14} />
-                    <span>{pingRunning ? "Đang ping..." : "Ping Thử Nghiệm"}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="admin-btn-save"
-                    onClick={handleSaveSepayConfig}
-                  >
-                    <Save size={14} />
-                    <span>Lưu & Kích Hoạt Cổng</span>
-                  </button>
-                </div>
-              </div>
+                );
+              })()
             ) : (
               <div style={{ padding: "40px 20px", textAlign: "center", color: "#64748b" }}>
-                <Terminal size={32} style={{ margin: "0 auto 12px", opacity: 0.4 }} />
-                <p>Chọn một Chủ trọ từ bảng bên trái để cấu hình SePay Webhook và kiểm thử kết nối.</p>
+                <Landmark size={32} style={{ margin: "0 auto 12px", opacity: 0.4 }} />
+                <p>Chọn một chủ trọ ở bảng bên trái để xem tài khoản nhận tiền và trạng thái đối soát.</p>
               </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 4. Bottom Audit Trail Ribbon (Stitch Screen 1d02c624) */}
-      <div className="admin-audit-ribbon">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: "var(--on-surface)" }}>
-                Nhật ký Kiểm soát Quyền & Cảnh báo Vi phạm Super Admin
-              </h3>
-              <span className="stitch-badge-immutable">Audit Trail (Immutable)</span>
-            </div>
-            <p style={{ fontSize: 12, color: "#64748b", margin: "2px 0 0" }}>
-              Lưu vết mọi hành vi can thiệp Webhook, đổi STK nhận tiền hoặc đình chỉ tài khoản chủ trọ.
-            </p>
-          </div>
-
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              type="button"
-              className="admin-action-btn"
-              onClick={() => {
-                toast.success("Đang xuất nhật ký kiểm soát quyền định dạng CSV...");
-              }}
-            >
-              <FileSpreadsheet size={13} />
-              <span>Xuất file CSV</span>
-            </button>
-            {onNavigateTab && (
-              <button
-                type="button"
-                className="admin-action-btn primary"
-                onClick={() => onNavigateTab("security")}
-              >
-                <ShieldCheck size={13} />
-                <span>Xem Trung tâm Bảo mật & Audit Log</span>
-              </button>
             )}
           </div>
         </div>

@@ -780,7 +780,7 @@
 /* 4. Stitch KPI Command Cards */
 .stitch-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -2406,6 +2406,9 @@ dialog.modal[open],
 .modal-inner > .contract-document,
 .modal-inner > .credentials-modal-content,
 .modal-inner > .contract-detail-container,
+.modal-inner > .modal-body-padded {
+  padding: 20px 24px;
+}
 .modal-inner > .modal-body {
   display: flex;
   flex-direction: column;
@@ -4440,86 +4443,57 @@ dialog.modal[open],
   }
 }
 
-/* Invoice ledger alignment */
+/* Invoice ledger alignment (7 columns: Mã HĐ | Phòng & Khách thuê | Bóc tách chi phí | Tổng thanh toán | Trạng thái | Cú pháp SePay | Thao tác) */
 .invoice-workspace .invoice-table-wrapper .data-table {
-  table-layout: fixed;
+  table-layout: auto;
+  width: 100%;
+  min-width: 960px;
 }
 
 .invoice-workspace .invoice-table-wrapper .data-table th:nth-child(1),
 .invoice-workspace .invoice-table-wrapper .data-table td:nth-child(1) {
-  width: 42px;
+  min-width: 150px;
+  white-space: nowrap;
 }
 
 .invoice-workspace .invoice-table-wrapper .data-table th:nth-child(2),
 .invoice-workspace .invoice-table-wrapper .data-table td:nth-child(2) {
-  width: 112px;
+  min-width: 210px;
 }
 
 .invoice-workspace .invoice-table-wrapper .data-table th:nth-child(3),
 .invoice-workspace .invoice-table-wrapper .data-table td:nth-child(3) {
-  width: 225px;
+  min-width: 195px;
+  text-align: left;
 }
 
 .invoice-workspace .invoice-table-wrapper .data-table th:nth-child(4),
 .invoice-workspace .invoice-table-wrapper .data-table td:nth-child(4) {
-  width: 155px;
+  min-width: 125px;
+  white-space: nowrap;
 }
 
 .invoice-workspace .invoice-table-wrapper .data-table th:nth-child(5),
 .invoice-workspace .invoice-table-wrapper .data-table td:nth-child(5) {
-  width: 132px;
+  min-width: 125px;
+  white-space: nowrap;
 }
 
 .invoice-workspace .invoice-table-wrapper .data-table th:nth-child(6),
 .invoice-workspace .invoice-table-wrapper .data-table td:nth-child(6) {
-  width: 120px;
+  min-width: 180px;
+  white-space: nowrap;
 }
 
 .invoice-workspace .invoice-table-wrapper .data-table th:nth-child(7),
 .invoice-workspace .invoice-table-wrapper .data-table td:nth-child(7) {
-  width: 118px;
-}
-
-.invoice-workspace .invoice-table-wrapper .data-table th:nth-child(8),
-.invoice-workspace .invoice-table-wrapper .data-table td:nth-child(8) {
-  width: 142px;
+  min-width: 96px;
+  white-space: nowrap;
 }
 
 .invoice-workspace .invoice-table-wrapper .data-table td {
-  overflow: hidden;
   vertical-align: middle;
 }
-
-.invoice-workspace .invoice-table-wrapper .data-table td:nth-child(2) > *,
-.invoice-workspace .invoice-table-wrapper .data-table td:nth-child(3) > *,
-.invoice-workspace .invoice-table-wrapper .data-table td:nth-child(7) > * {
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.invoice-workspace .invoice-table-wrapper .data-table td:nth-child(3) > div {
-  display: flex;
-  align-items: center;
-}
-
-.invoice-workspace .invoice-table-wrapper .data-table td:nth-child(3) > div > span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.invoice-workspace .invoice-table-wrapper .data-table td:nth-child(4) > div {
-  white-space: nowrap;
-}
-
-.invoice-workspace .invoice-table-wrapper .data-table td:nth-child(7) code {
-  display: inline-block;
-  max-width: 100%;
-}
-
 .invoice-workspace .invoice-filter-panel {
   min-height: 96px;
 }
@@ -5527,7 +5501,7 @@ dialog.modal[open],
   background-color: #f8fafc;
 }
 
-.stitch-zalo-copy-btn {
+.stitch-remind-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -5542,7 +5516,7 @@ dialog.modal[open],
   transition: all 0.15s ease;
 }
 
-.stitch-zalo-copy-btn:hover {
+.stitch-remind-btn:hover {
   background-color: #fee2e2;
 }
 
@@ -6234,7 +6208,7 @@ dialog.modal[open],
 }
 
 .stitch-kpi-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   gap: 12px !important;
   margin-bottom: 16px !important;
 }
@@ -6617,4 +6591,100 @@ dialog.modal[open],
 .badge-locked-pill {
   display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px;
   background: #f1f5f9; color: #475569; font-size: 11.5px; font-weight: 600; white-space: nowrap;
+}
+
+/* Resolve unmatched transfer: pick the invoice instead of typing its id */
+.resolve-invoice-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.resolve-invoice-picker > label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--neutral-800);
+}
+
+.resolve-invoice-picker .required {
+  color: var(--error, #dc2626);
+}
+
+.resolve-invoice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.resolve-invoice-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-lowest, #fff);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.resolve-invoice-item:hover {
+  border-color: var(--primary);
+}
+
+.resolve-invoice-item.active {
+  border-color: var(--primary);
+  background: rgba(0, 92, 85, 0.06);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.resolve-invoice-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.88rem;
+  color: var(--neutral-900);
+}
+
+.resolve-invoice-amount {
+  font-weight: 700;
+  color: #dc2626;
+  white-space: nowrap;
+}
+
+.resolve-invoice-meta {
+  margin-top: 2px;
+  font-size: 0.76rem;
+  color: var(--neutral-500);
+}
+
+.resolve-invoice-hint {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.resolve-invoice-empty {
+  padding: 16px;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--neutral-500);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.resolve-invoice-selected {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--neutral-50);
+  font-size: 0.8rem;
+  color: var(--neutral-700);
 }

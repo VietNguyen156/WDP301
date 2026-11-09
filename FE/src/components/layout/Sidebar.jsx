@@ -4,7 +4,6 @@ import {
   ShieldCheck,
   Building2,
   X,
-  UserPlus,
   PlusCircle,
   Settings,
   Headphones,
@@ -107,13 +106,13 @@ export function Sidebar({
               type="button"
               className="stitch-quick-action"
               onClick={() => {
-                navigate("/admin?tab=landlords");
+                navigate("/admin?tab=subscriptions");
                 handleCloseMobileMenu();
               }}
-              title="Thêm và phân quyền tài khoản Landlord"
+              title="Cấp gói thuê bao SaaS và xuất hóa đơn cho Chủ trọ"
             >
-              <UserPlus size={17} />
-              <span>+ Cấp quyền Landlord</span>
+              <PlusCircle size={17} />
+              <span>Cấp gói &amp; Thuê bao SaaS</span>
             </button>
           )}
 

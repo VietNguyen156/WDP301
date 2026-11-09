@@ -24,3 +24,12 @@ exports.updateStatus = async (req, res) => {
 };
 exports.updateCost = async (req, res) =>
   respond(res, await service.updateCost(req));
+const withEvent = (fn) => async (req, res) => {
+  const incident = await fn(req);
+  realtime.incidentEvent("incident:updated", incident);
+  respond(res, incident);
+};
+// Báo giá (quản lý / chủ trọ) → người thuê duyệt → nghiệm thu hai bên → hóa đơn sự cố.
+exports.sendQuote = withEvent(service.sendQuote);
+exports.respondQuote = withEvent(service.respondQuote);
+exports.tenantAcceptance = withEvent(service.tenantAcceptance);

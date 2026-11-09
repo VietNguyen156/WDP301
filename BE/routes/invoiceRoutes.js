@@ -40,4 +40,9 @@ router.post(
   authorize("LANDLORD"),
   controller.cancelInvoice,
 );
+router.post(
+  "/:invoiceId/reminders",
+  authorize("LANDLORD", "PROPERTY_MANAGER"),
+  controller.sendReminder,
+);
 module.exports = router;

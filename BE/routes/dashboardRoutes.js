@@ -5,4 +5,6 @@ const c = require("../controllers/dashboardController");
 router.use(authenticate, authorize("LANDLORD"));
 router.get("/stats", c.stats);
 router.get("/debts", c.debts);
+router.get("/reminder-settings", c.reminderSettings);
+router.put("/reminder-settings", c.updateReminderSettings);
 module.exports = router;

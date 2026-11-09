@@ -211,6 +211,14 @@ export default function ContractsTable({
                           <span className="status-pill-dual expired">
                             <span className="dot" /> Quá hạn
                           </span>
+                        ) : c.displayStatus === "DRAFT" ? (
+                          <span className="status-pill-dual expiring">
+                            <span className="dot" /> Nháp · chờ 2 bên ký
+                          </span>
+                        ) : c.cancelledAt ? (
+                          <span className="status-pill-dual terminated">
+                            <span className="dot" /> Đã hủy (nháp)
+                          </span>
                         ) : (
                           <span className="status-pill-dual terminated">
                             <span className="dot" /> Đã thanh lý

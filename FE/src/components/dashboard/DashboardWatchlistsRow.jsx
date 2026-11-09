@@ -3,7 +3,7 @@ import {
   Receipt,
   ArrowRight,
   CheckCircle2,
-  Send,
+  Mail,
   Clock,
   ShieldCheck,
   Building2,
@@ -34,25 +34,48 @@ export default function DashboardWatchlistsRow({
   contractWatchlist,
   activeBranches,
   detailsLoading,
-  onCopyZaloReminder,
+  onSendEmailReminder,
+  sendingReminderId,
+  reminderSettings,
+  savingReminderSettings,
+  onToggleAutoReminder,
 }) {
   return (
     <div className="stitch-dash-grid-2">
-      {/* Watchlist 1: Danh Sách Nợ Cần Thu Gấp & Nhắc Zalo 1-Click */}
+      {/* Watchlist 1: Danh Sách Nợ Cần Thu Gấp & Nhắc nợ qua email */}
       <div className="stitch-dash-card">
         <div className="stitch-dash-card-header">
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div className="stitch-badge-icon red">
+          <div
+            style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}
+          >
+            <div className="stitch-badge-icon red" style={{ flex: "none" }}>
               <Receipt size={16} />
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <h2 className="stitch-dash-card-title">
                 Phòng Còn Nợ Tiền ({financialMetrics.debtRoomsCount})
               </h2>
               <p className="stitch-dash-card-sub">
-                Danh sách hóa đơn trễ hạn kèm chức năng gửi tin nhắn Zalo nhắc
-                nợ
+                Danh sách hóa đơn còn nợ kèm chức năng gửi email nhắc nợ cho
+                khách thuê
               </p>
+              {reminderSettings && (
+                <label
+                  className="stitch-auto-remind"
+                  title={`Lịch gửi: ${reminderSettings.schedule}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={reminderSettings.autoEmail}
+                    disabled={savingReminderSettings}
+                    onChange={(e) => onToggleAutoReminder(e.target.checked)}
+                  />
+                  <span>Tự động gửi email nhắc nợ</span>
+                  {!reminderSettings.emailConfigured && (
+                    <em> (máy chủ chưa cấu hình email)</em>
+                  )}
+                </label>
+              )}
             </div>
           </div>
           <Link to="/invoices" className="stitch-dash-card-link">
@@ -138,15 +161,48 @@ export default function DashboardWatchlistsRow({
                         </span>
                       </td>
                       <td style={{ textAlign: "right" }}>
-                        <button
-                          type="button"
-                          className="stitch-zalo-copy-btn"
-                          onClick={() => onCopyZaloReminder(inv)}
-                          title="Sao chép tin nhắn Zalo nhắc nợ kèm link thanh toán VietQR"
-                        >
-                          <Send size={13} />
-                          <span>Nhắc Zalo</span>
-                        </button>
+                        {(() => {
+                          const id = inv.invoiceId || inv._id;
+                          const noEmail = inv.tenant && !inv.tenant.email;
+                          const sending = sendingReminderId === id;
+                          const last = inv.lastReminder;
+                          return (
+                            <>
+                              <button
+                                type="button"
+                                className="stitch-remind-btn"
+                                onClick={() => onSendEmailReminder(inv)}
+                                disabled={noEmail || sending}
+                                title={
+                                  noEmail
+                                    ? "Khách thuê chưa có email, cập nhật trong hồ sơ khách thuê"
+                                    : `Gửi email nhắc nợ kèm link thanh toán VietQR${inv.tenant?.email ? ` tới ${inv.tenant.email}` : ""}`
+                                }
+                              >
+                                {sending ? (
+                                  <RefreshCw size={13} className="spin" />
+                                ) : (
+                                  <Mail size={13} />
+                                )}
+                                <span>
+                                  {noEmail ? "Chưa có email" : "Gửi email"}
+                                </span>
+                              </button>
+                              {last && (
+                                <small
+                                  className={`stitch-remind-last ${last.status === "FAILED" ? "failed" : ""}`}
+                                >
+                                  {last.status === "FAILED"
+                                    ? "Gửi lỗi"
+                                    : last.auto
+                                      ? "Tự nhắc"
+                                      : "Đã nhắc"}{" "}
+                                  {formatDate(last.sentAt)}
+                                </small>
+                              )}
+                            </>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );

@@ -21,6 +21,8 @@ export function InvoiceList({ externalSearchTerm = "" }) {
     statusFilter,
     setStatusFilter,
     branchFilter,
+    setBranchFilter,
+    branches,
     billingPeriodFilter,
     setBillingPeriodFilter,
     page,
@@ -197,13 +199,16 @@ export function InvoiceList({ externalSearchTerm = "" }) {
         }}
       >
         {/* Left Column: Filter Strip & Core Invoice Table */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: 0 }}>
           <InvoiceFilterPanel
             statusTabs={statusTabs}
             statusFilter={statusFilter}
             setStatusFilter={setStatusFilter}
             billingPeriodFilter={billingPeriodFilter}
             setBillingPeriodFilter={setBillingPeriodFilter}
+            branches={perms.isTenant ? [] : branches}
+            branchFilter={branchFilter}
+            setBranchFilter={setBranchFilter}
             filteredCount={filteredInvoices.length}
             totalCount={pagination.total || invoices.length}
           />

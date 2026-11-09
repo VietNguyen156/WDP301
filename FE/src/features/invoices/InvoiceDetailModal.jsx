@@ -9,7 +9,7 @@ import {
   Tag,
   Copy,
 } from "lucide-react";
-import { Modal } from "../../components/ui/Modal";
+import { Modal } from "../../components/ui";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { invoiceService } from "../../services/invoiceService";
@@ -20,6 +20,8 @@ import {
   formatBillingPeriod,
   getInvoiceStatusMeta,
   getPaymentMethodMeta,
+  getPaymentStatusMeta,
+  paymentHandledBy,
 } from "../../utils/formatters";
 import { publicInvoiceUrl, canSharePublicInvoice } from "../../utils/publicLink";
 import { invoicePermissions, PAYABLE_STATUSES } from "../../utils/invoicePermissions";
@@ -107,6 +109,7 @@ export function InvoiceDetailModal({
 
   return (
     <Modal
+      padded
       isOpen={isOpen}
       onClose={onClose}
       title={`Hóa đơn ${invoice.invoiceCode || "Chi tiết"}`}
@@ -531,28 +534,40 @@ export function InvoiceDetailModal({
                 <tbody>
                   {payments.map((p) => {
                     const methodMeta = getPaymentMethodMeta(p.paymentMethod);
+                    const statusMeta = getPaymentStatusMeta(p.status);
                     return (
                       <tr key={p._id || p.id}>
                         <td style={{ fontWeight: "600", fontFamily: "monospace" }}>
                           {p.referenceCode}
                         </td>
-                        <td style={{ color: "var(--neutral-600)" }}>{formatDate(p.createdAt, true)}</td>
+                        <td style={{ color: "var(--neutral-600)" }}>{formatDate(p.transactionDate || p.createdAt, true)}</td>
                         <td>
                           <Badge variant={methodMeta.className.replace("badge-", "")}>
                             {methodMeta.label}
                           </Badge>
                         </td>
                         <td style={{ color: "var(--neutral-600)" }}>
-                          {p.confirmedBy ? `Thu ngân (${p.confirmedBy})` : p.gateway || "-"}
+                          {paymentHandledBy(p)}
                         </td>
                         <td
-                          style={{ textAlign: "right", fontWeight: "600", color: "var(--success)" }}
+                          style={{
+                            textAlign: "right",
+                            fontWeight: "600",
+                            color: statusMeta.counted ? "var(--success)" : "var(--neutral-500)",
+                            textDecoration: p.status === "FAILED" ? "line-through" : undefined,
+                          }}
                           className="tnum"
                         >
-                          +{formatCurrency(p.amount)}
+                          {statusMeta.counted ? "+" : ""}
+                          {formatCurrency(p.amount)}
                         </td>
                         <td>
-                          <Badge variant="success">Thành công</Badge>
+                          <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
+                          {p.status === "FAILED" && p.reviewNote && (
+                            <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", marginTop: "2px" }}>
+                              {p.reviewNote}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );

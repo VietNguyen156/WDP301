@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { LIVE_CONTRACT_STATUSES } = require("../utils/statuses");
+const { LIVE_CONTRACT_STATUSES, OPEN_CONTRACT_STATUSES } = require("../utils/statuses");
 const crypto = require("crypto");
 const Contract = require("../models/Contract");
 const accounts = require("./accountService");
@@ -24,7 +24,10 @@ const { makeVietQr } = require("./financeCalculation");
 const { hasFeature } = require("./planFeatures");
 const { simulatorEnabled } = require("../utils/paymentSimulator");
 const bankTransfer = require("./payments/bankTransferService");
+const { recordDepositPayment, manualDepositReference } = require("./payments/depositPayment");
+const DEPOSIT_RECEIVE_METHODS = ["CASH", "BANK_TRANSFER"];
 const liveStatuses = LIVE_CONTRACT_STATUSES;
+const openStatuses = OPEN_CONTRACT_STATUSES;
 function displayStatus(contract, now = new Date()) {
   if (!liveStatuses.includes(contract.status)) return contract.status;
   if (new Date(contract.endDate) < now) return "EXPIRED";
@@ -126,7 +129,7 @@ async function enrich(items) {
 const awaitingDeposit = (contract) =>
   contract.depositStatus === "UNPAID" &&
   contract.depositAmount > 0 &&
-  liveStatuses.includes(contract.status);
+  openStatuses.includes(contract.status);
 
 // VietQR to the landlord's bank account for a deposit not received yet; null otherwise.
 async function depositPayment(contract) {
@@ -170,7 +173,12 @@ async function get(req, id) {
 // Landlord confirms the deposit was received (cash or transfer). Only UNPAID -> PAID;
 // a deposit already received, refunded or applied is left untouched.
 async function markDepositReceived(req, contractId) {
-  v.fields(req.body || {}, []);
+  const body = v.fields(req.body || {}, ["paymentMethod", "note"]);
+  const paymentMethod = body.paymentMethod ?? "CASH";
+  if (!DEPOSIT_RECEIVE_METHODS.includes(paymentMethod))
+    throw new ValidationError("Hình thức nhận cọc không hợp lệ");
+  v.text(body.note, "Ghi chú", false);
+  const note = body.note?.trim() || undefined;
   const filter = scoped(getTenantScope(req), { _id: validId(contractId) });
   const now = new Date();
   const contract = await mongoose.connection.transaction(async (session) => {
@@ -181,7 +189,7 @@ async function markDepositReceived(req, contractId) {
           {
             depositStatus: "UNPAID",
             depositAmount: { $gt: 0 },
-            status: { $in: liveStatuses },
+            status: { $in: openStatuses },
           },
         ],
       },
@@ -203,13 +211,36 @@ async function markDepositReceived(req, contractId) {
         throw new BusinessRuleError("Hợp đồng không có tiền cọc", "DEPOSIT_NOT_REQUIRED");
       throw new BusinessRuleError("Hợp đồng đã kết thúc, không thể ghi nhận cọc", "CONTRACT_NOT_ACTIVE");
     }
+    const referenceCode = manualDepositReference(updated.contractCode);
+    updated.depositReferenceCode = referenceCode;
+    await updated.save({ session });
+    const payment = await recordDepositPayment(
+      updated,
+      {
+        paymentMethod,
+        referenceCode,
+        receiptNumber: referenceCode,
+        gateway: paymentMethod === "CASH" ? "CASH" : "MANUAL",
+        transactionDate: now,
+        confirmedBy: req.user._id,
+        reportedBy: req.user._id,
+        note,
+      },
+      session,
+    );
     await audit.log({
       req,
       action: "RECEIVE_CONTRACT_DEPOSIT",
       entityType: "CONTRACT",
       entityId: updated._id,
       before: { depositStatus: "UNPAID" },
-      after: { depositStatus: "PAID", depositAmount: updated.depositAmount, depositReceivedAt: now },
+      after: {
+        depositStatus: "PAID",
+        depositAmount: updated.depositAmount,
+        depositReceivedAt: now,
+        paymentMethod,
+        paymentId: payment._id,
+      },
       session,
     });
     return updated;
@@ -249,19 +280,37 @@ async function searchFilter(scope, re) {
 
 async function list(req) {
   const { page, limit, skip } = v.pagination(req.query),
-    filter = {};
+    baseFilter = {};
   if (req.query.branchId) {
     assertBranchScope(req, req.query.branchId);
-    filter.branchId = req.query.branchId;
+    baseFilter.branchId = req.query.branchId;
   }
+  if (req.query.depositStatus) {
+    v.choice(req.query.depositStatus, DEPOSIT_STATUSES, "Trạng thái cọc");
+    baseFilter.depositStatus = req.query.depositStatus;
+  }
+  if (req.query.confirmation) {
+    v.choice(req.query.confirmation, ["PENDING", "CONFIRMED"], "Xác nhận");
+    Object.assign(
+      baseFilter,
+      req.query.confirmation === "CONFIRMED"
+        ? { landlordConfirmedAt: { $ne: null }, tenantConfirmedAt: { $ne: null } }
+        : { $or: [{ landlordConfirmedAt: null }, { tenantConfirmedAt: null }] },
+    );
+  }
+  const scope = getTenantScope(req);
+  if (req.query.search)
+    baseFilter.$and = [await searchFilter(scope, v.search(req.query.search))];
+
+  const filter = { ...baseFilter };
+  const now = new Date(),
+    soon = new Date(now.getTime() + 30 * 86400000);
   if (req.query.status) {
     v.choice(
       req.query.status,
       ["ACTIVE", "EXPIRING_SOON", "EXPIRED", "TERMINATED", "DRAFT"],
       "Trạng thái hợp đồng",
     );
-    const now = new Date(),
-      soon = new Date(now.getTime() + 30 * 86400000);
     filter.status = liveStatuses.includes(req.query.status)
       ? { $in: liveStatuses }
       : req.query.status;
@@ -270,36 +319,46 @@ async function list(req) {
       filter.endDate = { $gte: now, $lte: soon };
     if (req.query.status === "EXPIRED") filter.endDate = { $lt: now };
   }
-  if (req.query.depositStatus) {
-    v.choice(req.query.depositStatus, DEPOSIT_STATUSES, "Trạng thái cọc");
-    filter.depositStatus = req.query.depositStatus;
-  }
-  if (req.query.confirmation) {
-    v.choice(req.query.confirmation, ["PENDING", "CONFIRMED"], "Xác nhận");
-    Object.assign(
-      filter,
-      req.query.confirmation === "CONFIRMED"
-        ? { landlordConfirmedAt: { $ne: null }, tenantConfirmedAt: { $ne: null } }
-        : { $or: [{ landlordConfirmedAt: null }, { tenantConfirmedAt: null }] },
-    );
-  }
-  const scope = getTenantScope(req);
-  if (req.query.search) filter.$and = [await searchFilter(scope, v.search(req.query.search))];
   const query = scoped(scope, filter);
-  const [items, total] = await Promise.all([
+  const baseQuery = scoped(scope, baseFilter);
+  const [items, total, allForSummary] = await Promise.all([
     Contract.find(query)
       .sort({ createdAt: -1, _id: -1 })
       .skip(skip)
       .limit(limit)
       .lean(),
     Contract.countDocuments(query),
+    Contract.find(baseQuery)
+      .select("status endDate depositAmount depositStatus")
+      .lean(),
   ]);
   await enrich(items);
+  const summary = {
+    all: allForSummary.length,
+    draft: 0,
+    active: 0,
+    expiringSoon: 0,
+    expired: 0,
+    terminated: 0,
+    totalDeposit: 0,
+  };
+  for (const c of allForSummary) {
+    const ds = displayStatus(c, now);
+    if (ds === "DRAFT") summary.draft += 1;
+    else if (ds === "ACTIVE") summary.active += 1;
+    else if (ds === "EXPIRING_SOON") summary.expiringSoon += 1;
+    else if (ds === "EXPIRED") summary.expired += 1;
+    else if (ds === "TERMINATED") summary.terminated += 1;
+    if (c.depositStatus === "PAID" && openStatuses.includes(c.status)) {
+      summary.totalDeposit += Number(c.depositAmount || 0);
+    }
+  }
   return {
-    items: items.map((c) => ({ ...c, displayStatus: displayStatus(c) })),
+    items: items.map((c) => ({ ...c, displayStatus: displayStatus(c, now) })),
     total,
     page,
     limit,
+    summary,
   };
 }
 async function create(req) {
@@ -327,7 +386,7 @@ async function create(req) {
         roomId: room._id,
         landlordId: branch.landlordId,
         isDeleted: false,
-        status: { $in: liveStatuses },
+        status: { $in: openStatuses },
       }).session(session))
     )
       throw new BusinessRuleError("Chỉ có thể lập hợp đồng cho phòng trống");
@@ -354,10 +413,9 @@ async function create(req) {
           landlordId: branch.landlordId,
           tenantId: tenant._id,
           contractCode: `HDT-${new Date().getUTCFullYear()}-${crypto.randomBytes(6).toString("hex").toUpperCase()}`,
-          status: "ACTIVE",
-          // Chủ trọ tự động xác nhận khi tạo hợp đồng
-          landlordConfirmedAt: new Date(),
-          landlordConfirmedBy: req.user._id,
+          // Nháp cho tới khi cả chủ trọ và khách thuê ký xác nhận; chưa được lập hóa đơn.
+          status: "DRAFT",
+          confirmedByBothParties: false,
           contractSigningLocation: branch.address?.fullAddress || "Online qua Cổng cư dân",
           contractTerms: {
             paymentDueDays: 5,
@@ -368,6 +426,28 @@ async function create(req) {
       ],
       { session },
     );
+    // Deposit already handed over at signing: it goes in the ledger like any other deposit.
+    if (contract.depositStatus === "PAID" && contract.depositAmount > 0) {
+      const referenceCode = manualDepositReference(contract.contractCode);
+      contract.depositReceivedAt = new Date();
+      contract.depositReceivedBy = req.user._id;
+      contract.depositReferenceCode = referenceCode;
+      await contract.save({ session });
+      await recordDepositPayment(
+        contract,
+        {
+          paymentMethod: "CASH",
+          referenceCode,
+          receiptNumber: referenceCode,
+          gateway: "CASH",
+          transactionDate: contract.depositReceivedAt,
+          confirmedBy: req.user._id,
+          reportedBy: req.user._id,
+          note: "Nhận cọc khi ký hợp đồng",
+        },
+        session,
+      );
+    }
     room.status = "RENTED";
     room.currentContractId = contract._id;
     room.currentElectricIndex = body.initialElectricIndex;
@@ -401,6 +481,74 @@ function validateConfirm(body) {
   return body || {};
 }
 
+// Both signatures in: the draft becomes a running contract (and can be invoiced from now on).
+// Returns true when this call activated it.
+function activateIfSigned(contract) {
+  contract.confirmedByBothParties = !!(contract.landlordConfirmedAt && contract.tenantConfirmedAt);
+  if (!contract.confirmedByBothParties || contract.status !== "DRAFT") return false;
+  contract.status = "ACTIVE";
+  contract.activatedAt = new Date();
+  return true;
+}
+function auditActivation(req, contract) {
+  return audit.log({
+    req,
+    action: "ACTIVATE_CONTRACT",
+    entityType: "CONTRACT",
+    entityId: contract._id,
+    before: { status: "DRAFT" },
+    after: { status: "ACTIVE", activatedAt: contract.activatedAt },
+  });
+}
+
+// A draft that will not be signed: free the room. A deposit already taken is recorded as
+// handed back in full (nothing was billed yet).
+async function cancelDraft(req, contractId) {
+  const body = v.fields(req.body || {}, ["reason"]);
+  v.text(body.reason, "Lý do hủy", false);
+  await mongoose.connection.transaction(async (session) => {
+    const contract = await Contract.findOne(
+      scoped(getTenantScope(req), { _id: validId(contractId) }),
+    ).session(session);
+    if (!contract) throw new NotFoundError("Không tìm thấy hợp đồng");
+    if (contract.status !== "DRAFT")
+      throw new BusinessRuleError(
+        "Chỉ hủy được hợp đồng nháp; hợp đồng đã ký phải thanh lý",
+        "CONTRACT_NOT_DRAFT",
+      );
+    const before = { status: contract.status, depositStatus: contract.depositStatus };
+    const now = new Date();
+    contract.status = "TERMINATED";
+    contract.actualEndDate = now;
+    contract.cancelledAt = now;
+    contract.cancellationReason = body.reason?.trim() || undefined;
+    if (contract.depositStatus === "PAID") {
+      contract.depositStatus = "REFUNDED";
+      contract.refundedDepositAmount = contract.depositAmount;
+    }
+    await contract.save({ session });
+    await Room.updateOne(
+      { _id: contract.roomId, landlordId: contract.landlordId, currentContractId: contract._id },
+      { $set: { status: "EMPTY" }, $unset: { currentContractId: "" } },
+      { session },
+    );
+    await audit.log({
+      req,
+      action: "CANCEL_DRAFT_CONTRACT",
+      entityType: "CONTRACT",
+      entityId: contract._id,
+      before,
+      after: {
+        status: contract.status,
+        depositStatus: contract.depositStatus,
+        reason: contract.cancellationReason,
+      },
+      session,
+    });
+  });
+  return get(req, contractId);
+}
+
 async function confirmByLandlord(req, contractId) {
   validateConfirm(req.body);
   const contract = await Contract.findOne(
@@ -414,7 +562,7 @@ async function confirmByLandlord(req, contractId) {
 
   contract.landlordConfirmedAt = new Date();
   contract.landlordConfirmedBy = req.user._id;
-  contract.confirmedByBothParties = !!contract.tenantConfirmedAt;
+  const activated = activateIfSigned(contract);
   await contract.save();
 
   await audit.log({
@@ -425,6 +573,7 @@ async function confirmByLandlord(req, contractId) {
     before: { landlordConfirmedAt: null },
     after: { landlordConfirmedAt: contract.landlordConfirmedAt },
   });
+  if (activated) await auditActivation(req, contract);
 
   return get(req, contractId);
 }
@@ -444,7 +593,7 @@ async function confirmByTenant(req, contractId) {
 
   contract.tenantConfirmedAt = new Date();
   contract.tenantConfirmedBy = req.user._id;
-  contract.confirmedByBothParties = !!contract.landlordConfirmedAt;
+  const activated = activateIfSigned(contract);
   await contract.save();
 
   await audit.log({
@@ -455,6 +604,7 @@ async function confirmByTenant(req, contractId) {
     before: { tenantConfirmedAt: null },
     after: { tenantConfirmedAt: contract.tenantConfirmedAt },
   });
+  if (activated) await auditActivation(req, contract);
 
   return get(req, contractId);
 }
@@ -536,6 +686,7 @@ module.exports = {
   prepareSettlement,
   confirmByLandlord,
   confirmByTenant,
+  cancelDraft,
   markDepositReceived,
   simulateDeposit,
   renew,

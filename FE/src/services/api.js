@@ -57,10 +57,39 @@ export async function restoreSession() {
   return refreshRequest;
 }
 
+// What the user reads when a request fails: the server's business message, or a plain
+// explanation by HTTP status. Never axios' "Request failed with status code 409" or an error code.
+const STATUS_MESSAGES = {
+  400: "Dữ liệu chưa hợp lệ. Vui lòng kiểm tra lại thông tin đã nhập.",
+  401: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+  403: "Bạn không có quyền thực hiện thao tác này.",
+  404: "Không tìm thấy dữ liệu yêu cầu. Có thể dữ liệu đã bị xóa hoặc thay đổi.",
+  409: "Thao tác không thực hiện được với trạng thái hiện tại của dữ liệu. Vui lòng tải lại trang rồi thử lại.",
+  413: "Dữ liệu gửi lên quá lớn.",
+  422: "Thao tác không phù hợp với quy định nghiệp vụ.",
+  429: "Bạn thao tác quá nhanh. Vui lòng đợi một chút rồi thử lại.",
+};
+export function friendlyErrorMessage(error) {
+  const serverMessage = error?.response?.data?.message;
+  if (typeof serverMessage === "string" && serverMessage.trim()) return serverMessage;
+  const status = error?.response?.status;
+  if (status) {
+    if (STATUS_MESSAGES[status]) return STATUS_MESSAGES[status];
+    if (status >= 500) return "Hệ thống đang gặp sự cố. Vui lòng thử lại sau.";
+    return "Không thể thực hiện thao tác. Vui lòng thử lại.";
+  }
+  if (error?.code === "ECONNABORTED") return "Yêu cầu quá thời gian chờ. Vui lòng thử lại.";
+  if (error?.isAxiosError || error?.request)
+    return "Không thể kết nối máy chủ. Vui lòng kiểm tra kết nối mạng rồi thử lại.";
+  return error?.message || "Đã có lỗi xảy ra. Vui lòng thử lại.";
+}
+
 axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     const config = error.config;
+    // Every caller (toast.error(err.message) included) now shows a readable message.
+    error.message = friendlyErrorMessage(error);
 
     // Check for required password change (403 PASSWORD_CHANGE_REQUIRED)
     if (
@@ -176,8 +205,10 @@ export const contractApi = {
   confirmByTenant: (id, body = {}) =>
     axiosInstance.post(`/contracts/${id}/confirm/tenant`, body).then(payload),
   renew: (id, body) => axiosInstance.post(`/contracts/${id}/renew`, body).then(payload),
-  markDepositReceived: (id) =>
-    axiosInstance.post(`/contracts/${id}/deposit/received`, {}).then(payload),
+  cancelDraft: (id, body = {}) =>
+    axiosInstance.post(`/contracts/${id}/cancel`, body).then(payload),
+  markDepositReceived: (id, body = {}) =>
+    axiosInstance.post(`/contracts/${id}/deposit/received`, body).then(payload),
   simulateDeposit: (id) =>
     axiosInstance.post(`/contracts/${id}/deposit/simulate`, {}).then(payload),
 };
@@ -198,6 +229,15 @@ export const utilityReadingApi = {
     axiosInstance.put(`/utility-readings/${id}`, body).then(payload),
 };
 
+// Phiếu chi (trả thợ / đơn vị sửa chữa) — chỉ chủ trọ và quản lý.
+export const expenseApi = {
+  list: (params) =>
+    axiosInstance.get("/expenses", { params }).then((r) => r.data),
+  create: (body) => axiosInstance.post("/expenses", body).then(payload),
+  void: (id, reason) =>
+    axiosInstance.post(`/expenses/${id}/void`, { reason }).then(payload),
+};
+
 export const incidentApi = {
   list: (params) => axiosInstance.get("/incidents", { params }).then(payload),
   get: (id) => axiosInstance.get(`/incidents/${id}`).then(payload),
@@ -207,6 +247,12 @@ export const incidentApi = {
   updateCost: (id, body) =>
     axiosInstance.put(`/incidents/${id}/cost`, body).then(payload),
   retriage: (id) => axiosInstance.post(`/incidents/${id}/triage`).then(payload),
+  sendQuote: (id, body) =>
+    axiosInstance.post(`/incidents/${id}/quote`, body).then(payload),
+  respondQuote: (id, body) =>
+    axiosInstance.post(`/incidents/${id}/quote/respond`, body).then(payload),
+  tenantAcceptance: (id, body) =>
+    axiosInstance.post(`/incidents/${id}/acceptance`, body).then(payload),
 };
 
 export const profileApi = {
@@ -228,7 +274,7 @@ export const planApi = {
       .then(payload),
   listInvoices: (params) =>
     axiosInstance.get("/plans/invoices", { params }).then(payload),
-  checkoutInvoice: (invoiceId, body = { paymentMethod: "BANK_TRANSFER" }) =>
+  checkoutInvoice: (invoiceId, body = {}) =>
     axiosInstance
       .post(`/plans/invoices/${invoiceId}/checkout`, body)
       .then(payload),
@@ -260,6 +306,13 @@ export const dashboardApi = {
     axiosInstance.get("/dashboard/stats", { params }).then(payload),
   getDebts: (params) =>
     axiosInstance.get("/dashboard/debts", { params }).then(payload),
+  // Email the tenant a debt reminder now (landlord or branch manager).
+  sendReminder: (invoiceId) =>
+    axiosInstance.post(`/invoices/${invoiceId}/reminders`).then(payload),
+  reminderSettings: () =>
+    axiosInstance.get("/dashboard/reminder-settings").then(payload),
+  updateReminderSettings: (body) =>
+    axiosInstance.put("/dashboard/reminder-settings", body).then(payload),
 };
 
 export const adminApi = {
@@ -312,12 +365,7 @@ export const adminApi = {
     axiosInstance.get("/admin/audit-logs", { params }).then(payload),
 };
 
-export const errorMessage = (error) =>
-  error.response?.data?.message ||
-  error.message ||
-  (error.code === "ECONNABORTED"
-    ? "Yêu cầu quá thời gian chờ. Vui lòng thử lại."
-    : "Không thể kết nối máy chủ. Kiểm tra BE rồi thử lại.");
+export const errorMessage = (error) => friendlyErrorMessage(error);
 
 /**
  * Universal API adapter providing methods for Finance module services

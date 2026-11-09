@@ -19,6 +19,7 @@ router.use("/incidents", require("./incidentRoutes"));
 // Finance routes
 router.use("/invoices", require("./invoiceRoutes"));
 router.use("/payments", require("./paymentRoutes"));
+router.use("/expenses", require("./expenseRoutes"));
 router.use("/bank-hub", require("./bankHubRoutes"));
 
 // Dashboard

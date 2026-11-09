@@ -14,6 +14,8 @@ const Incident = require("./Incident");
 const AuditLog = require("./AuditLog");
 const AuthSession = require("./AuthSession");
 const PlanUpgradeRequest = require("./PlanUpgradeRequest");
+const Expense = require("./Expense");
+const DebtReminder = require("./DebtReminder");
 
 module.exports = {
   User,
@@ -32,4 +34,6 @@ module.exports = {
   AuditLog,
   AuthSession,
   PlanUpgradeRequest,
+  Expense,
+  DebtReminder,
 };

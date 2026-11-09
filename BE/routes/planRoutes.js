@@ -3,10 +3,10 @@ const { authenticate, authorize } = require("../middlewares/auth");
 const c = require("../controllers/planController");
 const {
   webhookLimiter,
-  verifySePayPgIpn,
+  verifyPayOsWebhook,
 } = require("../middlewares/financeSecurity");
-// Called by the SePay payment gateway, before landlord authentication.
-router.post("/payments/ipn", webhookLimiter, verifySePayPgIpn, c.gatewayIpn);
+// Webhook of the payOS payment gateway, before landlord authentication.
+router.post("/payments/ipn", webhookLimiter, verifyPayOsWebhook, c.gatewayIpn);
 router.use(authenticate, authorize("LANDLORD"));
 router.get("/", c.catalog);
 router.route("/upgrade-requests").get(c.listRequests).post(c.requestUpgrade);

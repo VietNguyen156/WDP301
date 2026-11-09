@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   CheckCircle2,
   Clock,
@@ -7,6 +7,9 @@ import {
   CreditCard,
   ExternalLink,
   ShieldCheck,
+  Receipt,
+  Search,
+  DollarSign,
 } from "lucide-react";
 import { adminApi, errorMessage } from "../../services/api";
 import { money } from "../../utils/format";
@@ -24,6 +27,7 @@ export function AdminInvoicesView() {
 
   // Filters
   const [statusFilter, setStatusFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Payment Confirmation Modal
   const [confirmingInvoice, setConfirmingInvoice] = useState(null);
@@ -56,11 +60,41 @@ export function AdminInvoicesView() {
       setLoading(false);
     }
   }, [page, statusFilter]);
-  useLiveRefresh(["admin","plans","subscription"], () => fetchInvoices(true));
+  useLiveRefresh(["admin", "plans", "subscription"], () => fetchInvoices(true));
 
   useEffect(() => {
     fetchInvoices();
   }, [fetchInvoices]);
+
+  const filteredInvoices = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return invoices;
+    return invoices.filter((inv) => {
+      const code = `${inv.invoiceCode || ""}`.toLowerCase();
+      const ref = `${inv.paymentReference || ""} ${inv.paymentGateway || ""}`.toLowerCase();
+      const owner = `${inv.landlordId?.name || ""} ${inv.landlordId?.email || ""}`.toLowerCase();
+      const plan = `${inv.planId?.name || ""} ${inv.planId?.code || ""}`.toLowerCase();
+      return code.includes(q) || ref.includes(q) || owner.includes(q) || plan.includes(q);
+    });
+  }, [invoices, searchQuery]);
+
+  const kpiStats = useMemo(() => {
+    let paidCount = 0;
+    let pendingOrOverdueCount = 0;
+    let paidAmount = 0;
+    let unpaidAmount = 0;
+    for (const inv of invoices) {
+      const st = inv.displayStatus || inv.status;
+      if (st === "PAID") {
+        paidCount += 1;
+        paidAmount += Number(inv.amount || 0);
+      } else if (st === "PENDING" || st === "OVERDUE") {
+        pendingOrOverdueCount += 1;
+        unpaidAmount += Number(inv.amount || 0);
+      }
+    }
+    return { paidCount, pendingOrOverdueCount, paidAmount, unpaidAmount };
+  }, [invoices]);
 
   function openConfirmModal(inv) {
     setConfirmingInvoice(inv);
@@ -105,7 +139,7 @@ export function AdminInvoicesView() {
         toast.info("Hóa đơn này đã được xác nhận thanh toán trước đó với cùng mã tham chiếu.");
       } else {
         toast.success(
-          `Xác nhận thu tiền thành công cho hóa đơn ${confirmingInvoice.invoiceCode}! Thuê bao SaaS tương ứng đã được kích hoạt ACTIVE.`
+          `Xác nhận thu tiền thành công cho hóa đơn ${confirmingInvoice.invoiceCode}! Thuê bao SaaS tương ứng đã được kích hoạt ACTIVE.`,
         );
       }
       setConfirmingInvoice(null);
@@ -118,213 +152,360 @@ export function AdminInvoicesView() {
   }
 
   return (
-    <div className="admin-view-body">
-      {/* Control Bar */}
-      <div className="admin-control-bar">
-        <div className="admin-filters-left">
-          <button
-            type="button"
-            className={`admin-action-btn ${!statusFilter ? "primary" : ""}`}
-            onClick={() => {
-              setStatusFilter("");
-              setPage(1);
-            }}
-          >
-            Tất cả hóa đơn
-          </button>
-          <button
-            type="button"
-            className={`admin-action-btn ${statusFilter === "PENDING" ? "primary" : ""}`}
-            onClick={() => {
-              setStatusFilter("PENDING");
-              setPage(1);
-            }}
-          >
-            <Clock size={13} />
-            <span>Chờ thanh toán</span>
-          </button>
-          <button
-            type="button"
-            className={`admin-action-btn ${statusFilter === "OVERDUE" ? "danger" : ""}`}
-            onClick={() => {
-              setStatusFilter("OVERDUE");
-              setPage(1);
-            }}
-          >
-            <AlertTriangle size={13} />
-            <span>Quá hạn</span>
-          </button>
-          <button
-            type="button"
-            className={`admin-action-btn ${statusFilter === "PAID" ? "primary" : ""}`}
-            onClick={() => {
-              setStatusFilter("PAID");
-              setPage(1);
-            }}
-          >
-            <CheckCircle2 size={13} />
-            <span>Đã thu tiền</span>
-          </button>
-          <button
-            type="button"
-            className={`admin-action-btn ${statusFilter === "CANCELLED" ? "primary" : ""}`}
-            onClick={() => {
-              setStatusFilter("CANCELLED");
-              setPage(1);
-            }}
-          >
-            <span>Đã hủy</span>
-          </button>
+    <div className="admin-view-body animate-fade-in">
+      {/* 1. KPI Summary Strip */}
+      <div className="admin-kpi-ribbon">
+        <div className="admin-kpi-card">
+          <div className="admin-kpi-top">
+            <span className="admin-kpi-label">Tổng số Hóa đơn SaaS</span>
+            <div className="admin-kpi-icon primary">
+              <Receipt size={18} />
+            </div>
+          </div>
+          <div className="admin-kpi-num">{total}</div>
+          <div className="admin-kpi-sub primary">
+            <span>Khớp bộ lọc hiện tại</span>
+          </div>
         </div>
 
-        <div style={{ fontSize: 13, color: "#64748b" }}>
-          Tổng số hóa đơn: <strong>{total}</strong>
+        <div className="admin-kpi-card">
+          <div className="admin-kpi-top">
+            <span className="admin-kpi-label">Đã thu tiền (Trang này)</span>
+            <div className="admin-kpi-icon success">
+              <DollarSign size={18} />
+            </div>
+          </div>
+          <div className="admin-kpi-num">{money(kpiStats.paidAmount)}</div>
+          <div className="admin-kpi-sub success">
+            <CheckCircle2 size={13} />
+            <span>{kpiStats.paidCount} hóa đơn đã đối soát hoàn tất</span>
+          </div>
+        </div>
+
+        <div className="admin-kpi-card">
+          <div className="admin-kpi-top">
+            <span className="admin-kpi-label">Công nợ chờ thu (Trang này)</span>
+            <div className="admin-kpi-icon warning">
+              <Clock size={18} />
+            </div>
+          </div>
+          <div className="admin-kpi-num">{money(kpiStats.unpaidAmount)}</div>
+          <div className="admin-kpi-sub warning">
+            <span>{kpiStats.pendingOrOverdueCount} hóa đơn chờ thu / quá hạn</span>
+          </div>
+        </div>
+
+        <div className="admin-kpi-card">
+          <div className="admin-kpi-top">
+            <span className="admin-kpi-label">Thời hạn nộp hóa đơn</span>
+            <div className="admin-kpi-icon secondary">
+              <CreditCard size={18} />
+            </div>
+          </div>
+          <div className="admin-kpi-num" style={{ fontSize: 18 }}>
+            07 ngày / Hóa đơn
+          </div>
+          <div className="admin-kpi-sub secondary">
+            <span>Sau 7 ngày chưa đóng sẽ chuyển sang Quá hạn</span>
+          </div>
         </div>
       </div>
 
-      {loading && !invoices.length ? (
-        <LoadingState />
-      ) : error && !invoices.length ? (
-        <ErrorState message={error} retry={fetchInvoices} />
-      ) : !invoices.length ? (
-        <EmptyState
-          title="Không có hóa đơn SaaS nào"
-          description="Chưa có hóa đơn nào khớp với bộ lọc trạng thái được chọn."
-        />
-      ) : (
-        <>
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Mã hóa đơn</th>
-                  <th>Số tiền</th>
-                  <th>Chu kỳ</th>
-                  <th>Hạn thanh toán</th>
-                  <th>Trạng thái</th>
-                  <th>Chi tiết thanh toán</th>
-                  <th style={{ textAlign: "right" }}>Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoices.map((inv) => {
-                  const displayStatus = inv.displayStatus || inv.status;
-                  const isPaid = displayStatus === "PAID";
-                  const isPendingOrOverdue =
-                    displayStatus === "PENDING" || displayStatus === "OVERDUE";
+      {/* 2. Control Bar */}
+      <div className="admin-surface-toolbar">
+        <div className="admin-toolbar-left">
+          <div className="plans-segmented" role="tablist" aria-label="Lọc trạng thái hóa đơn">
+            <button
+              type="button"
+              className={!statusFilter ? "is-active" : ""}
+              onClick={() => {
+                setStatusFilter("");
+                setPage(1);
+              }}
+            >
+              Tất cả hóa đơn
+            </button>
+            <button
+              type="button"
+              className={statusFilter === "PENDING" ? "is-active" : ""}
+              onClick={() => {
+                setStatusFilter("PENDING");
+                setPage(1);
+              }}
+            >
+              Chờ thanh toán
+            </button>
+            <button
+              type="button"
+              className={statusFilter === "OVERDUE" ? "is-active" : ""}
+              onClick={() => {
+                setStatusFilter("OVERDUE");
+                setPage(1);
+              }}
+            >
+              Quá hạn
+            </button>
+            <button
+              type="button"
+              className={statusFilter === "PAID" ? "is-active" : ""}
+              onClick={() => {
+                setStatusFilter("PAID");
+                setPage(1);
+              }}
+            >
+              Đã thu tiền
+            </button>
+            <button
+              type="button"
+              className={statusFilter === "CANCELLED" ? "is-active" : ""}
+              onClick={() => {
+                setStatusFilter("CANCELLED");
+                setPage(1);
+              }}
+            >
+              Đã hủy
+            </button>
+          </div>
+        </div>
 
-                  return (
-                    <tr key={inv._id}>
-                      <td>
-                        <div style={{ display: "flex", flexDirection: "column" }}>
-                          <strong style={{ color: "#0f172a", fontFamily: "monospace", fontSize: 13 }}>
-                            {inv.invoiceCode}
-                          </strong>
-                          <span style={{ fontSize: 11.5, color: "#64748b" }}>
-                            Tạo: {new Date(inv.createdAt).toLocaleDateString("vi-VN")}
-                          </span>
-                        </div>
-                      </td>
-                      <td>
-                        <strong style={{ color: "#005c55", fontSize: 14 }}>
-                          {money(inv.amount || 0)}
-                        </strong>
-                      </td>
-                      <td>
-                        <span style={{ fontSize: 12.5, color: "#475569" }}>
-                          {inv.billingCycle === "YEARLY" ? "Năm" : "Tháng"}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ fontSize: 12.5 }}>
-                          <span
-                            style={{
-                              color: displayStatus === "OVERDUE" ? "#dc2626" : "#334155",
-                              fontWeight: displayStatus === "OVERDUE" ? 700 : 500,
-                            }}
-                          >
-                            {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("vi-VN") : "—"}
-                          </span>
-                        </div>
-                      </td>
-                      <td>
-                        {displayStatus === "PAID" && (
-                          <span className="status-pill paid">
-                            <CheckCircle2 size={11} /> Đã thu tiền
-                          </span>
-                        )}
-                        {displayStatus === "PENDING" && (
-                          <span className="status-pill pending">
-                            <Clock size={11} /> Chờ thanh toán
-                          </span>
-                        )}
-                        {displayStatus === "OVERDUE" && (
-                          <span className="status-pill overdue">
-                            <AlertTriangle size={11} /> Quá hạn
-                          </span>
-                        )}
-                        {displayStatus === "CANCELLED" && (
-                          <span className="status-pill cancelled">
-                            <XCircle size={11} /> Đã hủy
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {isPaid ? (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12 }}>
-                            <span>
-                              Mã GD: <strong>{inv.paymentReference}</strong>
-                            </span>
-                            <span style={{ color: "#64748b" }}>
-                              Cổng: {inv.paymentGateway} ·{" "}
-                              {inv.paidAt ? new Date(inv.paidAt).toLocaleDateString("vi-VN") : ""}
-                            </span>
-                            {inv.paymentEvidence && (
-                              <a
-                                href={inv.paymentEvidence}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: 3,
-                                  color: "#0f766e",
-                                  fontSize: 11.5,
-                                  fontWeight: 600,
-                                }}
-                              >
-                                <span>Xem chứng từ</span>
-                                <ExternalLink size={10} />
-                              </a>
-                            )}
-                          </div>
-                        ) : (
-                          <span style={{ fontSize: 12, color: "#94a3b8" }}>Chưa phát sinh thu</span>
-                        )}
-                      </td>
-                      <td className="admin-table-actions">
-                        {isPendingOrOverdue && (
-                          <button
-                            type="button"
-                            className="admin-action-btn success"
-                            onClick={() => openConfirmModal(inv)}
-                            title="Xác nhận đã nhận tiền SaaS qua ngân hàng / tiền mặt"
-                          >
-                            <ShieldCheck size={13} />
-                            <span>Xác nhận đã thu</span>
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <div className="admin-toolbar-right">
+          <div style={{ position: "relative", minWidth: 250 }}>
+            <Search
+              size={14}
+              style={{ position: "absolute", left: 10, top: 10, color: "#94a3b8" }}
+            />
+            <input
+              type="text"
+              className="admin-input"
+              style={{ paddingLeft: 30, width: "100%" }}
+              placeholder="Tìm mã HĐ, chủ trọ, gói, mã GD..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
 
-          <Pagination page={page} total={total} limit={20} onChange={(p) => setPage(p)} />
-        </>
-      )}
+          <span style={{ fontSize: 13, color: "#64748b" }}>
+            Hiển thị <strong>{filteredInvoices.length}</strong> / <strong>{total}</strong> hóa đơn
+          </span>
+        </div>
+      </div>
+
+      {/* 3. Invoices Table Card */}
+      <div className="admin-table-card">
+        <div className="admin-card-header">
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <h2 className="admin-card-title">Sổ cái Hóa đơn Nền tảng (Platform Invoices)</h2>
+              <span className="stitch-badge-live">SaaS Billing</span>
+            </div>
+            <p className="admin-card-subtitle">
+              Mỗi hóa đơn phát hành có hạn nộp tiền 7 ngày kể từ ngày lập. Khi đã thu tiền, gói thuê bao có hiệu lực suốt chu kỳ (1 tháng hoặc 1 năm).
+            </p>
+          </div>
+        </div>
+
+        {loading && !invoices.length ? (
+          <LoadingState />
+        ) : error && !invoices.length ? (
+          <ErrorState message={error} retry={fetchInvoices} />
+        ) : !filteredInvoices.length ? (
+          <EmptyState
+            title="Không có hóa đơn SaaS nào"
+            description="Chưa có hóa đơn nào khớp với bộ lọc trạng thái hoặc từ khóa tìm kiếm."
+          />
+        ) : (
+          <>
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Mã hóa đơn</th>
+                    <th>Chủ trọ & Gói SaaS</th>
+                    <th>Số tiền</th>
+                    <th>Thời hạn hiệu lực gói</th>
+                    <th>Hạn nộp hóa đơn</th>
+                    <th>Trạng thái</th>
+                    <th>Chi tiết thanh toán</th>
+                    <th style={{ textAlign: "right" }}>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredInvoices.map((inv) => {
+                    const displayStatus = inv.displayStatus || inv.status;
+                    const isPaid = displayStatus === "PAID";
+                    const isCancelled = displayStatus === "CANCELLED";
+                    const isPendingOrOverdue =
+                      displayStatus === "PENDING" || displayStatus === "OVERDUE";
+                    const owner = inv.landlordId;
+                    const plan = inv.planId;
+                    const sub = inv.subscriptionId;
+
+                    return (
+                      <tr key={inv._id}>
+                        <td>
+                          <div style={{ display: "flex", flexDirection: "column" }}>
+                            <strong style={{ color: "#0f172a", fontFamily: "monospace", fontSize: 13 }}>
+                              {inv.invoiceCode}
+                            </strong>
+                            <span style={{ fontSize: 11.5, color: "#64748b" }}>
+                              Ngày lập: {new Date(inv.createdAt).toLocaleDateString("vi-VN")}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                            <strong style={{ color: "#0f172a", fontSize: 13 }}>
+                              {owner?.name || "Chủ trọ hệ thống"}
+                            </strong>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              {plan?.code && (
+                                <span className={`plan-code-badge ${plan.code.toLowerCase()}`}>
+                                  {plan.code}
+                                </span>
+                              )}
+                              <span style={{ fontSize: 11.5, color: "#64748b" }}>
+                                {plan?.name || (inv.billingCycle === "YEARLY" ? "Gói Năm" : "Gói Tháng")}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <strong style={{ color: "#005c55", fontSize: 14 }}>
+                            {money(inv.amount || 0)}
+                          </strong>
+                          <div style={{ fontSize: 11.5, color: "#64748b" }}>
+                            {inv.billingCycle === "YEARLY" ? "Chu kỳ 12 tháng" : "Chu kỳ 01 tháng"}
+                          </div>
+                        </td>
+                        <td>
+                          {sub?.startDate && sub?.endDate ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12.5 }}>
+                              <span>
+                                {new Date(sub.startDate).toLocaleDateString("vi-VN")}
+                                <span style={{ color: "#94a3b8", margin: "0 4px" }}>→</span>
+                                <strong style={{ color: "#0f766e" }}>
+                                  {new Date(sub.endDate).toLocaleDateString("vi-VN")}
+                                </strong>
+                              </span>
+                              <span style={{ fontSize: 11, color: "#64748b" }}>
+                                Thời hạn sử dụng gói
+                              </span>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: 12.5, color: "#475569" }}>
+                              {inv.billingCycle === "YEARLY" ? "01 Năm từ ngày kích hoạt" : "01 Tháng từ ngày kích hoạt"}
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {isPaid ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12 }}>
+                              <strong style={{ color: "#047857" }}>Đã tất toán</strong>
+                              <span style={{ fontSize: 11, color: "#64748b" }}>
+                                Thu ngày: {inv.paidAt ? new Date(inv.paidAt).toLocaleDateString("vi-VN") : "—"}
+                              </span>
+                            </div>
+                          ) : isCancelled ? (
+                            <span style={{ fontSize: 12, color: "#94a3b8" }}>Đã hủy</span>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12.5 }}>
+                              <span
+                                style={{
+                                  color: displayStatus === "OVERDUE" ? "#dc2626" : "#334155",
+                                  fontWeight: displayStatus === "OVERDUE" ? 700 : 600,
+                                }}
+                              >
+                                {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("vi-VN") : "—"}
+                              </span>
+                              <span style={{ fontSize: 11, color: "#64748b" }}>
+                                Hạn đóng tiền HĐ (7 ngày)
+                              </span>
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          {displayStatus === "PAID" && (
+                            <span className="status-pill paid">
+                              <CheckCircle2 size={11} /> Đã thu tiền
+                            </span>
+                          )}
+                          {displayStatus === "PENDING" && (
+                            <span className="status-pill pending">
+                              <Clock size={11} /> Chờ thanh toán
+                            </span>
+                          )}
+                          {displayStatus === "OVERDUE" && (
+                            <span className="status-pill overdue">
+                              <AlertTriangle size={11} /> Quá hạn
+                            </span>
+                          )}
+                          {displayStatus === "CANCELLED" && (
+                            <span className="status-pill cancelled">
+                              <XCircle size={11} /> Đã hủy
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {isPaid ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12 }}>
+                              <span>
+                                Mã GD: <strong>{inv.paymentReference}</strong>
+                              </span>
+                              <span style={{ color: "#64748b" }}>
+                                Cổng: {inv.paymentGateway} ·{" "}
+                                {inv.paidAt ? new Date(inv.paidAt).toLocaleDateString("vi-VN") : ""}
+                              </span>
+                              {inv.paymentEvidence && (
+                                <a
+                                  href={inv.paymentEvidence}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 3,
+                                    color: "#0f766e",
+                                    fontSize: 11.5,
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  <span>Xem chứng từ</span>
+                                  <ExternalLink size={10} />
+                                </a>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: 12, color: "#94a3b8" }}>Chưa phát sinh thu</span>
+                          )}
+                        </td>
+                        <td className="admin-table-actions">
+                          <div className="admin-row-actions">
+                            {isPendingOrOverdue && (
+                              <button
+                                type="button"
+                                className="admin-action-btn success"
+                                onClick={() => openConfirmModal(inv)}
+                                title="Xác nhận đã nhận tiền SaaS qua ngân hàng / tiền mặt"
+                              >
+                                <ShieldCheck size={13} />
+                                <span>Xác nhận đã thu</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ padding: "12px 16px", borderTop: "1px solid var(--outline-variant)" }}>
+              <Pagination page={page} total={total} limit={20} onChange={(p) => setPage(p)} />
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Modal Xác nhận đã nhận tiền SaaS */}
       {confirmingInvoice && (

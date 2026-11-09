@@ -1,6 +1,7 @@
 const service = require("../services/invoiceService");
 const payments = require("../services/paymentService");
 const realtime = require("../realtime");
+const reminders = require("../services/debtReminderService");
 const metadata = (req) => ({
   ipAddress: req.ip,
   userAgent: req.get("User-Agent"),
@@ -41,6 +42,7 @@ const simulatePublicPayment = async (req, res) => {
     success: true,
     data: {
       paid: !!result.payment,
+      duplicate: !!result.duplicate,
       unmatched: !!result.unmatched,
       reason: result.reason,
       status: result.invoice?.status,
@@ -48,7 +50,11 @@ const simulatePublicPayment = async (req, res) => {
     },
   });
 };
+// Email the tenant a debt reminder now, on behalf of the landlord.
+const sendReminder = async (req, res) =>
+  res.json({ success: true, data: await reminders.sendForInvoice(req, req.params.invoiceId) });
 module.exports = {
+  sendReminder,
   simulatePublicPayment,
   listInvoices,
   getInvoice,

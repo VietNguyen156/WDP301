@@ -43,16 +43,18 @@ export function useLoginForm() {
     setBusy(true);
     setError("");
     try {
-      const authenticatedUser = await login({
+      const result = await login({
         username: username.trim(),
         password,
         ...(accountId && { accountId }),
       });
-      if (authenticatedUser?.selectionRequired) {
-        setChoices(authenticatedUser.accounts || []);
+      if (result?.selectionRequired) {
+        setChoices(result.accounts || []);
         return;
       }
       setChoices(null);
+
+      const authenticatedUser = result?.user || result;
 
       if (authenticatedUser?.mustChangePassword) {
         toast.info(

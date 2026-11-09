@@ -70,6 +70,10 @@ const userSchema = new mongoose.Schema(
       bankAccountXid: { type: String, index: true, sparse: true },
       linkedAt: { type: Date },
     },
+    // Chủ trọ: tự động gửi email nhắc nợ cho khách thuê (jobs/debtReminders.js). Mặc định bật.
+    debtReminder: {
+      autoEmail: { type: Boolean, default: true },
+    },
 
     // Dành cho PROPERTY_MANAGER (Quản lý cơ sở) hoặc TENANT (Người thuê)
     landlordId: {

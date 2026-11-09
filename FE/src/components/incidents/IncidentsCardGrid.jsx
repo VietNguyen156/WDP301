@@ -20,6 +20,7 @@ import {
   PRIORITY_LABELS,
   CATEGORY_LABELS,
   COST_PAYER_LABELS,
+  formatRoomLabel,
 } from "../../hooks/useIncidentsPage";
 
 export default function IncidentsCardGrid({
@@ -86,6 +87,21 @@ export default function IncidentsCardGrid({
             </span>
           </div>
 
+          {inc.costPayer === "TENANT" &&
+            ((inc.status === "PENDING" && inc.quote?.status === "PENDING") ||
+              (inc.status === "PENDING" && inc.quote?.status === "DECLINED") ||
+              inc.status === "SOLVED") && (
+              <div className="inc-triage-row">
+                <span className="inc-charge-chip warn" style={{ marginLeft: 0 }}>
+                  {inc.status === "SOLVED"
+                    ? "Chờ người thuê nghiệm thu"
+                    : inc.quote.status === "DECLINED"
+                      ? "Người thuê từ chối báo giá"
+                      : "Chờ người thuê duyệt báo giá"}
+                </span>
+              </div>
+            )}
+
           {(inc.category || inc.triage?.needsReview) && (
             <div className="inc-triage-row">
               {inc.category && (
@@ -135,7 +151,7 @@ export default function IncidentsCardGrid({
                 size={14}
                 style={{ color: "var(--primary, #005c55)" }}
               />
-              Phòng {inc.roomId?.roomNumber || "—"} (Tầng{" "}
+              {formatRoomLabel(inc.roomId?.roomNumber)} (Tầng{" "}
               {inc.roomId?.floor || "1"})
             </span>
             <span>•</span>
@@ -220,8 +236,11 @@ export default function IncidentsCardGrid({
             </div>
           )}
 
-          {/* Cost summary if present */}
-          {inc.repairCost !== undefined && (
+          {/* Cost summary only when cost or quote is actually recorded */}
+          {(inc.costUpdatedAt ||
+            inc.quote ||
+            Number(inc.repairCost || 0) > 0 ||
+            ["SOLVED", "CLOSED"].includes(inc.status)) && (
             <div
               style={{
                 padding: "8px 12px",
@@ -244,7 +263,7 @@ export default function IncidentsCardGrid({
                 <Banknote size={14} style={{ color: "#059669" }} />
                 <span>Chi phí:</span>
               </span>
-              <strong>{money(inc.repairCost)}</strong>
+              <strong>{money(inc.repairCost || 0)}</strong>
               <span style={{ fontSize: "11px", color: "#64748b" }}>
                 ({COST_PAYER_LABELS[inc.costPayer] || inc.costPayer})
               </span>
@@ -288,12 +307,20 @@ export default function IncidentsCardGrid({
               }}
             >
               <Eye size={14} />
-              <span>Chi tiết & Lịch sử</span>
+              <span>Chi tiết &amp; Lịch sử</span>
             </Button>
 
             {isStaff && inc.status === "PENDING" && (
               <Button
                 compact
+                disabled={
+                  inc.costPayer === "TENANT" && inc.quote?.status !== "ACCEPTED"
+                }
+                title={
+                  inc.costPayer === "TENANT" && inc.quote?.status !== "ACCEPTED"
+                    ? "Cần người thuê đồng ý báo giá trước khi bắt đầu xử lý"
+                    : undefined
+                }
                 onClick={() =>
                   onTransition({
                     incident: inc,
@@ -307,7 +334,11 @@ export default function IncidentsCardGrid({
                 }}
               >
                 <Wrench size={14} />
-                <span>Tiếp nhận</span>
+                <span>
+                  {inc.costPayer === "TENANT" && inc.quote?.status !== "ACCEPTED"
+                    ? "Chờ duyệt giá"
+                    : "Tiếp nhận"}
+                </span>
               </Button>
             )}
 
@@ -331,7 +362,7 @@ export default function IncidentsCardGrid({
               </Button>
             )}
 
-            {isStaff && inc.status === "SOLVED" && (
+            {isStaff && inc.status === "SOLVED" && inc.costPayer !== "TENANT" && (
               <Button
                 compact
                 onClick={() =>

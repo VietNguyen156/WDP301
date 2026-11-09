@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Plus,
   AlertTriangle,
@@ -8,6 +8,9 @@ import {
   Edit2,
   Trash2,
   FileText,
+  Layers,
+  Search,
+  DollarSign,
 } from "lucide-react";
 import { adminApi, errorMessage } from "../../services/api";
 import { money } from "../../utils/format";
@@ -33,6 +36,7 @@ export function AdminSubscriptionsView() {
   // Filters
   const [statusFilter, setStatusFilter] = useState("");
   const [expiringFilter, setExpiringFilter] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Options for modal
   const [landlordsList, setLandlordsList] = useState([]);
@@ -71,11 +75,34 @@ export function AdminSubscriptionsView() {
       setLoading(false);
     }
   }, [page, statusFilter, expiringFilter]);
-  useLiveRefresh(["admin","plans","subscription"], () => fetchSubscriptions(true));
+  useLiveRefresh(["admin", "plans", "subscription"], () => fetchSubscriptions(true));
 
   useEffect(() => {
     fetchSubscriptions();
   }, [fetchSubscriptions]);
+
+  const filteredSubscriptions = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return subscriptions;
+    return subscriptions.filter((sub) => {
+      const owner = `${sub.landlordId?.name || ""} ${sub.landlordId?.email || ""} ${sub.landlordId?.phoneNumber || ""}`.toLowerCase();
+      const plan = `${sub.planId?.name || ""} ${sub.planId?.code || ""}`.toLowerCase();
+      return owner.includes(q) || plan.includes(q);
+    });
+  }, [subscriptions, searchQuery]);
+
+  const kpiStats = useMemo(() => {
+    let active = 0;
+    let pending = 0;
+    let revenueOnPage = 0;
+    for (const sub of subscriptions) {
+      const st = sub.displayStatus || sub.status;
+      if (st === "ACTIVE") active += 1;
+      if (st === "PENDING_PAYMENT") pending += 1;
+      revenueOnPage += Number(sub.pricePaid || 0);
+    }
+    return { active, pending, revenueOnPage };
+  }, [subscriptions]);
 
   // Load landlords and plans when create modal is opened
   async function loadCreateOptions() {
@@ -204,273 +231,359 @@ export function AdminSubscriptionsView() {
   }
 
   return (
-    <div className="admin-view-body">
-      {/* Control Toolbar */}
-      <div className="admin-control-bar">
-        <div className="admin-filters-left">
-          <button
-            type="button"
-            className={`admin-action-btn ${!statusFilter && !expiringFilter ? "primary" : ""}`}
-            onClick={() => {
-              setStatusFilter("");
-              setExpiringFilter(false);
-              setPage(1);
-            }}
-          >
-            Tất cả
-          </button>
-          <button
-            type="button"
-            className={`admin-action-btn ${expiringFilter ? "danger" : ""}`}
-            onClick={() => {
-              setExpiringFilter(true);
-              setStatusFilter("");
-              setPage(1);
-            }}
-          >
-            <Clock size={13} />
-            <span>Hết hạn trong 7 ngày</span>
-          </button>
-          <button
-            type="button"
-            className={`admin-action-btn ${statusFilter === "PENDING_PAYMENT" ? "primary" : ""}`}
-            onClick={() => {
-              setStatusFilter("PENDING_PAYMENT");
-              setExpiringFilter(false);
-              setPage(1);
-            }}
-          >
-            Chờ thanh toán
-          </button>
-          <button
-            type="button"
-            className={`admin-action-btn ${statusFilter === "ACTIVE" ? "primary" : ""}`}
-            onClick={() => {
-              setStatusFilter("ACTIVE");
-              setExpiringFilter(false);
-              setPage(1);
-            }}
-          >
-            Đang hoạt động
-          </button>
-          <button
-            type="button"
-            className={`admin-action-btn ${statusFilter === "EXPIRED" ? "primary" : ""}`}
-            onClick={() => {
-              setStatusFilter("EXPIRED");
-              setExpiringFilter(false);
-              setPage(1);
-            }}
-          >
-            Đã hết hạn
-          </button>
-          <button
-            type="button"
-            className={`admin-action-btn ${statusFilter === "CANCELLED" ? "primary" : ""}`}
-            onClick={() => {
-              setStatusFilter("CANCELLED");
-              setExpiringFilter(false);
-              setPage(1);
-            }}
-          >
-            Đã hủy
-          </button>
+    <div className="admin-view-body animate-fade-in">
+      {/* 1. KPI Summary Strip */}
+      <div className="admin-kpi-ribbon">
+        <div className="admin-kpi-card">
+          <div className="admin-kpi-top">
+            <span className="admin-kpi-label">Tổng số Thuê bao</span>
+            <div className="admin-kpi-icon primary">
+              <Layers size={18} />
+            </div>
+          </div>
+          <div className="admin-kpi-num">{total}</div>
+          <div className="admin-kpi-sub primary">
+            <span>Khớp bộ lọc hiện tại</span>
+          </div>
         </div>
 
-        <Button onClick={openCreate}>
-          <Plus size={16} />
-          <span>Tạo / Gia hạn thuê bao</span>
-        </Button>
+        <div className="admin-kpi-card">
+          <div className="admin-kpi-top">
+            <span className="admin-kpi-label">Đang hiệu lực (Active)</span>
+            <div className="admin-kpi-icon success">
+              <CheckCircle2 size={18} />
+            </div>
+          </div>
+          <div className="admin-kpi-num">{kpiStats.active}</div>
+          <div className="admin-kpi-sub success">
+            <span className="live-dot" />
+            <span>Thuê bao hoạt động trong trang hiện tại</span>
+          </div>
+        </div>
+
+        <div className="admin-kpi-card">
+          <div className="admin-kpi-top">
+            <span className="admin-kpi-label">Chờ thanh toán</span>
+            <div className="admin-kpi-icon warning">
+              <Clock size={18} />
+            </div>
+          </div>
+          <div className="admin-kpi-num">{kpiStats.pending}</div>
+          <div className="admin-kpi-sub warning">
+            <span>Đã xuất hóa đơn SaaS chờ thu tiền</span>
+          </div>
+        </div>
+
+        <div className="admin-kpi-card">
+          <div className="admin-kpi-top">
+            <span className="admin-kpi-label">Thực thu Thuê bao (Trang này)</span>
+            <div className="admin-kpi-icon secondary">
+              <DollarSign size={18} />
+            </div>
+          </div>
+          <div className="admin-kpi-num">{money(kpiStats.revenueOnPage)}</div>
+          <div className="admin-kpi-sub secondary">
+            <span>Tổng tiền đã thu của các thuê bao hiển thị</span>
+          </div>
+        </div>
       </div>
 
-      {loading && !subscriptions.length ? (
-        <LoadingState />
-      ) : error && !subscriptions.length ? (
-        <ErrorState message={error} retry={fetchSubscriptions} />
-      ) : !subscriptions.length ? (
-        <EmptyState
-          title="Không tìm thấy thuê bao nào"
-          description="Chưa có thuê bao phù hợp bộ lọc hiện tại."
-          action={
-            <Button onClick={openCreate}>
-              <Plus size={16} />
-              <span>Tạo thuê bao ngay</span>
-            </Button>
-          }
-        />
-      ) : (
-        <>
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Chủ chuỗi cơ sở</th>
-                  <th>Gói dịch vụ</th>
-                  <th>Chu kỳ & Giá niêm yết</th>
-                  <th>Thực thu</th>
-                  <th>Thời hạn thuê bao</th>
-                  <th>Trạng thái</th>
-                  <th style={{ textAlign: "right" }}>Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subscriptions.map((sub) => {
-                  const owner = sub.landlordId;
-                  const plan = sub.planId;
-                  const isPending = sub.status === "PENDING_PAYMENT";
-                  const isCancelled = sub.status === "CANCELLED";
-                  const displayStatus = sub.displayStatus || sub.status;
+      {/* 2. Control Toolbar */}
+      <div className="admin-surface-toolbar">
+        <div className="admin-toolbar-left">
+          <div className="plans-segmented" role="tablist" aria-label="Lọc trạng thái thuê bao">
+            <button
+              type="button"
+              className={!statusFilter && !expiringFilter ? "is-active" : ""}
+              onClick={() => {
+                setStatusFilter("");
+                setExpiringFilter(false);
+                setPage(1);
+              }}
+            >
+              Tất cả
+            </button>
+            <button
+              type="button"
+              className={statusFilter === "ACTIVE" && !expiringFilter ? "is-active" : ""}
+              onClick={() => {
+                setStatusFilter("ACTIVE");
+                setExpiringFilter(false);
+                setPage(1);
+              }}
+            >
+              Đang hoạt động
+            </button>
+            <button
+              type="button"
+              className={statusFilter === "PENDING_PAYMENT" && !expiringFilter ? "is-active" : ""}
+              onClick={() => {
+                setStatusFilter("PENDING_PAYMENT");
+                setExpiringFilter(false);
+                setPage(1);
+              }}
+            >
+              Chờ thanh toán
+            </button>
+            <button
+              type="button"
+              className={expiringFilter ? "is-active" : ""}
+              onClick={() => {
+                setExpiringFilter(true);
+                setStatusFilter("");
+                setPage(1);
+              }}
+            >
+              Sắp hết hạn (7 ngày)
+            </button>
+            <button
+              type="button"
+              className={statusFilter === "EXPIRED" && !expiringFilter ? "is-active" : ""}
+              onClick={() => {
+                setStatusFilter("EXPIRED");
+                setExpiringFilter(false);
+                setPage(1);
+              }}
+            >
+              Đã hết hạn
+            </button>
+            <button
+              type="button"
+              className={statusFilter === "CANCELLED" && !expiringFilter ? "is-active" : ""}
+              onClick={() => {
+                setStatusFilter("CANCELLED");
+                setExpiringFilter(false);
+                setPage(1);
+              }}
+            >
+              Đã hủy
+            </button>
+          </div>
+        </div>
 
-                  return (
-                    <tr key={sub._id}>
-                      <td>
-                        <div
-                          style={{ display: "flex", flexDirection: "column" }}
-                        >
-                          <strong style={{ color: "#0f172a" }}>
-                            {owner?.name || "Chủ trọ"}
-                          </strong>
-                          <span style={{ fontSize: 12, color: "#64748b" }}>
-                            {owner?.email ||
-                              owner?.phoneNumber ||
-                              sub.landlordId}
-                          </span>
-                        </div>
-                      </td>
-                      <td>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                          }}
-                        >
-                          <span className="plan-code-badge pro">
-                            {plan?.code || "PLAN"}
-                          </span>
-                          <span style={{ fontWeight: 600 }}>
-                            {plan?.name || "Gói SaaS"}
-                          </span>
-                        </div>
-                      </td>
-                      <td>
-                        <div
-                          style={{ display: "flex", flexDirection: "column" }}
-                        >
-                          <strong style={{ color: "#005c55" }}>
-                            {money(sub.quotedPrice || 0)}
-                          </strong>
-                          <span style={{ fontSize: 11.5, color: "#64748b" }}>
-                            {sub.billingCycle === "YEARLY" ? "Năm" : "Tháng"}
-                          </span>
-                        </div>
-                      </td>
-                      <td>
-                        <strong
-                          style={{
-                            color: sub.pricePaid > 0 ? "#047857" : "#64748b",
-                          }}
-                        >
-                          {money(sub.pricePaid || 0)}
-                        </strong>
-                      </td>
-                      <td>
-                        <div style={{ fontSize: 12.5, color: "#334155" }}>
-                          <span>
-                            {new Date(sub.startDate).toLocaleDateString(
-                              "vi-VN",
-                            )}
-                          </span>
-                          <span style={{ color: "#94a3b8", margin: "0 4px" }}>
-                            →
-                          </span>
-                          <strong
-                            style={{
-                              color:
-                                displayStatus === "EXPIRED"
-                                  ? "#dc2626"
-                                  : "inherit",
-                            }}
-                          >
-                            {new Date(sub.endDate).toLocaleDateString("vi-VN")}
-                          </strong>
-                          {sub.startsInFuture && (
-                            <span
-                              style={{
-                                display: "block",
-                                fontSize: 11,
-                                color: "#0f766e",
-                                fontWeight: 600,
-                              }}
-                            >
-                              (Hiệu lực trong tương lai)
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        {displayStatus === "ACTIVE" && (
-                          <span className="status-pill active">
-                            <CheckCircle2 size={11} /> Hoạt động
-                          </span>
-                        )}
-                        {displayStatus === "PENDING_PAYMENT" && (
-                          <span className="status-pill pending">
-                            <Clock size={11} /> Chờ thanh toán
-                          </span>
-                        )}
-                        {displayStatus === "EXPIRED" && (
-                          <span className="status-pill expired">
-                            <AlertTriangle size={11} /> Đã hết hạn
-                          </span>
-                        )}
-                        {displayStatus === "CANCELLED" && (
-                          <span className="status-pill cancelled">
-                            <XCircle size={11} /> Đã hủy
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        <div className="admin-row-actions">
-                          {isPending && (
-                            <button
-                              type="button"
-                              className="admin-action-btn"
-                              onClick={() => openEdit(sub)}
-                              title="Sửa gói hoặc thời hạn thuê bao chờ"
-                            >
-                              <Edit2 size={13} />
-                              <span>Sửa</span>
-                            </button>
-                          )}
-                          {!isCancelled && (
-                            <button
-                              type="button"
-                              className="admin-action-btn danger"
-                              onClick={() => setCancellingSub(sub)}
-                              title="Hủy thuê bao"
-                            >
-                              <Trash2 size={13} />
-                              <span>Hủy</span>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <div className="admin-toolbar-right">
+          <div style={{ position: "relative", minWidth: 230 }}>
+            <Search
+              size={14}
+              style={{ position: "absolute", left: 10, top: 10, color: "#94a3b8" }}
+            />
+            <input
+              type="text"
+              className="admin-input"
+              style={{ paddingLeft: 30, width: "100%" }}
+              placeholder="Tìm tên chủ trọ, email, gói..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
 
-          <Pagination
-            page={page}
-            total={total}
-            limit={20}
-            onChange={(p) => setPage(p)}
+          <Button onClick={openCreate}>
+            <Plus size={16} />
+            <span>Cấp mới / Gia hạn thuê bao</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* 3. Subscriptions Table Card */}
+      <div className="admin-table-card">
+        <div className="admin-card-header">
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <h2 className="admin-card-title">Danh sách Hợp đồng Thuê bao SaaS</h2>
+              <span className="stitch-badge-live">Live Subscriptions</span>
+            </div>
+            <p className="admin-card-subtitle">
+              Theo dõi thời hạn hiệu lực, chu kỳ thanh toán và thực thu của từng Chủ trọ trên toàn hệ thống.
+            </p>
+          </div>
+          <div style={{ fontSize: 13, color: "#64748b" }}>
+            Hiển thị <strong>{filteredSubscriptions.length}</strong> / <strong>{total}</strong> thuê bao
+          </div>
+        </div>
+
+        {loading && !subscriptions.length ? (
+          <LoadingState />
+        ) : error && !subscriptions.length ? (
+          <ErrorState message={error} retry={fetchSubscriptions} />
+        ) : !filteredSubscriptions.length ? (
+          <EmptyState
+            title="Không tìm thấy thuê bao nào"
+            description="Chưa có thuê bao phù hợp bộ lọc hiện tại."
+            action={
+              <Button onClick={openCreate}>
+                <Plus size={16} />
+                <span>Tạo thuê bao ngay</span>
+              </Button>
+            }
           />
-        </>
-      )}
+        ) : (
+          <>
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Chủ chuỗi cơ sở</th>
+                    <th>Gói dịch vụ</th>
+                    <th>Chu kỳ & Giá niêm yết</th>
+                    <th>Thực thu</th>
+                    <th>Thời hạn thuê bao</th>
+                    <th>Trạng thái</th>
+                    <th style={{ textAlign: "right" }}>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSubscriptions.map((sub) => {
+                    const owner = sub.landlordId;
+                    const plan = sub.planId;
+                    const isPending = sub.status === "PENDING_PAYMENT";
+                    const isCancelled = sub.status === "CANCELLED";
+                    const displayStatus = sub.displayStatus || sub.status;
+
+                    return (
+                      <tr key={sub._id}>
+                        <td>
+                          <div style={{ display: "flex", flexDirection: "column" }}>
+                            <strong style={{ color: "#0f172a" }}>
+                              {owner?.name || "Chủ trọ"}
+                            </strong>
+                            <span style={{ fontSize: 12, color: "#64748b" }}>
+                              {owner?.email || owner?.phoneNumber || sub.landlordId}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <span className={`plan-code-badge ${plan?.code?.toLowerCase() || "pro"}`}>
+                              {plan?.code || "PLAN"}
+                            </span>
+                            <span style={{ fontWeight: 600 }}>
+                              {plan?.name || "Gói SaaS"}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", flexDirection: "column" }}>
+                            <strong style={{ color: "#005c55" }}>
+                              {money(sub.quotedPrice || 0)}
+                            </strong>
+                            <span style={{ fontSize: 11.5, color: "#64748b" }}>
+                              {sub.billingCycle === "YEARLY" ? "Chu kỳ Năm" : "Chu kỳ Tháng"}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <strong
+                            style={{
+                              color: sub.pricePaid > 0 ? "#047857" : "#64748b",
+                            }}
+                          >
+                            {money(sub.pricePaid || 0)}
+                          </strong>
+                        </td>
+                        <td>
+                          <div style={{ fontSize: 12.5, color: "#334155" }}>
+                            <span>
+                              {new Date(sub.startDate).toLocaleDateString("vi-VN")}
+                            </span>
+                            <span style={{ color: "#94a3b8", margin: "0 4px" }}>
+                              →
+                            </span>
+                            <strong
+                              style={{
+                                color:
+                                  displayStatus === "EXPIRED"
+                                    ? "#dc2626"
+                                    : "inherit",
+                              }}
+                            >
+                              {new Date(sub.endDate).toLocaleDateString("vi-VN")}
+                            </strong>
+                            {sub.startsInFuture && (
+                              <span
+                                style={{
+                                  display: "block",
+                                  fontSize: 11,
+                                  color: "#0f766e",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                (Hiệu lực trong tương lai)
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          {displayStatus === "ACTIVE" && (
+                            <span className="status-pill active">
+                              <CheckCircle2 size={11} /> Hoạt động
+                            </span>
+                          )}
+                          {displayStatus === "PENDING_PAYMENT" && (
+                            <span className="status-pill pending">
+                              <Clock size={11} /> Chờ thanh toán
+                            </span>
+                          )}
+                          {displayStatus === "EXPIRED" && (
+                            <span className="status-pill expired">
+                              <AlertTriangle size={11} /> Đã hết hạn
+                            </span>
+                          )}
+                          {displayStatus === "CANCELLED" && (
+                            <span className="status-pill cancelled">
+                              <XCircle size={11} /> Đã hủy
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: "right" }}>
+                          <div className="admin-row-actions">
+                            {isPending && (
+                              <button
+                                type="button"
+                                className="admin-action-btn"
+                                onClick={() => openEdit(sub)}
+                                title="Sửa gói hoặc thời hạn thuê bao chờ"
+                              >
+                                <Edit2 size={13} />
+                                <span>Sửa</span>
+                              </button>
+                            )}
+                            {!isCancelled && (
+                              <button
+                                type="button"
+                                className="admin-action-btn danger"
+                                onClick={() => setCancellingSub(sub)}
+                                title="Hủy thuê bao"
+                              >
+                                <Trash2 size={13} />
+                                <span>Hủy</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ padding: "12px 16px", borderTop: "1px solid var(--outline-variant)" }}>
+              <Pagination
+                page={page}
+                total={total}
+                limit={20}
+                onChange={(p) => setPage(p)}
+              />
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Modal Tạo / Sửa thuê bao */}
       {(isCreateOpen || editingSub) && (

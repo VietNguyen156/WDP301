@@ -4,12 +4,11 @@ const Invoice = require("../models/Invoice");
 const Payment = require("../models/Payment");
 const Room = require("../models/Room");
 const Contract = require("../models/Contract");
+const Expense = require("../models/Expense");
 const branchService = require("./branchService");
 const { period } = require("../utils/financeValidation");
-const { publicAppUrl } = require("../utils/appUrls");
 const {
   DAY_MS,
-  vnDate,
   currentPeriod,
   periodRange,
 } = require("../utils/vnTime");
@@ -20,8 +19,6 @@ const OWING = OWING_INVOICE_STATUSES;
 const ROOM_STATUSES = ["RENTED", "EMPTY", "MAINTENANCE", "CLEANING"];
 const rate = (part, whole) =>
   whole ? Math.round((part / whole) * 10000) / 100 : 0;
-const money = (value) => `${Math.round(value).toLocaleString("vi-VN")}đ`;
-const dateVn = (value) => vnDate(value).split("-").reverse().join("/");
 
 // Landlord only (PROPERTY_MANAGER must not see total revenue); optional branch filter.
 async function scope(req) {
@@ -29,16 +26,6 @@ async function scope(req) {
   if (!req.query.branchId) return { landlordId };
   const branch = await branchService.get(req, req.query.branchId);
   return { landlordId, branchId: branch._id };
-}
-
-function reminder(item) {
-  const [year, month] = item.billingPeriod.split("-");
-  const link = `${publicAppUrl()}/i/${item.publicAccessToken}`;
-  return (
-    `Chào ${item.tenant?.name || "anh/chị"}, phòng ${item.room?.roomNumber || ""} còn ${money(item.remainingAmount)} ` +
-    `tiền phòng kỳ ${month}/${year}${item.overdueDays > 0 ? ` (đã quá hạn ${item.overdueDays} ngày)` : ` (hạn ${dateVn(item.dueDate)})`}. ` +
-    `Anh/chị vui lòng thanh toán qua link: ${link}. Cảm ơn anh/chị!`
-  );
 }
 
 const owingMatch = (match) => ({
@@ -84,7 +71,20 @@ async function debtItems(match, limit) {
         localField: "tenantId",
         foreignField: "_id",
         as: "tenant",
-        pipeline: [{ $project: { name: 1, phoneNumber: 1 } }],
+        pipeline: [{ $project: { name: 1, phoneNumber: 1, email: 1 } }],
+      },
+    },
+    {
+      $lookup: {
+        from: "debtreminders",
+        localField: "_id",
+        foreignField: "invoiceId",
+        as: "lastReminder",
+        pipeline: [
+          { $sort: { createdAt: -1 } },
+          { $limit: 1 },
+          { $project: { createdAt: 1, status: 1, auto: 1 } },
+        ],
       },
     },
     {
@@ -101,6 +101,7 @@ async function debtItems(match, limit) {
         room: { $first: "$room" },
         branch: { $first: "$branch" },
         tenant: { $first: "$tenant" },
+        lastReminder: { $first: "$lastReminder" },
       },
     },
   ]);
@@ -119,6 +120,12 @@ async function debtItems(match, limit) {
         id: row.tenant._id,
         name: row.tenant.name,
         phoneNumber: row.tenant.phoneNumber,
+        email: row.tenant.email || null,
+      },
+      lastReminder: row.lastReminder && {
+        sentAt: row.lastReminder.createdAt,
+        status: row.lastReminder.status,
+        auto: row.lastReminder.auto,
       },
       totalAmount: row.totalAmount,
       paidAmount: row.paidAmount,
@@ -126,7 +133,6 @@ async function debtItems(match, limit) {
       dueDate: row.dueDate,
       overdueDays: row.overdueDays,
       publicPath: `/i/${row.publicAccessToken}`,
-      reminderMessage: reminder(row),
     }));
 }
 
@@ -160,7 +166,7 @@ async function stats(req) {
   const match = await scope(req);
   const { start: from, end: to } = periodRange(billingPeriod);
   const now = new Date();
-  const [billed, received, rooms, contracts, debts, debtTotals] = await Promise.all([
+  const [billed, received, rooms, contracts, debts, debtTotals, paidOut] = await Promise.all([
     Invoice.aggregate([
       {
         $match: {
@@ -190,6 +196,8 @@ async function stats(req) {
           ...match,
           isDeleted: false,
           status: "SUCCESS",
+          // Deposits are held for the tenant, not income.
+          purpose: { $ne: "CONTRACT_DEPOSIT" },
           transactionDate: { $gte: from, $lt: to },
         },
       },
@@ -233,6 +241,11 @@ async function stats(req) {
     ]),
     debtItems(match, 10),
     debtSummary(match),
+    // Money paid out in the month (phiếu chi: repair contractors...), voided ones excluded.
+    Expense.aggregate([
+      { $match: { ...match, isDeleted: false, status: "RECORDED", paidAt: { $gte: from, $lt: to } } },
+      { $group: { _id: null, amount: { $sum: "$amount" } } },
+    ]),
   ]);
   const totals = billed[0] || {
     expectedAmount: 0,
@@ -259,6 +272,8 @@ async function stats(req) {
       paidInvoiceCount: totals.paidInvoiceCount,
       receivedAmount: received.reduce((sum, r) => sum + r.amount, 0),
       receivedByMethod,
+      paidOutAmount: paidOut[0]?.amount || 0,
+      netCashFlow: received.reduce((sum, r) => sum + r.amount, 0) - (paidOut[0]?.amount || 0),
     },
     debts: { ...debtTotals, items: debts },
     occupancy: {

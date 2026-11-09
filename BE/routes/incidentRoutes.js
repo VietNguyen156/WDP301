@@ -7,6 +7,10 @@ router.get("/:incidentId", c.get);
 const staff = authorize("LANDLORD", "PROPERTY_MANAGER");
 router.put("/:incidentId/status", staff, c.updateStatus);
 router.put("/:incidentId/cost", staff, c.updateCost);
+// Sự cố do người thuê chi trả: báo giá → người thuê duyệt → nghiệm thu 2 bên → hóa đơn
+router.post("/:incidentId/quote", staff, c.sendQuote);
+router.post("/:incidentId/quote/respond", authorize("TENANT"), c.respondQuote);
+router.post("/:incidentId/acceptance", authorize("TENANT"), c.tenantAcceptance);
 // Phân loại lại bằng TypeSafe (loại sự cố + mức ưu tiên)
 router.post("/:incidentId/triage", staff, c.retriage);
 module.exports = router;

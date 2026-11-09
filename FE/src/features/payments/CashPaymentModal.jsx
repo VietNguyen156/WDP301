@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Modal } from "../../components/ui/Modal";
+import { Modal } from "../../components/ui";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { paymentService } from "../../services/paymentService";
@@ -109,6 +109,7 @@ export function CashPaymentModal({
 
   return (
     <Modal
+      padded
       isOpen={isOpen}
       onClose={onClose}
       title={

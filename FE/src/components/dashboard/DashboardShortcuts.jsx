@@ -61,8 +61,8 @@ export default function DashboardShortcuts({ userRole, navigate }) {
                 <Scale size={20} />
               </div>
               <div>
-                <strong>Đối soát SePay sai cú pháp</strong>
-                <p>Xử lý giao dịch nhận tiền chưa khớp</p>
+                <strong>Đối soát giao dịch chưa khớp</strong>
+                <p>Gán các khoản chuyển khoản sai nội dung vào đúng hóa đơn</p>
               </div>
             </div>
           </>

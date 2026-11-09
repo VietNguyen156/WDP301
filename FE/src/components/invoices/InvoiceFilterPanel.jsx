@@ -4,6 +4,9 @@ export default function InvoiceFilterPanel({
   setStatusFilter,
   billingPeriodFilter,
   setBillingPeriodFilter,
+  branches = [],
+  branchFilter = "",
+  setBranchFilter,
   filteredCount,
   totalCount,
 }) {
@@ -104,6 +107,21 @@ export default function InvoiceFilterPanel({
             flexWrap: "wrap",
           }}
         >
+          {branches.length > 0 && (
+            <select
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
+              aria-label="Lọc theo cơ sở"
+              style={{ minWidth: "180px", padding: "6px 10px" }}
+            >
+              <option value="">Tất cả cơ sở</option>
+              {branches.map((b) => (
+                <option key={b._id || b.id} value={b._id || b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          )}
           <input
             type="month"
             value={billingPeriodFilter}

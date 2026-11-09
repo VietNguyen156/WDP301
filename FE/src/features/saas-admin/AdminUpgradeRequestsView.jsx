@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   CheckCircle2,
   Clock,
@@ -7,6 +7,8 @@ import {
   ArrowRight,
   Receipt,
   Info,
+  Search,
+  ArrowUpRight,
 } from "lucide-react";
 import { adminApi, errorMessage } from "../../services/api";
 import { money } from "../../utils/format";
@@ -40,7 +42,6 @@ const localDate = (date) =>
     .toISOString()
     .slice(0, 10);
 
-// Same default as the backend: from today for one billing cycle of the requested plan.
 function defaultPeriod(plan) {
   const start = new Date();
   const end = new Date(start);
@@ -83,6 +84,7 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState("PENDING");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [approving, setApproving] = useState(null);
   const [period, setPeriod] = useState({ startDate: "", endDate: "" });
@@ -107,11 +109,22 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
       setLoading(false);
     }
   }, [page, statusFilter]);
-  useLiveRefresh(["admin","plans"], () => fetchRequests(true));
+  useLiveRefresh(["admin", "plans"], () => fetchRequests(true));
 
   useEffect(() => {
     fetchRequests();
   }, [fetchRequests]);
+
+  const filteredRequests = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return requests;
+    return requests.filter((req) => {
+      const landlord = `${req.landlordId?.name || ""} ${req.landlordId?.email || ""} ${req.landlordId?.phoneNumber || ""}`.toLowerCase();
+      const plan = `${req.planId?.name || ""} ${req.planId?.code || ""}`.toLowerCase();
+      const note = `${req.note || ""}`.toLowerCase();
+      return landlord.includes(q) || plan.includes(q) || note.includes(q);
+    });
+  }, [requests, searchQuery]);
 
   function openApprove(request) {
     setApproving(request);
@@ -184,33 +197,51 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
   }
 
   return (
-    <div className="admin-view-body">
+    <div className="admin-view-body animate-fade-in">
       {/* Control Bar */}
-      <div className="admin-control-bar">
-        <div className="admin-filters-left">
-          {STATUS_FILTERS.map(({ value, label, icon: Icon }) => (
-            <button
-              key={value}
-              type="button"
-              className={`admin-action-btn ${statusFilter === value ? "primary" : ""}`}
-              onClick={() => {
-                setStatusFilter(value);
-                setPage(1);
-              }}
-            >
-              <Icon size={13} />
-              <span>{label}</span>
-            </button>
-          ))}
+      <div className="admin-surface-toolbar">
+        <div className="admin-toolbar-left">
+          <div className="plans-segmented" role="tablist" aria-label="Trạng thái yêu cầu đổi gói">
+            {STATUS_FILTERS.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                className={statusFilter === value ? "is-active" : ""}
+                onClick={() => {
+                  setStatusFilter(value);
+                  setPage(1);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div style={{ fontSize: 13, color: "#64748b" }}>
-          Tổng số yêu cầu: <strong>{total}</strong>
+        <div className="admin-toolbar-right">
+          <div style={{ position: "relative", minWidth: 240 }}>
+            <Search
+              size={14}
+              style={{ position: "absolute", left: 10, top: 10, color: "#94a3b8" }}
+            />
+            <input
+              type="text"
+              className="admin-input"
+              style={{ paddingLeft: 30, width: "100%" }}
+              placeholder="Tìm chủ trọ, email, gói yêu cầu..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          <span style={{ fontSize: 13, color: "#64748b" }}>
+            Tổng số: <strong>{total}</strong> yêu cầu
+          </span>
         </div>
       </div>
 
       {statusFilter === "PENDING" && (
-        <div className="admin-alert-banner info" style={{ marginBottom: 16 }}>
+        <div className="admin-alert-banner info">
           <Info size={20} style={{ flexShrink: 0 }} />
           <div>
             Duyệt yêu cầu sẽ tạo <strong>thuê bao chờ thanh toán</strong> và{" "}
@@ -221,206 +252,227 @@ export function AdminUpgradeRequestsView({ onNavigateTab }) {
         </div>
       )}
 
-      {loading && !requests.length ? (
-        <LoadingState />
-      ) : error && !requests.length ? (
-        <ErrorState message={error} retry={fetchRequests} />
-      ) : !requests.length ? (
-        <EmptyState
-          title="Không có yêu cầu đổi gói nào"
-          description={
-            statusFilter === "PENDING"
-              ? "Chưa có chủ trọ nào gửi yêu cầu nâng cấp hoặc đổi gói đang chờ xử lý."
-              : "Chưa có yêu cầu nào khớp với bộ lọc trạng thái được chọn."
-          }
-        />
-      ) : (
-        <>
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Chủ trọ</th>
-                  <th>Gói hiện tại → Gói yêu cầu</th>
-                  <th>Hạn ngạch gói yêu cầu</th>
-                  <th>Ghi chú</th>
-                  <th>Thời gian</th>
-                  <th>Trạng thái</th>
-                  <th style={{ textAlign: "right" }}>Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {requests.map((request) => {
-                  const landlord = request.landlordId;
-                  const plan = request.planId;
-                  const pill =
-                    STATUS_PILLS[request.status] || STATUS_PILLS.PENDING;
-                  const PillIcon = pill.icon;
-                  const isRenewal =
-                    request.currentPlanId &&
-                    plan &&
-                    String(request.currentPlanId._id) === String(plan._id);
-                  return (
-                    <tr key={request._id}>
-                      <td>
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 2,
-                          }}
-                        >
-                          <strong style={{ color: "#0f172a", fontSize: 13 }}>
-                            {landlord?.name || "—"}
-                          </strong>
-                          <span style={{ fontSize: 11.5, color: "#64748b" }}>
-                            {landlord?.email}
-                          </span>
-                          {landlord?.phoneNumber && (
-                            <span style={{ fontSize: 11.5, color: "#64748b" }}>
-                              {landlord.phoneNumber}
-                            </span>
-                          )}
-                          {landlord?.status && landlord.status !== "ACTIVE" && (
-                            <span
-                              className="status-pill suspended"
-                              style={{ width: "fit-content" }}
-                            >
-                              {landlord.status}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                          }}
-                        >
-                          <PlanCell plan={request.currentPlanId} muted />
-                          <ArrowRight
-                            size={14}
-                            color="#94a3b8"
-                            style={{ flexShrink: 0 }}
-                          />
-                          <PlanCell plan={plan} />
-                        </div>
-                        {isRenewal && (
-                          <span
+      <div className="admin-table-card">
+        <div className="admin-card-header">
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <h2 className="admin-card-title">Danh sách Yêu cầu Nâng cấp & Gia hạn Gói SaaS</h2>
+              <span className="stitch-badge-live">
+                <ArrowUpRight size={11} style={{ marginRight: 2 }} />
+                Upgrade Queue
+              </span>
+            </div>
+            <p className="admin-card-subtitle">
+              Kiểm tra hạn ngạch gói yêu cầu và phê duyệt để hệ thống tự động phát hành hóa đơn SaaS tương ứng.
+            </p>
+          </div>
+        </div>
+
+        {loading && !requests.length ? (
+          <LoadingState />
+        ) : error && !requests.length ? (
+          <ErrorState message={error} retry={fetchRequests} />
+        ) : !filteredRequests.length ? (
+          <EmptyState
+            title="Không có yêu cầu đổi gói nào"
+            description={
+              statusFilter === "PENDING"
+                ? "Chưa có chủ trọ nào gửi yêu cầu nâng cấp hoặc đổi gói đang chờ xử lý."
+                : "Chưa có yêu cầu nào khớp với bộ lọc trạng thái được chọn."
+            }
+          />
+        ) : (
+          <>
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Chủ trọ</th>
+                    <th>Gói hiện tại → Gói yêu cầu</th>
+                    <th>Hạn ngạch gói yêu cầu</th>
+                    <th>Ghi chú</th>
+                    <th>Thời gian</th>
+                    <th>Trạng thái</th>
+                    <th style={{ textAlign: "right" }}>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRequests.map((request) => {
+                    const landlord = request.landlordId;
+                    const plan = request.planId;
+                    const pill =
+                      STATUS_PILLS[request.status] || STATUS_PILLS.PENDING;
+                    const PillIcon = pill.icon;
+                    const isRenewal =
+                      request.currentPlanId &&
+                      plan &&
+                      String(request.currentPlanId._id) === String(plan._id);
+                    return (
+                      <tr key={request._id}>
+                        <td>
+                          <div
                             style={{
-                              fontSize: 11.5,
-                              color: "#0f766e",
-                              fontWeight: 600,
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 2,
                             }}
                           >
-                            Gia hạn gói đang dùng
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {plan ? (
-                          <span style={{ fontSize: 12, color: "#475569" }}>
-                            {plan.maxBranches} cơ sở · {plan.maxRooms} phòng ·{" "}
-                            {plan.maxManagers} quản lý
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td style={{ maxWidth: 220 }}>
-                        <span style={{ fontSize: 12.5, color: "#334155" }}>
-                          {request.note || "—"}
-                        </span>
-                        {request.status === "REJECTED" &&
-                          request.rejectReason && (
-                            <div
+                            <strong style={{ color: "#0f172a", fontSize: 13 }}>
+                              {landlord?.name || "—"}
+                            </strong>
+                            <span style={{ fontSize: 11.5, color: "#64748b" }}>
+                              {landlord?.email}
+                            </span>
+                            {landlord?.phoneNumber && (
+                              <span style={{ fontSize: 11.5, color: "#64748b" }}>
+                                {landlord.phoneNumber}
+                              </span>
+                            )}
+                            {landlord?.status && landlord.status !== "ACTIVE" && (
+                              <span
+                                className="status-pill suspended"
+                                style={{ width: "fit-content" }}
+                              >
+                                {landlord.status}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <PlanCell plan={request.currentPlanId} muted />
+                            <ArrowRight
+                              size={14}
+                              color="#94a3b8"
+                              style={{ flexShrink: 0 }}
+                            />
+                            <PlanCell plan={plan} />
+                          </div>
+                          {isRenewal && (
+                            <span
                               style={{
                                 fontSize: 11.5,
-                                color: "#dc2626",
-                                marginTop: 4,
+                                color: "#0f766e",
+                                fontWeight: 600,
                               }}
                             >
-                              Lý do từ chối: {request.rejectReason}
-                            </div>
-                          )}
-                      </td>
-                      <td>
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 2,
-                            fontSize: 12,
-                          }}
-                        >
-                          <span>Gửi: {formatDateTime(request.createdAt)}</span>
-                          {request.handledAt && (
-                            <span style={{ color: "#64748b" }}>
-                              Xử lý: {formatDateTime(request.handledAt)}
+                              Gia hạn gói đang dùng
                             </span>
                           )}
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`status-pill ${pill.className}`}>
-                          <PillIcon size={11} /> {pill.label}
-                        </span>
-                      </td>
-                      <td className="admin-table-actions">
-                        {request.status === "PENDING" && (
-                          <>
-                            <button
-                              type="button"
-                              className="admin-action-btn success"
-                              onClick={() => openApprove(request)}
-                              title="Duyệt và xuất hóa đơn SaaS chờ thanh toán"
-                            >
-                              <CheckCircle2 size={13} />
-                              <span>Duyệt</span>
-                            </button>
-                            <button
-                              type="button"
-                              className="admin-action-btn danger"
-                              onClick={() => {
-                                setRejecting(request);
-                                setReason("");
-                              }}
-                              title="Từ chối kèm lý do"
-                            >
-                              <XCircle size={13} />
-                              <span>Từ chối</span>
-                            </button>
-                          </>
-                        )}
-                        {request.status === "APPROVED" && onNavigateTab && (
-                          <button
-                            type="button"
-                            className="admin-action-btn"
-                            onClick={() => onNavigateTab("invoices")}
-                            title="Xem hóa đơn SaaS đã xuất"
+                        </td>
+                        <td>
+                          {plan ? (
+                            <span style={{ fontSize: 12, color: "#475569" }}>
+                              {plan.maxBranches} cơ sở · {plan.maxRooms} phòng ·{" "}
+                              {plan.maxManagers} quản lý
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td style={{ maxWidth: 220 }}>
+                          <span style={{ fontSize: 12.5, color: "#334155" }}>
+                            {request.note || "—"}
+                          </span>
+                          {request.status === "REJECTED" &&
+                            request.rejectReason && (
+                              <div
+                                style={{
+                                  fontSize: 11.5,
+                                  color: "#dc2626",
+                                  marginTop: 4,
+                                }}
+                              >
+                                Lý do từ chối: {request.rejectReason}
+                              </div>
+                            )}
+                        </td>
+                        <td>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 2,
+                              fontSize: 12,
+                            }}
                           >
-                            <Receipt size={13} />
-                            <span>Xem hóa đơn</span>
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                            <span>Gửi: {formatDateTime(request.createdAt)}</span>
+                            {request.handledAt && (
+                              <span style={{ color: "#64748b" }}>
+                                Xử lý: {formatDateTime(request.handledAt)}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`status-pill ${pill.className}`}>
+                            <PillIcon size={11} /> {pill.label}
+                          </span>
+                        </td>
+                        <td className="admin-table-actions">
+                          <div className="admin-row-actions">
+                            {request.status === "PENDING" && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="admin-action-btn success"
+                                  onClick={() => openApprove(request)}
+                                  title="Duyệt và xuất hóa đơn SaaS chờ thanh toán"
+                                >
+                                  <CheckCircle2 size={13} />
+                                  <span>Duyệt</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="admin-action-btn danger"
+                                  onClick={() => {
+                                    setRejecting(request);
+                                    setReason("");
+                                  }}
+                                  title="Từ chối kèm lý do"
+                                >
+                                  <XCircle size={13} />
+                                  <span>Từ chối</span>
+                                </button>
+                              </>
+                            )}
+                            {request.status === "APPROVED" && onNavigateTab && (
+                              <button
+                                type="button"
+                                className="admin-action-btn"
+                                onClick={() => onNavigateTab("invoices")}
+                                title="Xem hóa đơn SaaS đã xuất"
+                              >
+                                <Receipt size={13} />
+                                <span>Xem hóa đơn</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-          <Pagination
-            page={page}
-            total={total}
-            limit={20}
-            onChange={(p) => setPage(p)}
-          />
-        </>
-      )}
+            <div style={{ padding: "12px 16px", borderTop: "1px solid var(--outline-variant)" }}>
+              <Pagination
+                page={page}
+                total={total}
+                limit={20}
+                onChange={(p) => setPage(p)}
+              />
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Modal Duyệt yêu cầu */}
       {approving && (

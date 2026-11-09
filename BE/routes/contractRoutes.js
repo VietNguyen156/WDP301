@@ -29,6 +29,8 @@ router.post(
 );
 // Sandbox: giả lập khách chuyển khoản tiền cọc qua luồng đối soát ngân hàng thật
 router.post("/:contractId/deposit/simulate", c.simulateDeposit);
+// Hủy hợp đồng nháp (chưa đủ chữ ký 2 bên), trả phòng về trống
+router.post("/:contractId/cancel", authorize("LANDLORD"), c.cancelDraft);
 // Gia hạn hợp đồng (phụ lục gia hạn)
 router.post("/:contractId/renew", authorize("LANDLORD"), c.renew);
 module.exports = router;

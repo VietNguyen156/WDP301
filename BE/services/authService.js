@@ -144,7 +144,7 @@ const ROLE_NAMES = { LANDLORD: "Chủ trọ", PROPERTY_MANAGER: "Quản lý cơ 
 async function accountChoices(users) {
   const Contract = require("../models/Contract");
   const Branch = require("../models/Branch");
-  const { LIVE_CONTRACT_STATUSES } = require("../utils/statuses");
+  const { OPEN_CONTRACT_STATUSES } = require("../utils/statuses");
   return Promise.all(
     users.map(async (u) => {
       const landlord =
@@ -155,7 +155,7 @@ async function accountChoices(users) {
           tenantId: u._id,
           landlordId: u.landlordId,
           isDeleted: false,
-          status: { $in: LIVE_CONTRACT_STATUSES },
+          status: { $in: OPEN_CONTRACT_STATUSES },
         })
           .select("branchId roomId")
           .populate("branchId", "name")

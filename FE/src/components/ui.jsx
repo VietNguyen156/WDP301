@@ -146,12 +146,18 @@ export function Pagination({ page, limit = 20, total, onChange }) {
     </div>
   );
 }
-export function Modal({
+// The single app modal (native <dialog>). Render it conditionally or pass isOpen; `padded`
+// wraps loose content in a scrolling, padded body (forms bring their own layout).
+export function Modal({ isOpen = true, ...props }) {
+  return isOpen ? <DialogModal {...props} /> : null;
+}
+function DialogModal({
   title,
   subtitle,
   children,
   onClose,
   wide = false,
+  padded = false,
   busy = false,
   footer,
   maxWidth,
@@ -169,7 +175,8 @@ export function Modal({
     <dialog
       ref={ref}
       className={`modal ${wide ? "wide" : ""} ${className}`}
-      style={maxWidth ? { maxWidth } : undefined}
+      // CSS caps .modal at 600px; maxWidth is the width this dialog wants (still fits the screen).
+      style={maxWidth ? { width: `min(${maxWidth}, calc(100vw - 32px))`, maxWidth: "none" } : undefined}
       aria-labelledby={titleId}
       onCancel={(e) => {
         e.preventDefault();
@@ -194,7 +201,7 @@ export function Modal({
             <X size={22} />
           </button>
         </header>
-        {children}
+        {padded ? <div className="modal-body modal-body-padded">{children}</div> : children}
         {footer && <footer className="modal-footer">{footer}</footer>}
       </div>
     </dialog>

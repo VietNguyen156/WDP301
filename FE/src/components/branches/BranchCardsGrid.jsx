@@ -36,7 +36,7 @@ export function BranchCardsGrid({
             : "stripe-has-vacancy";
 
         const branchInvoices = rawInvoices.filter(
-          (inv) => String(inv.branchId) === String(branch._id),
+          (inv) => String(inv.branchId?._id || inv.branchId) === String(branch._id),
         );
         const branchPaid = branchInvoices.reduce(
           (sum, inv) => sum + (inv.paidAmount || 0),

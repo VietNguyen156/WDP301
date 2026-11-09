@@ -32,7 +32,11 @@ export default function DashboardPage() {
     financialMetrics,
     contractWatchlist,
     branchPerformance,
-    handleCopyZaloReminder,
+    handleSendEmailReminder,
+    sendingReminderId,
+    reminderSettings,
+    savingReminderSettings,
+    toggleAutoReminder,
   } = useDashboardPage();
 
   if (loading) {
@@ -81,7 +85,11 @@ export default function DashboardPage() {
         contractWatchlist={contractWatchlist}
         activeBranches={activeBranches}
         detailsLoading={detailsLoading}
-        onCopyZaloReminder={handleCopyZaloReminder}
+        onSendEmailReminder={handleSendEmailReminder}
+        sendingReminderId={sendingReminderId}
+        reminderSettings={reminderSettings}
+        savingReminderSettings={savingReminderSettings}
+        onToggleAutoReminder={toggleAutoReminder}
       />
 
       <DashboardRecentPayments

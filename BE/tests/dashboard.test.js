@@ -77,9 +77,6 @@ test("stats answer collection, debts and occupancy for the period", async () => 
   assert.equal(debt.room.roomNumber, "A.101");
   assert.equal(debt.tenant.name, "Nguyễn Văn Khách");
   assert.ok(debt.publicPath.startsWith("/i/"));
-  assert.match(debt.reminderMessage, /phòng A\.101/);
-  assert.match(debt.reminderMessage, /quá hạn 5 ngày/);
-  assert.ok(debt.reminderMessage.includes(`http://localhost:5173${debt.publicPath}`));
 
   assert.deepEqual(data.occupancy, {
     totalRooms: 3, rentedRooms: 1, rate: 33.33,

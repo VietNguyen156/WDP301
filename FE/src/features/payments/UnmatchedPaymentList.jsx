@@ -38,9 +38,9 @@ export function UnmatchedPaymentList() {
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
         <div>
-          <h3>Giao dịch Chuyển khoản Chưa khớp (Unmatched Payments)</h3>
+          <h3>Đối soát giao dịch chưa khớp</h3>
           <p style={{ fontSize: "0.85rem", marginTop: "2px" }}>
-            Các giao dịch tiền vào từ SePay sai cú pháp, không tìm thấy hóa đơn hoặc chuyển sai số tiền cần kế toán đối soát thủ công.
+            Khoản chuyển khoản vào tài khoản nhận tiền nhưng sai nội dung, không tìm thấy hóa đơn hoặc lệch số tiền. Kiểm tra và gán vào đúng hóa đơn để ghi nhận thanh toán.
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>

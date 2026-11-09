@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { AlertTriangle, Trash2 } from "lucide-react";
-import { Modal } from "../../components/ui/Modal";
+import { Modal } from "../../components/ui";
 import { Button } from "../../components/ui/Button";
 import { invoiceService } from "../../services/invoiceService";
 import { useToast } from "../../context/ToastContext";
@@ -36,6 +36,7 @@ export function InvoiceCancelModal({ isOpen, onClose, invoice, onInvoiceCancelle
 
   return (
     <Modal
+      padded
       isOpen={isOpen}
       onClose={onClose}
       title={`Xác nhận Hủy hóa đơn ${invoice.invoiceCode || ""}`}

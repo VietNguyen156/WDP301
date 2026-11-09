@@ -45,7 +45,7 @@ export default function DashboardRecentPayments({
             <thead>
               <tr>
                 <th>Thời gian</th>
-                <th>Mã giao dịch</th>
+                <th>Loại giao dịch</th>
                 <th>Phòng / Chi nhánh</th>
                 <th>Phương thức</th>
                 <th>Số tiền</th>
@@ -57,22 +57,58 @@ export default function DashboardRecentPayments({
                 const isVietQR =
                   p.paymentMethod === "VIETQR" ||
                   p.paymentMethod === "BANK_TRANSFER";
+                const isDeposit =
+                  p.purpose === "CONTRACT_DEPOSIT" ||
+                  (!p.invoiceId && !p.invoiceCode && !!(p.contractId || p.contractCode));
+                const isSettlement =
+                  !isDeposit && p.invoiceId?.invoiceType === "SETTLEMENT";
+                const transactionTypeLabel = isDeposit
+                  ? "Đóng cọc"
+                  : isSettlement
+                    ? "Tất toán hợp đồng"
+                    : "Thanh toán hóa đơn";
+                const rawRoom =
+                  p.invoiceId?.roomId?.roomNumber ||
+                  p.contractId?.roomId?.roomNumber ||
+                  p.room?.roomNumber ||
+                  p.roomId?.roomNumber ||
+                  p.roomNumber;
+                const roomDisplay = rawRoom
+                  ? /^(P\.|Phòng)/i.test(String(rawRoom))
+                    ? rawRoom
+                    : `P.${rawRoom}`
+                  : "Chưa rõ phòng";
+                const branchDisplay =
+                  p.branchId?.name ||
+                  p.invoiceId?.branchId?.name ||
+                  p.contractId?.branchId?.name ||
+                  p.branchName ||
+                  "Chưa gán chi nhánh";
                 return (
                   <tr key={p._id}>
                     <td style={{ whiteSpace: "nowrap" }}>
-                      {formatDate(p.paidAt || p.createdAt, true)}
+                      {formatDate(
+                        p.transactionDate || p.paidAt || p.createdAt,
+                        true,
+                      )}
                     </td>
                     <td>
-                      <code className="stitch-code-chip">
-                        {p.transactionCode || p._id?.slice(-8)}
-                      </code>
+                      <span
+                        className="stitch-payment-method-chip"
+                        style={{
+                          backgroundColor: isDeposit ? "#fffbeb" : "#f0fdfa",
+                          color: isDeposit ? "#b45309" : "#0f766e",
+                          border: isDeposit
+                            ? "1px solid #fde68a"
+                            : "1px solid #99f6e4",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {transactionTypeLabel}
+                      </span>
                     </td>
                     <td>
-                      <strong>
-                        {p.invoiceId?.roomId?.roomNumber ||
-                          p.roomNumber ||
-                          "P.?"}
-                      </strong>
+                      <strong>{roomDisplay}</strong>
                       <span
                         style={{
                           color: "#64748b",
@@ -80,7 +116,7 @@ export default function DashboardRecentPayments({
                           marginLeft: "4px",
                         }}
                       >
-                        ({p.branchId?.name || "Tòa nhà"})
+                        ({branchDisplay})
                       </span>
                     </td>
                     <td>

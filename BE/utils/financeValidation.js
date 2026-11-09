@@ -1,9 +1,35 @@
 const mongoose = require("mongoose");
 const { AppError } = require("./errors");
 
+// Messages name the field the way the user sees it, never the API key.
+const FIELD_LABELS = {
+  id: "Mã định danh",
+  invoiceId: "Hóa đơn",
+  paymentId: "Giao dịch",
+  branchId: "Cơ sở",
+  roomId: "Phòng",
+  contractId: "Hợp đồng",
+  unmatchedPaymentId: "Giao dịch chưa khớp",
+  amount: "Số tiền",
+  transferAmount: "Số tiền chuyển khoản",
+  receiptNumber: "Số biên lai",
+  referenceCode: "Mã giao dịch",
+  transactionDate: "Ngày giao dịch",
+  dueDate: "Hạn thanh toán",
+  reason: "Lý do",
+  note: "Ghi chú",
+  payerName: "Tên người nộp",
+  cashCollectionPoint: "Nơi thu tiền",
+  gateway: "Ngân hàng / cổng thanh toán",
+  accountNumber: "Số tài khoản",
+};
+const label = (field) => FIELD_LABELS[field] || field;
+
 function objectId(value, field = "id") {
+  // Ids read back from documents (payment.invoiceId, ...) are already ObjectIds.
+  if (value instanceof mongoose.Types.ObjectId) return value;
   if (typeof value !== "string" || !/^[a-f\d]{24}$/i.test(value)) {
-    throw new AppError(`${field} không hợp lệ`, 400, "INVALID_ID");
+    throw new AppError(`${label(field)} không hợp lệ`, 400, "INVALID_ID");
   }
   return new mongoose.Types.ObjectId(value);
 }
@@ -11,7 +37,7 @@ function objectId(value, field = "id") {
 function money(value, field, positive = false) {
   if (!Number.isSafeInteger(value) || value < (positive ? 1 : 0)) {
     throw new AppError(
-      `${field} phải là số nguyên VND ${positive ? "dương" : "không âm"}`,
+      `${label(field)} phải là số tiền (VNĐ) ${positive ? "lớn hơn 0" : "không âm"}`,
       400,
       "PAYMENT_AMOUNT_INVALID",
     );
@@ -22,7 +48,7 @@ function money(value, field, positive = false) {
 function text(value, field, max = 250) {
   if (typeof value !== "string" || !value.trim() || value.trim().length > max) {
     throw new AppError(
-      `${field} là bắt buộc và tối đa ${max} ký tự`,
+      `${label(field)} là bắt buộc và tối đa ${max} ký tự`,
       400,
       "VALIDATION_ERROR",
     );
@@ -39,7 +65,7 @@ function date(value, field) {
     )
   ) {
     throw new AppError(
-      `${field} phải là ngày ISO hợp lệ`,
+      `${label(field)} không phải ngày hợp lệ`,
       400,
       "VALIDATION_ERROR",
     );
@@ -50,7 +76,7 @@ function date(value, field) {
     !Number.isFinite(parsed.getTime()) ||
     calendar.toISOString().slice(0, 10) !== value.slice(0, 10)
   ) {
-    throw new AppError(`${field} không hợp lệ`, 400, "VALIDATION_ERROR");
+    throw new AppError(`${label(field)} không hợp lệ`, 400, "VALIDATION_ERROR");
   }
   return parsed;
 }
@@ -58,7 +84,7 @@ function date(value, field) {
 function period(value) {
   if (typeof value !== "string" || !/^20\d{2}-(0[1-9]|1[0-2])$/.test(value)) {
     throw new AppError(
-      "billingPeriod phải có dạng YYYY-MM",
+      "Kỳ thanh toán không hợp lệ (định dạng tháng/năm)",
       400,
       "VALIDATION_ERROR",
     );
@@ -78,7 +104,7 @@ function pagination(query) {
     !Number.isSafeInteger((page - 1) * limit)
   ) {
     throw new AppError(
-      "page >= 1, limit từ 1 đến 100",
+      "Trang hoặc số dòng mỗi trang không hợp lệ",
       400,
       "VALIDATION_ERROR",
     );

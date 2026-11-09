@@ -3184,3 +3184,285 @@ input:checked + .slider:before {
   .plan-form-quotas { grid-template-columns: 1fr; }
 }
 
+
+/* Landlords tab: receiving bank account & reconciliation (read-only, linked by the landlord) */
+.admin-bank-grid { display: grid; grid-template-columns: max-content 1fr; gap: 10px 16px; margin: 0; font-size: 13px; align-items: center; }
+.admin-bank-grid dt { color: #64748b; font-size: 12.5px; }
+.admin-bank-grid dd { margin: 0; color: var(--on-surface, #0f172a); }
+.admin-bank-grid .status-pill { display: inline-flex; align-items: center; gap: 5px; }
+.admin-bank-note { display: flex; gap: 8px; padding: 10px 12px; border-radius: 8px; background: #f1f5f9; color: #334155; font-size: 12.5px; line-height: 1.5; }
+
+
+/* ============================================================
+   SUPER ADMIN COMMAND CONSOLE UI/UX REDESIGN (ENTERPRISE B2B)
+   ============================================================ */
+
+/* Keep 4-card KPI grid balanced in Super Admin while Landlord Dashboard uses 3x2 */
+.admin-shell .stitch-kpi-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+@media (max-width: 1180px) {
+  .admin-shell .stitch-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-shell .stitch-kpi-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Unified Executive Header */
+.admin-header-eyebrow-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.admin-header-module-pill {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  padding: 2px 9px;
+  border-radius: 9999px;
+}
+
+.admin-header-quick-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-header-alert-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.admin-header-alert-chip:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.admin-header-alert-chip.warning {
+  background: rgba(245, 158, 11, 0.22);
+  border-color: rgba(253, 224, 71, 0.5);
+  color: #fef3c7;
+}
+
+.admin-header-alert-chip.danger {
+  background: rgba(239, 68, 68, 0.26);
+  border-color: rgba(252, 165, 165, 0.55);
+  color: #fee2e2;
+}
+
+.admin-header-alert-chip.info {
+  background: rgba(20, 184, 166, 0.22);
+  border-color: rgba(153, 246, 228, 0.45);
+  color: #ccfbf1;
+}
+
+.admin-header-alert-chip.ok {
+  cursor: default;
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(167, 243, 208, 0.4);
+  color: #d1fae5;
+}
+
+.admin-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.admin-tab-badge.danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.admin-tab-btn.active .admin-tab-badge {
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.admin-tab-btn.active .admin-tab-badge.danger {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+/* Surface Toolbar (Filter + Search + Actions) */
+.admin-surface-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.admin-toolbar-left,
+.admin-toolbar-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* SaaS Conversion & SePay Funnel inside Analytics */
+.admin-funnel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.admin-funnel-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.admin-funnel-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.admin-funnel-top strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-funnel-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.admin-funnel-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.35s ease;
+}
+
+.admin-funnel-fill.teal {
+  background: linear-gradient(90deg, #005c55 0%, #0d9488 100%);
+}
+
+.admin-funnel-fill.blue {
+  background: linear-gradient(90deg, #1d4ed8 0%, #3b82f6 100%);
+}
+
+.admin-funnel-fill.purple {
+  background: linear-gradient(90deg, #6d28d9 0%, #8b5cf6 100%);
+}
+
+.admin-funnel-fill.amber {
+  background: linear-gradient(90deg, #b45309 0%, #f59e0b 100%);
+}
+
+/* Clean Status Banner for 0 Overdue Invoices */
+.admin-clean-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 22px;
+  color: #065f46;
+  background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 80%);
+}
+
+.admin-clean-status-banner strong {
+  display: block;
+  font-size: 14px;
+  color: #064e3b;
+  margin-bottom: 2px;
+}
+
+.admin-clean-status-banner p {
+  margin: 0;
+  font-size: 12.5px;
+  color: #047857;
+}
+
+/* Audit Log Modal Diff Panels */
+.audit-diff-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .audit-diff-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.audit-diff-panel {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #0f172a;
+  overflow: hidden;
+}
+
+.audit-diff-title {
+  padding: 8px 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #cbd5e1;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+}
+
+.audit-diff-pre {
+  margin: 0;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #e2e8f0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  overflow-x: auto;
+  max-height: 280px;
+}

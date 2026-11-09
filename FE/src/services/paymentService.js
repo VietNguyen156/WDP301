@@ -28,6 +28,7 @@ export const paymentService = {
       query.append("paymentMethod", params.paymentMethod);
     }
     if (params.branchId) query.append("branchId", params.branchId);
+    if (params.purpose) query.append("purpose", params.purpose);
     if (params.page) query.append("page", String(params.page));
     if (params.limit) query.append("limit", String(params.limit));
 

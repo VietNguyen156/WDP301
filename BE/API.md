@@ -13,7 +13,7 @@ Response thành công `{ success: true, data, message }`; lỗi `{ success: fals
 6. [SePay Bank Hub — Chủ trọ liên kết tài khoản nhận tiền](#bankhub)
 7. [Dashboard chủ trọ & Realtime (Dev 4)](#dashboard-realtime)
 8. [Bảng gói SaaS cho chủ trọ](#plans)
-9. [Thanh toán gói SaaS qua Cổng thanh toán SePay](#saas-payment)
+9. [Thanh toán gói SaaS qua cổng payOS](#saas-payment)
 10. [Admin nền tảng SaaS](#admin)
 
 <a id="auth"></a>
@@ -569,7 +569,7 @@ Chi tiết một sự cố, populate giống như ở danh sách, kèm `statusHi
 
 - Sai luồng trạng thái → `422 INCIDENT_INVALID_TRANSITION`.
 - `REJECTED` bắt buộc có `note` (lý do).
-- `SOLVED` cần ít nhất 1 ảnh nghiệm thu trong `resolvedImages`, nếu thiếu → `400 INCIDENT_EVIDENCE_REQUIRED`.
+- `SOLVED` (quản lý xác nhận đã sửa xong): `resolvedImages` (ảnh nghiệm thu, tối đa 10 URL) là **tùy chọn**, có hay không đều được.
 - `CLOSED` cần đã ghi nhận chi phí qua API cost bên dưới, nếu chưa → `422 INCIDENT_COST_REQUIRED`.
 - `assignedTo` phải là chủ trọ hoặc một manager được giao cơ sở đó. Khi chuyển sang `IN_PROGRESS` mà không gửi `assignedTo`, BE gán người đang thao tác.
 
@@ -902,16 +902,31 @@ Bỏ `billingPeriod` thì mặc định là kỳ hiện tại (giờ Việt Nam)
     "invoiceId": "...", "invoiceCode": "HD202610...", "billingPeriod": "2026-10", "status": "PARTIALLY_PAID",
     "room": { "id": "...", "roomNumber": "P.101", "floor": 1 },
     "branch": { "id": "...", "name": "Cơ sở Vườn Xanh" },
-    "tenant": { "id": "...", "name": "Nguyễn Văn A", "phoneNumber": "0912..." },
+    "tenant": { "id": "...", "name": "Nguyễn Văn A", "phoneNumber": "0912...", "email": "a@gmail.com" },
     "totalAmount": 3850000, "paidAmount": 1000000, "remainingAmount": 2850000,
     "dueDate": "...", "overdueDays": 5,
     "publicPath": "/i/<token>",
-    "reminderMessage": "Chào Nguyễn Văn A, phòng P.101 còn 2.850.000đ tiền phòng kỳ 10/2026 (đã quá hạn 5 ngày). Anh/chị vui lòng thanh toán qua link: http://localhost:5173/i/<token>. Cảm ơn anh/chị!"
+    "lastReminder": { "sentAt": "...", "status": "SENT", "auto": true }
   }]
 }
 ```
 
-Danh sách sắp theo số ngày quá hạn giảm dần, rồi theo số tiền nợ. `reminderMessage` dùng cho nút **"Sao chép tin nhắn nhắc nợ gửi Zalo"**; link trong tin nhắn lấy theo `CLIENT_URL`.
+Danh sách sắp theo số ngày quá hạn giảm dần, rồi theo số tiền nợ. `tenant.email = null` nghĩa là khách chưa có email (nút gửi email bị khóa). `lastReminder` là lần nhắc nợ gần nhất (`SENT` / `FAILED`, `auto: true` = do job tự gửi), không có thì là `null`.
+
+#### Nhắc nợ qua email
+
+Email được gửi **thay mặt chủ trọ**: tên người gửi là `<tên chủ trọ> - <tên cơ sở>`, `Reply-To` là email của chủ trọ (khách bấm trả lời là tới thẳng chủ trọ). Địa chỉ gửi đi là `EMAIL_FROM_ADDRESS` đã xác minh ở nhà cung cấp. Nội dung: phòng, kỳ, số còn nợ, hạn / số ngày quá hạn, mã hóa đơn và nút mở link No-App `PUBLIC_APP_URL/i/<token>` để quét VietQR.
+
+- `POST /invoices/:invoiceId/reminders` (LANDLORD, PROPERTY_MANAGER trong cơ sở được giao): gửi ngay. Response `{ id, invoiceId, to, auto: false, status: "SENT", sentAt }`.
+  - `409 INVOICE_NOT_OWING`: hóa đơn không còn nợ. `422 TENANT_EMAIL_MISSING`: khách chưa có email. `429 REMINDER_RECENTLY_SENT`: vừa gửi cho hóa đơn này trong 10 phút. `503 EMAIL_NOT_CONFIGURED`, `502 EMAIL_UNAVAILABLE`: lỗi cấu hình / nhà cung cấp email.
+- `GET /dashboard/reminder-settings` (LANDLORD): `{ autoEmail, emailConfigured, schedule }`.
+- `PUT /dashboard/reminder-settings` (LANDLORD), body `{ "autoEmail": true | false }`: bật / tắt tự động nhắc cho khách thuê của mình (mặc định bật).
+- Job `jobs/debtReminders.js` chạy mỗi giờ, chỉ gửi 8:00–20:00 giờ VN, cho hóa đơn `ISSUED / PARTIALLY_PAID / UNPAID` còn nợ, vào các ngày: 3 ngày trước hạn, đúng ngày hạn, 1 ngày sau hạn, rồi cứ 3 ngày một lần tới 60 ngày quá hạn. Mỗi hóa đơn tối đa 1 email/ngày (kể cả email gửi tay), khách không có email thì bỏ qua. `DEBT_REMINDER_AUTO=false` tắt job cho toàn hệ thống.
+- Mỗi lần gửi lưu một bản ghi `DebtReminder` (người nhận, tự động hay gửi tay, người gửi, trạng thái, lỗi).
+- Luôn gửi thật, có hai cách (`EMAIL_PROVIDER` để trống thì tự chọn theo khóa đã khai báo):
+  - `smtp`: `SMTP_USER` + `SMTP_PASS` (Gmail: địa chỉ Gmail + App Password), tùy chọn `SMTP_HOST` (mặc định `smtp.gmail.com`), `SMTP_PORT` (mặc định 465). Dùng khi chạy local; Render bản miễn phí chặn cổng SMTP.
+  - `brevo`: `BREVO_API_KEY` + `EMAIL_FROM_ADDRESS` đã xác minh trong Brevo (HTTP API, chạy được trên Render).
+  - Chưa cấu hình: gửi tay báo `503 EMAIL_NOT_CONFIGURED`, job tự động không làm gì.
 
 ### 2. Realtime (Socket.io)
 
@@ -1058,124 +1073,54 @@ Sau khi duyệt, luồng thanh toán giữ nguyên: admin xác nhận hóa đơn
 
 <a id="saas-payment"></a>
 
-## 9. Thanh toán gói SaaS qua Cổng thanh toán SePay
+## 9. Thanh toán gói SaaS qua cổng payOS
 
-Chỉ Backend `/BE`. Prefix `/api/v1`.
+Chỉ áp dụng cho Backend `/BE`, prefix `/api/v1`.
 
-- Nền tảng (admin) thu tiền gói SaaS của chủ trọ qua **Cổng thanh toán SePay**: form checkout tại `pay.sepay.vn` và IPN `ORDER_PAID`.
-- Tiền phòng của khách thuê vẫn chảy vào tài khoản riêng của từng chủ trọ qua Bank Hub, xem [mục SePay Bank Hub](#bankhub). Hai dòng tiền này tách biệt hoàn toàn.
+- Nền tảng (admin) thu tiền gói SaaS của chủ trọ qua **payOS**: tạo link thanh toán bằng API, nhận webhook khi thanh toán xong. Code nằm ở `services/saasPaymentService.js`.
+- Tiền phòng của khách thuê vẫn chuyển thẳng vào tài khoản riêng của từng chủ trọ qua SePay Bank Hub, xem [mục SePay Bank Hub](#bankhub). Hai dòng tiền tách biệt hoàn toàn.
+- Các hóa đơn gói đã thanh toán qua SePay trước đây giữ nguyên (`paymentReference: SEPAY_PG:…`). Đơn SePay cũ chưa có kết quả **không** được đối soát tự động nữa; admin xử lý tay nếu có.
 
-### 1. Cài đặt (sandbox)
+### 1. Cài đặt
 
-1. Vào my.sepay.vn → **Cổng thanh toán** → **Đăng ký** → **Bắt đầu ngay** → chọn **Sandbox**, rồi sao chép `MERCHANT ID` và `SECRET KEY`.
-2. Trong `BE/.env`:
+1. Vào my.payos.vn, tạo **kênh thanh toán**, gắn tài khoản ngân hàng nhận tiền, rồi lấy **Client ID**, **API Key** và **Checksum Key**.
+2. Khai báo trong `BE/.env` (trên Render: phần Environment):
 
    ```env
-   SEPAY_PG_ENV=sandbox                      # sandbox | production
-   SEPAY_PG_MERCHANT_ID=...                  # MERCHANT ID của Sandbox
-   SEPAY_PG_SECRET_KEY=...                   # SECRET KEY của Sandbox, chỉ nằm ở backend
-   SEPAY_PG_IPN_SECRET=...                   # secret key đặt ở mục cấu hình IPN (auth type SECRET_KEY)
-   SEPAY_PG_RETURN_URL=http://localhost:5173/plans
+   PAYOS_CLIENT_ID=...
+   PAYOS_API_KEY=...
+   PAYOS_CHECKSUM_KEY=...
+   PAYOS_RETURN_URL=https://<domain FE>/plans   # tùy chọn, mặc định CLIENT_URL/plans
+   # PAYOS_API_URL=https://api-merchant.payos.vn  # tùy chọn
    ```
 
-3. Trong my.sepay.vn → **Cổng thanh toán → Cấu hình → IPN**:
-   - URL: `https://<domain>/api/v1/plans/payments/ipn`. SePay chỉ gọi được HTTPS công khai; khi chạy local, dùng `ngrok http 5000`.
-   - Auth type: `SECRET_KEY`, giá trị bằng `SEPAY_PG_IPN_SECRET`. SePay gửi giá trị này trong header `X-Secret-Key`.
+3. Trong my.payos.vn → kênh thanh toán → **Webhook URL**, nhập `https://<domain BE>/api/v1/plans/payments/ipn` rồi lưu. payOS gửi một giao dịch mẫu để kiểm tra; BE xác thực chữ ký rồi trả `200` (mã đơn mẫu không thuộc hóa đơn nào nên được bỏ qua).
+4. Thiếu một trong ba khóa thì `checkout` / `verify-payment` trả `503 PAYMENT_GATEWAY_NOT_CONFIGURED`, còn webhook trả `503 WEBHOOK_NOT_CONFIGURED`.
 
-Chuyển sang production: thay bộ merchant id / secret key bằng bộ production, đặt `SEPAY_PG_ENV=production` (checkout `pay.sepay.vn`), và cấu hình lại IPN production.
+### 2. Tạo link thanh toán — `POST /plans/invoices/:invoiceId/checkout` (LANDLORD)
 
-Nếu thiếu merchant id hoặc secret key, checkout trả `503 PAYMENT_GATEWAY_NOT_CONFIGURED`. Nếu thiếu `SEPAY_PG_IPN_SECRET`, IPN trả `503 WEBHOOK_NOT_CONFIGURED`.
+- Hóa đơn phải `PENDING`/`OVERDUE`, số tiền > 0, và thuê bao tương ứng đang `PENDING_PAYMENT`, chưa hết hạn.
+- Nếu hóa đơn đã có đơn payOS trước đó, BE hỏi payOS trước. Đơn nào đã thanh toán thì kích hoạt gói và trả `409 PLATFORM_INVOICE_ALREADY_PAID` để không trả tiền hai lần.
+- Tạo `orderCode` số nguyên duy nhất, lưu vào `gatewayOrders[].orderInvoiceNumber` với `paymentMethod: "PAYOS"`, rồi gọi `POST https://api-merchant.payos.vn/v2/payment-requests` (header `x-client-id`, `x-api-key`):
+  - `description` có dạng `GOI` + 6 ký tự cuối mã hóa đơn, tối đa 9 ký tự (giới hạn của tài khoản không liên kết qua payOS).
+  - `returnUrl` / `cancelUrl` = `PAYOS_RETURN_URL?payment=success|cancel&invoice=<mã hóa đơn>` (payOS thêm các tham số của họ phía sau).
+  - `signature` = HMAC-SHA256 dạng hex theo checksum key, ký trên `amount=…&cancelUrl=…&description=…&orderCode=…&returnUrl=…`.
+- Response `201`: `{ gateway: "PAYOS", checkoutUrl, method: "GET", orderCode, paymentLinkId, qrCode }`. FE chuyển trình duyệt tới `checkoutUrl`.
+- payOS từ chối hoặc không kết nối được → `502 PAYMENT_GATEWAY_UNAVAILABLE`, đơn vừa thêm bị xóa khỏi hóa đơn. Mã lỗi và mô tả của payOS được ghi vào log server.
 
-### 2. Luồng
+### 3. Webhook — `POST /plans/payments/ipn` (payOS gọi, không cần đăng nhập)
 
-```text
-Admin duyệt yêu cầu đổi gói (hoặc tự tạo thuê bao)
-  → Subscription PENDING_PAYMENT + PlatformInvoice PENDING
-Chủ trọ: GET /plans/invoices → bấm "Thanh toán"
-  → POST /plans/invoices/:id/checkout → FE gửi form POST tới SePay
-  → khách thanh toán trên pay-sandbox.sepay.vn → SePay đưa về SEPAY_PG_RETURN_URL?payment=success
-SePay gọi IPN ORDER_PAID → backend đánh dấu PlatformInvoice PAID → Subscription ACTIVE → gói mới có hiệu lực
-```
+- Xác thực: `signature` phải bằng HMAC-SHA256 hex theo checksum key, tính trên `data` với các khóa sắp theo bảng chữ cái, dạng `key=value&…` (null / undefined thành chuỗi rỗng). Sai → `401 WEBHOOK_UNAUTHORIZED`.
+- Tìm hóa đơn theo `data.orderCode`. Không thấy, hoặc `code` khác `"00"` → `{ ignored: true }`.
+- Thanh toán đúng số tiền, đúng VND, hóa đơn chưa trả → kích hoạt gói. Ghi `paymentReference: PAYOS:<paymentLinkId>` và `paymentGateway: PAYOS`, đánh dấu đơn là `PAID`.
+- Sai số tiền, hoặc hóa đơn đã được trả bằng đơn khác → ghi chú `Thanh toán payOS chưa áp dụng: …` và audit `UNAPPLIED_PLATFORM_PAYMENT` để admin hoàn tiền. Đơn được đánh dấu `UNAPPLIED`.
+- Đơn đã xử lý rồi → `{ duplicate: true }`. Luôn trả `200` sau khi xác thực, để payOS không gửi lại những việc chỉ admin giải quyết được.
 
-Admin vẫn có thể xác nhận tay bằng `POST /admin/invoices/:id/paid` (chuyển khoản ngoài cổng). Cả hai cách dùng chung một hàm xử lý.
+### 4. Kiểm tra thanh toán — `POST /plans/invoices/:invoiceId/verify-payment` (LANDLORD)
 
-### 3. API cho chủ trọ (`LANDLORD`)
-
-#### GET /plans/invoices
-
-Danh sách hóa đơn SaaS của chính mình, mới nhất trước:
-
-```json
-{ "items": [{ "id": "...", "invoiceCode": "SAAS-...", "amount": 499000, "billingCycle": "MONTHLY",
-  "dueDate": "...", "status": "PENDING", "paidAt": null, "paymentGateway": null,
-  "plan": { "id": "...", "code": "PRO", "name": "Gói Pro" }, "payable": true, "createdAt": "..." }],
-  "total": 1, "page": 1, "limit": 20 }
-```
-
-#### POST /plans/invoices/:invoiceId/checkout
-
-Body tùy chọn `{ "paymentMethod": "BANK_TRANSFER" }`, nhận một trong `BANK_TRANSFER`, `NAPAS_BANK_TRANSFER`, `CARD`; mặc định `BANK_TRANSFER`. Trả 201:
-
-```json
-{
-  "environment": "sandbox",
-  "checkoutUrl": "https://pay-sandbox.sepay.vn/v1/checkout/init",
-  "method": "POST",
-  "orderInvoiceNumber": "SAAS-...-MGX1A2B3",
-  "fields": {
-    "operation": "PURCHASE", "payment_method": "BANK_TRANSFER", "order_invoice_number": "SAAS-...-MGX1A2B3",
-    "order_amount": 499000, "currency": "VND", "order_description": "Thanh toan goi PRO SAAS-...",
-    "customer_id": "...", "success_url": "...", "error_url": "...", "cancel_url": "...",
-    "merchant": "...", "signature": "..."
-  }
-}
-```
-
-- Mỗi lần gọi tạo một `order_invoice_number` mới (SePay yêu cầu mã đơn là duy nhất). Gọi lại khi khách thanh toán lại cũng không sao.
-- `signature` = HMAC-SHA256 bằng secret key, ký chuỗi các cặp `field=value` nối bằng dấu phẩy theo đúng thứ tự trường, mã hóa base64 (giống SDK `sepay-pg-node`).
-- **FE phải gửi các trường đúng thứ tự trả về, không sửa giá trị nào**, nếu không chữ ký sẽ sai.
-- Hóa đơn không ở trạng thái chờ thanh toán, hoặc thuê bao đã hết hạn hay bị hủy → `422 PLATFORM_INVOICE_NOT_PAYABLE`. Hóa đơn của chủ trọ khác → 404.
-
-FE tự gửi form như sau:
-
-```js
-const { checkoutUrl, fields } = await planApi.checkout(invoiceId);
-const form = document.createElement("form");
-form.method = "POST";
-form.action = checkoutUrl;
-for (const [name, value] of Object.entries(fields)) {
-  const input = document.createElement("input");
-  input.type = "hidden";
-  input.name = name;
-  input.value = value;
-  form.appendChild(input);
-}
-document.body.appendChild(form);
-form.submit();
-```
-
-Trang `SEPAY_PG_RETURN_URL` nhận thêm `?payment=success|error|cancel&invoice=<invoiceCode>`. **Không coi `payment=success` là đã thanh toán**: chỉ IPN mới kích hoạt gói. FE nên gọi lại `GET /plans/invoices` hoặc `/auth/me` để biết trạng thái thật.
-
-### 4. IPN — `POST /plans/payments/ipn`
-
-Header `X-Secret-Key`. Backend xử lý:
-
-| Trường hợp | Kết quả |
-| --- | --- |
-| Sai hoặc thiếu `X-Secret-Key` | 401 |
-| `order_invoice_number` không thuộc hóa đơn nào | 200 `{ success: true, ignored: true }` |
-| `ORDER_PAID`, giao dịch `APPROVED`, số tiền đúng bằng hóa đơn (VND) | Hóa đơn `PAID` (`paymentReference = SEPAY_PG:<transaction_id>`, `paymentGateway = SEPAY_PG_<payment_method>`), thuê bao `ACTIVE`, gói cũ bị thay. 200 `{ success: true, paid: true }` |
-| Gửi lại cùng giao dịch | 200 `{ duplicate: true }`, không xử lý lần hai |
-| Số tiền lệch, thuê bao đã hủy hoặc hết hạn, quota không còn phù hợp | Không kích hoạt gói. Ghi chú vào hóa đơn và audit log `UNAPPLIED_PLATFORM_PAYMENT` để admin xử lý hoặc hoàn tiền. Vẫn trả 200 để SePay không gửi lại |
-| `TRANSACTION_VOID` của giao dịch đã ghi nhận (thẻ bị hủy) | Không tự hạ gói. Ghi audit `UNAPPLIED_PLATFORM_PAYMENT` để admin quyết định |
-
-Thời điểm thanh toán lấy theo `transaction_date` (giờ Việt Nam), nhưng không sớm hơn lúc tạo hóa đơn, để tránh sai do lệch giờ.
-
-Audit `CONFIRM_PLATFORM_PAYMENT` do cổng tạo có `actorRole: SYSTEM` và không có `confirmedBy`.
-
----
-
-<a id="admin"></a>
+- Dùng khi webhook chưa về (chạy local không có tunnel, mạng lỗi). BE gọi `GET /v2/payment-requests/{orderCode}` cho tối đa 10 đơn payOS gần nhất chưa có kết quả. Đơn có `status: "PAID"` được xử lý giống như webhook.
+- Response: `{ status: "PAID" | "UNAPPLIED" | <trạng thái hóa đơn>, invoiceId, duplicateOrders? }`.
+- FE tự gọi API này khi người dùng quay lại `/plans?payment=success&invoice=…` (thử tối đa 4 lần, mỗi lần cách 3 giây). Người dùng cũng có thể bấm nút **Kiểm tra thanh toán**.
 
 ## 10. Admin nền tảng SaaS
 
@@ -1315,9 +1260,29 @@ Dependencies added: None. Automated testing chưa thực hiện; việc kiểm t
 ## Tiền cọc hợp đồng
 
 - `GET /contracts/:contractId` trả thêm `depositPayment` khi cọc chưa nhận (`depositStatus: UNPAID`, `depositAmount > 0`, hợp đồng còn hiệu lực), ngược lại là `null`. Có `amount`, `bankConfigured`; khi chủ trọ đã cấu hình ngân hàng thì có thêm `bank`, `paymentSyntax` (`COC <mã hợp đồng bỏ dấu gạch>`) và `vietQrUrl`.
-- `POST /contracts/:contractId/deposit/received` (LANDLORD, body rỗng): chuyển `UNPAID` → `PAID`, lưu `depositReceivedAt`, `depositReceivedBy`, ghi audit `RECEIVE_CONTRACT_DEPOSIT`. Cọc đã nhận → `422 DEPOSIT_ALREADY_RECEIVED`; hợp đồng không có cọc → `DEPOSIT_NOT_REQUIRED`; hợp đồng đã kết thúc → `CONTRACT_NOT_ACTIVE`.
+- `POST /contracts/:contractId/deposit/received` (LANDLORD) `{ paymentMethod?: "CASH" | "BANK_TRANSFER" (mặc định CASH), note? }`: chuyển `UNPAID` → `PAID`, lưu `depositReceivedAt`, `depositReceivedBy`, `depositReferenceCode = COC-<mã hợp đồng>`, tạo biên nhận cọc (xem dưới), ghi audit `RECEIVE_CONTRACT_DEPOSIT` và gửi `activity` tới `user:<tenantId>`. Cọc đã nhận → `422 DEPOSIT_ALREADY_RECEIVED`; hợp đồng không có cọc → `DEPOSIT_NOT_REQUIRED`; hợp đồng đã kết thúc → `CONTRACT_NOT_ACTIVE`.
 - Đối soát tự động (gói có `SEPAY_WEBHOOK`, webhook SePay hoặc IPN Bank Hub): nội dung chứa đúng một mã `COC HDT<năm><12 ký tự>` thì giao dịch được khớp với hợp đồng, kiểm tra trước mã hóa đơn. Cọc đang `UNPAID`, hợp đồng còn hiệu lực và số tiền đúng bằng `depositAmount` → `depositStatus: PAID`, `depositReceivedAt` = ngày giao dịch, `depositReferenceCode`, audit `RECEIVE_CONTRACT_DEPOSIT` (actor SYSTEM), `PaymentReceipt.contractId`, realtime `contract:deposit_received` tới phòng `landlord:` và `branch:`. Sai số tiền, cọc đã nhận hoặc hợp đồng đã kết thúc → `UnmatchedPayment` kèm ghi chú lý do; gói không có đối soát tự động thì chủ trọ xác nhận thủ công bằng API trên.
 - `depositPayment` có thêm `autoConfirm` (gói có đối soát tự động) và `simulator`. `POST /contracts/:contractId/deposit/simulate` (LANDLORD, TENANT; chỉ khi bật giả lập, không chạy ở production) giả lập khách chuyển cọc qua đúng luồng đối soát ngân hàng; trả `received`, `unmatched`, `reason`, `contract`.
+
+### Biên nhận cọc trong lịch sử thanh toán
+
+- Mỗi lần cọc được ghi nhận (xác nhận tay, đối soát chuyển khoản, hoặc tạo hợp đồng với `depositStatus: PAID`) sinh **một** `Payment` `purpose: "CONTRACT_DEPOSIT"` (không có `invoiceId`; có `contractId`, `contractCode`, `tenantId`, `amount = depositAmount`, `status: SUCCESS`). Index unique `contractId` (partial) bảo đảm một biên nhận / hợp đồng.
+- Các `Payment` khác là `purpose: "INVOICE"` (bản ghi cũ không có trường này cũng tính là INVOICE).
+- `GET /payments?purpose=INVOICE|INCIDENT|CONTRACT_DEPOSIT` lọc lịch sử tiền phòng & dịch vụ / tiền sửa chữa sự cố (thanh toán của hóa đơn `invoiceType: INCIDENT`) / tiền cọc; `contractId` lọc theo hợp đồng. Người thuê thấy biên nhận cọc của hợp đồng đứng tên mình. Danh sách trả kèm `reportedBy`, `confirmedBy`, `reviewedBy` (`{ name, role }`) cho chủ trọ / quản lý.
+- Dòng tiền trên dashboard không tính tiền cọc (tiền giữ hộ, không phải doanh thu).
+- Khi BE khởi động, `backfillDepositPayments` tạo biên nhận cho các hợp đồng đã nhận cọc trước đây (idempotent).
+
+## Admin: tài khoản nhận tiền của chủ trọ (chỉ xem)
+
+`GET /admin/landlords` trả thêm cho mỗi chủ trọ `banking { source: "BANK_HUB" | "MANUAL" | null, linkedAt, autoReconcile, pendingUnmatched, lastTransferAt }` và `bankingSummary { linked, manual, none }` (theo bộ lọc hiện tại). Chủ trọ tự liên kết ngân hàng qua SePay Bank Hub (Hồ sơ › Ngân hàng); quản trị không nhập STK, khóa API hay webhook thay. `autoReconcile` = đã liên kết Bank Hub + tài khoản chủ trọ ACTIVE + gói đang hiệu lực (cùng điều kiện với webhook).
+
+## Hợp đồng nháp và ký xác nhận 2 bên
+
+- `POST /contracts` tạo hợp đồng `status: DRAFT`, `confirmedByBothParties: false`, chưa ai ký. Phòng được giữ (`RENTED`, `currentContractId`).
+- `POST /contracts/:id/confirm/landlord` (LANDLORD) và `/confirm/tenant` (TENANT đứng tên) ghi chữ ký. Chữ ký thứ hai chuyển `DRAFT → ACTIVE`, lưu `activatedAt`, audit `ACTIVATE_CONTRACT`.
+- Hợp đồng `DRAFT`: nhận cọc được (xác nhận tay, VietQR / đối soát, giả lập); không chốt điện nước, không tạo hóa đơn (`409 CONTRACT_NOT_SIGNED`). `POST /invoices/generate` không truyền `roomIds` thì bỏ qua phòng có hợp đồng nháp; truyền `roomIds` có phòng nháp → `409 CONTRACT_NOT_SIGNED` kèm số phòng.
+- `POST /contracts/:id/cancel` (LANDLORD) `{ reason? }`: chỉ cho `DRAFT` (`409 CONTRACT_NOT_DRAFT` nếu đã ký). Hợp đồng → `TERMINATED` với `cancelledAt`, `cancellationReason`, `actualEndDate`; phòng về `EMPTY`; cọc đã nhận ghi `REFUNDED` (`refundedDepositAmount = depositAmount`). Audit `CANCEL_DRAFT_CONTRACT`.
+- `GET /contracts?status=DRAFT` lọc hợp đồng chờ ký. Dữ liệu cũ đang `ACTIVE` giữ nguyên trạng thái.
 
 ## Lọc danh sách hợp đồng
 
@@ -1327,6 +1292,32 @@ Dependencies added: None. Automated testing chưa thực hiện; việc kiểm t
 - `depositStatus`: `UNPAID`, `PAID`, `APPLIED`, `PARTIALLY_REFUNDED`, `REFUNDED`.
 - `confirmation`: `PENDING` (một trong hai bên chưa xác nhận) hoặc `CONFIRMED` (cả hai đã xác nhận).
 - Vẫn kết hợp được với `status` và `branchId`.
+
+## Thu tiền sự cố do người thuê chi trả
+
+- `POST /incidents/:id/quote` (LANDLORD, PROPERTY_MANAGER) `{ amount, note? }`: chỉ khi sự cố `PENDING`, có `contractId`, chưa có báo giá được duyệt. Ghi `quote { amount, note, status: PENDING, quotedBy, quotedAt }`, `costPayer: TENANT`, `repairCost = amount`. Gửi lại thay báo giá cũ. Audit `QUOTE_INCIDENT`.
+- `POST /incidents/:id/quote/respond` (TENANT đứng tên hợp đồng) `{ accept: boolean, note? }` (từ chối phải có `note`): `quote.status` → `ACCEPTED`/`DECLINED`. Audit `ACCEPT_INCIDENT_QUOTE` / `DECLINE_INCIDENT_QUOTE`.
+- `PUT /incidents/:id/status`: `PENDING → IN_PROGRESS` với `costPayer: TENANT` cần `quote.status: ACCEPTED` (`INCIDENT_QUOTE_NOT_ACCEPTED`). `SOLVED` lưu `acceptance.staffBy/staffAt`. `CLOSED` bởi nhân viên bị chặn với phiếu người thuê chịu phí (`INCIDENT_TENANT_ACCEPTANCE_REQUIRED`).
+- `POST /incidents/:id/acceptance` (TENANT đứng tên hợp đồng) `{ accept: boolean, note? }`: chỉ khi `SOLVED` + `costPayer: TENANT`. Đạt → `CLOSED`, `acceptance.tenantBy/tenantAt`, xuất hóa đơn `invoiceType: INCIDENT` (`incidentId`, mã `HDSC…`, `additionalFees: [{ reason: "Sửa chữa sự cố: …", amount }]`, `ISSUED`, VietQR nếu chủ trọ có ngân hàng), lưu `chargeInvoiceId`, `chargeInvoiceCode`. Chưa đạt (bắt buộc `note`) → `IN_PROGRESS`, xóa nghiệm thu. Audit `TENANT_ACCEPT_INCIDENT` / `TENANT_REJECT_INCIDENT_WORK`.
+- `PUT /incidents/:id/cost` không nhận `costPayer: TENANT` nữa (`INCIDENT_QUOTE_REQUIRED`); sửa được từ `PENDING`. Phiếu đang người thuê chịu phí chỉ chủ trọ chuyển được sang chủ trọ chịu (báo giá → `CANCELLED`).
+- Hóa đơn sự cố thanh toán như mọi hóa đơn (VietQR/SePay, tiền mặt). Index `one_live_invoice_per_period` nay chỉ áp cho `MONTHLY`/`SETTLEMENT` (server tự dựng lại khi khởi động); `INCIDENT` giới hạn một hóa đơn sống / sự cố.
+- `activity` của sự cố gửi tới người thuê đứng tên hợp đồng (không chỉ người báo).
+
+### Bên chịu phí chỉ chọn một lần
+
+- Đã ghi chủ trọ chịu / miễn phí (`PUT /incidents/:id/cost`, có `costUpdatedAt`) → `POST /incidents/:id/quote` bị chặn (`INCIDENT_PAYER_LOCKED`).
+- Đã báo giá cho người thuê (đang chờ duyệt hoặc đã đồng ý) → không chuyển sang chủ trọ chịu (`INCIDENT_PAYER_LOCKED`). Ngoại lệ duy nhất: người thuê **từ chối** báo giá thì chủ trọ (LANDLORD) được nhận chịu phí.
+- Hóa đơn sự cố người thuê chưa trả khi quyết toán hợp đồng được tính vào nợ và trừ vào cọc như mọi hóa đơn khác.
+
+## Phiếu chi (trả thợ / đơn vị sửa chữa)
+
+Model `Expense`: tiền **chi ra** (Payment chỉ là tiền thu vào). Người thuê không truy cập được.
+
+- `POST /expenses` (LANDLORD, PROPERTY_MANAGER của cơ sở) `{ incidentId, payee, amount, paymentMethod: CASH|BANK_TRANSFER, paidAt?, referenceCode?, note?, category?: REPAIR|OTHER }`: chỉ khi sự cố `IN_PROGRESS`/`SOLVED`/`CLOSED`; `paidAt` không ở tương lai. Audit `CREATE_EXPENSE`.
+- `GET /expenses?branchId&incidentId&status=RECORDED|VOID&page&limit` → `{ data, pagination, totals: { all, CASH, BANK_TRANSFER } }` (tổng không tính phiếu `VOID`).
+- `POST /expenses/:id/void` (LANDLORD) `{ reason }`: `status: VOID`, giữ bản ghi. Audit `VOID_EXPENSE`.
+- `GET /incidents/:id` (nhân viên) trả thêm `expenses` và `finance { payer, billed, collected, invoice, paidOut, net }`: người thuê trả → `net = đã thu từ người thuê − đã chi cho thợ`; chủ trọ trả → `paidOut` là chi phí chủ trọ chịu.
+- Dashboard `collection` thêm `paidOutAmount` (phiếu chi trong tháng) và `netCashFlow` (`receivedAmount − paidOutAmount`).
 
 ## Phân loại sự cố tự động (TypeSafe)
 
@@ -1347,6 +1338,12 @@ Sau mọi thao tác ghi thành công (POST/PUT/PATCH/DELETE có người dùng �
 
 - `data:changed` `{ resources: ["contracts", "rooms", ...], at }`: chỉ nêu nhóm dữ liệu bị ảnh hưởng, không có bản ghi hay số tiền. Gửi tới phòng `scope:<landlordId>` (chủ trọ, quản lý, khách thuê của chuỗi); thay đổi của admin gửi `admins` + `landlords`. FE dùng `useLiveRefresh([...], refresh)` để trang tự tải lại ngầm.
 - `activity` `{ id, at, actor: { id, name, role }, action, message, details, room, branch, code, link }`: ai làm gì, phòng nào, cơ sở nào, mã hợp đồng / hóa đơn nào. Ví dụ `message`: "Nguyễn Văn An (Khách thuê) báo sự cố", `details`: "Phòng P.101 · Tòa Cầu Giấy · "Vỡ ống nước"". Chỉ gửi tới người được xem: `landlord:<id>`, `branch:<id>` (quản lý cơ sở đó), `user:<tenantId>` (khách thuê liên quan), `admins` (việc về gói dịch vụ). Danh sách hành động nằm trong `ACTIONS` của `realtime/activity.js`.
+- Mỗi hành động được phân loại người nhận (`realtime/audience.js`), áp dụng cho cả sự kiện realtime lẫn `GET /notifications/activity`:
+  - `OWNER` — chỉ chủ trọ: tạo cơ sở, thêm nhân viên.
+  - `STAFF` — chủ trọ + quản lý được giao đúng cơ sở đó: sửa cơ sở/phòng, chốt/sửa điện nước, tạo hóa đơn nháp, ghi chi phí sửa chữa, phân loại sự cố, quản lý báo thu tiền mặt (chờ duyệt), từ chối phiếu thu.
+  - `TENANT` — `STAFF` + **đúng người thuê đứng tên** hợp đồng / hóa đơn / sự cố: hợp đồng (lập, ký, kích hoạt, gia hạn, quyết toán, thanh lý, hủy nháp), phát hành / hủy hóa đơn, tiền đã nhận (tiền mặt chủ trọ ghi, phiếu được duyệt, chuyển khoản, gán giao dịch), sự cố (báo, trạng thái, báo giá, duyệt giá, nghiệm thu).
+  - `ADMIN` — quản trị + chủ trọ liên quan: yêu cầu đổi gói, trạng thái tài khoản, hóa đơn gói.
+  - Quản lý không thấy việc của cơ sở mình không quản lý; người thuê không thấy việc của phòng / người thuê khác hay việc nội bộ. Người thuê không nhận lại thông báo về việc chính mình vừa làm. Tiền cọc: người thuê nhận thông báo riêng (biên nhận cọc), sự kiện chung chỉ gửi `STAFF`.
 - Phòng socket mới: `user:<userId>` (mọi tài khoản), `scope:<landlordId>`, `admins`, `landlords`; các phòng cũ (`landlord:`, `branch:`, `invoice:`) và sự kiện cũ (`payment:success`, `invoice_paid`, `incident:*`, `contract:deposit_received`) giữ nguyên.
 
 ## Khóa / mở lại tài khoản khách thuê theo hợp đồng
@@ -1369,3 +1366,10 @@ Sau mọi thao tác ghi thành công (POST/PUT/PATCH/DELETE có người dùng �
 
 - `users`: `email` và `username` (CCCD của khách thuê, SĐT của quản lý, email của chủ trọ) là duy nhất **trong từng chủ trọ** (index `{email, landlordId}`, `{username, landlordId}`), không còn duy nhất toàn hệ thống. Cùng một CCCD có thể có tài khoản ở nhiều chủ trọ. Chủ trọ và admin (không có `landlordId`) vẫn không trùng email với nhau. Server tự xóa index cũ `email_1`, `username_1` khi khởi động.
 - Đăng nhập: thử mật khẩu với mọi tài khoản trùng tên đăng nhập. Chỉ một tài khoản đúng mật khẩu → đăng nhập như cũ. Nhiều tài khoản cùng đúng mật khẩu → `POST /auth/login` trả `{ selectionRequired: true, accounts: [{ id, role, roleName, status, landlordName, places: ["Tòa Cầu Giấy – Phòng P.101", ...] }] }` (chưa tạo phiên, chưa đặt cookie). Client gửi lại `{ username, password, accountId }` để vào tài khoản đã chọn (mật khẩu được kiểm tra lại). `accountId` không thuộc danh sách khớp → 401.
+
+## Giả lập thanh toán (sandbox)
+
+- `POST /invoices/public/:token/simulate-payment` và `POST /contracts/:id/deposit/simulate` dùng **mã giao dịch cố định**: hóa đơn `SIM-<mã hóa đơn>-<số đã trả>`, cọc `SIM-COC-<mã hợp đồng>`. Bấm lặp lại trả `duplicate: true`, không tạo giao dịch mới.
+- Mỗi hóa đơn / hợp đồng chỉ chạy một lần giả lập tại một thời điểm; request song song nhận `429 SIMULATION_IN_PROGRESS`.
+- Nếu giao dịch chắc chắn không tự đối soát (chủ trọ bị khóa hoặc không có gói hiệu lực) → `409 SIMULATION_WOULD_NOT_MATCH`, không ghi bản ghi nào.
+- Khi khởi động, server chuyển các giao dịch chưa khớp còn chờ của gateway `SANDBOX_SIMULATOR` sang `IGNORED` (`ignoreSimulatedUnmatched` trong `config/migrations.js`).

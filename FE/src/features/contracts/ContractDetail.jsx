@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import {
   Printer,
   Trash2,
@@ -207,6 +208,7 @@ export default function ContractDetail({ id, onClose, onSaved }) {
   const [copied, setCopied] = useState(false);
   const [receivingDeposit, setReceivingDeposit] = useState(false);
   const [depositConfirmationOpen, setDepositConfirmationOpen] = useState(false);
+  const [depositMethod, setDepositMethod] = useState("CASH");
   const [simulatingDeposit, setSimulatingDeposit] = useState(false);
   const { user } = useAuth();
   const toast = useToast();
@@ -214,17 +216,42 @@ export default function ContractDetail({ id, onClose, onSaved }) {
   const isLandlord = user?.role === "LANDLORD";
   const isTenant = user?.role === "TENANT";
 
+  const [cancellingDraft, setCancellingDraft] = useState(false);
+  async function handleCancelDraft() {
+    const reason = window.prompt(
+      "Hủy hợp đồng nháp này? Phòng sẽ trở về trống" +
+        (c?.depositStatus === "PAID" ? " và tiền cọc được ghi là đã hoàn trả" : "") +
+        ".\nLý do (không bắt buộc):",
+    );
+    if (reason === null) return;
+    setCancellingDraft(true);
+    try {
+      await contractApi.cancelDraft(id, reason.trim() ? { reason: reason.trim() } : {});
+      toast.success("Đã hủy hợp đồng nháp");
+      resource.reload();
+      onSaved?.();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setCancellingDraft(false);
+    }
+  }
+
   async function handleConfirmContract() {
     setConfirming(true);
     try {
+      let updated;
       if (isLandlord) {
-        await contractApi.confirmByLandlord(id);
+        updated = await contractApi.confirmByLandlord(id);
         toast.success("Đã xác nhận hợp đồng bằng tư cách Chủ trọ");
       } else if (isTenant) {
-        await contractApi.confirmByTenant(id);
+        updated = await contractApi.confirmByTenant(id);
         toast.success("Đã xác nhận hợp đồng bằng tư cách Khách thuê");
       }
+      if (c?.status === "DRAFT" && updated?.status && updated.status !== "DRAFT")
+        toast.success("Cả hai bên đã ký: hợp đồng có hiệu lực và có thể lập hóa đơn.");
       resource.reload();
+      onSaved?.();
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
@@ -236,8 +263,8 @@ export default function ContractDetail({ id, onClose, onSaved }) {
     setDepositConfirmationOpen(false);
     setReceivingDeposit(true);
     try {
-      await contractApi.markDepositReceived(id);
-      toast.success("Đã ghi nhận tiền cọc");
+      await contractApi.markDepositReceived(id, { paymentMethod: depositMethod });
+      toast.success("Đã ghi nhận tiền cọc và lưu biên nhận vào Lịch sử thanh toán › Tiền cọc");
       resource.reload();
       onSaved?.();
     } catch (err) {
@@ -250,11 +277,14 @@ export default function ContractDetail({ id, onClose, onSaved }) {
   // Deposit booked by Bank Hub: useLiveRefresh above reloads; the activity toast announces it.
 
   async function handleSimulateDeposit() {
+    if (simulatingDeposit) return; // one simulated transfer at a time
     setSimulatingDeposit(true);
     try {
       const res = await contractApi.simulateDeposit(id);
       if (res?.received)
         toast.success("Giả lập thành công: tiền cọc đã được ghi nhận tự động");
+      else if (res?.duplicate)
+        toast.info("Giao dịch cọc giả lập này đã được ghi nhận trước đó.");
       else
         toast.error(res?.reason || "Giao dịch giả lập chưa khớp với hợp đồng");
       resource.reload();
@@ -395,8 +425,8 @@ export default function ContractDetail({ id, onClose, onSaved }) {
                     </div>
                     <span>·</span>
                     <span>
-                      Ký ngày:{" "}
-                      <strong>{date(c.createdAt || c.startDate)}</strong>
+                      {c.displayStatus === "DRAFT" ? "Lập ngày" : "Ký ngày"}:{" "}
+                      <strong>{date(c.activatedAt || c.createdAt || c.startDate)}</strong>
                     </span>
                   </div>
                 </div>
@@ -416,6 +446,14 @@ export default function ContractDetail({ id, onClose, onSaved }) {
                   <span className="status-pill-dual expired">
                     <span className="dot" /> Quá hạn chưa tái ký
                   </span>
+                ) : c.displayStatus === "DRAFT" ? (
+                  <span className="status-pill-dual expiring">
+                    <span className="dot" /> Nháp · chờ 2 bên ký
+                  </span>
+                ) : c.cancelledAt ? (
+                  <span className="status-pill-dual terminated">
+                    <span className="dot" /> Đã hủy (nháp)
+                  </span>
                 ) : (
                   <span className="status-pill-dual terminated">
                     <span className="dot" /> Đã thanh lý
@@ -423,6 +461,27 @@ export default function ContractDetail({ id, onClose, onSaved }) {
                 )}
               </div>
             </div>
+
+            {c.displayStatus === "DRAFT" && (
+              <div className="contract-draft-note">
+                <AlertCircle size={16} />
+                <div>
+                  <strong>Hợp đồng nháp — chưa có hiệu lực.</strong> Hợp đồng chỉ được duyệt (có hiệu lực)
+                  khi cả chủ trọ và khách thuê ký xác nhận bên dưới. Trước đó phòng được giữ chỗ, có thể
+                  nhận cọc nhưng <strong>chưa thể chốt điện nước hay tạo hóa đơn</strong>.
+                </div>
+                {isLandlord && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCancelDraft}
+                    disabled={cancellingDraft}
+                  >
+                    {cancellingDraft ? "Đang hủy..." : "Hủy hợp đồng nháp"}
+                  </Button>
+                )}
+              </div>
+            )}
 
             {/* 2. Electronic Signing Banner (Xác nhận 2 chiều) */}
             <div
@@ -889,6 +948,14 @@ export default function ContractDetail({ id, onClose, onSaved }) {
                     ? `✓ Đã thu đủ cọc${c.depositReceivedAt ? ` · ${date(c.depositReceivedAt)}` : ""}`
                     : `⚠ ${labels[c.depositStatus] || "Chưa nhận cọc"}`}
                 </div>
+                {isDepositPaid && (
+                  <Link
+                    to="/payments?tab=deposits"
+                    style={{ display: "inline-block", marginTop: 6, fontSize: "0.8rem", fontWeight: 600 }}
+                  >
+                    Xem biên nhận cọc →
+                  </Link>
+                )}
                 {isLandlord && c.depositPayment && (
                   <Button
                     size="sm"
@@ -1279,6 +1346,21 @@ export default function ContractDetail({ id, onClose, onSaved }) {
             <p style={{ margin: 0 }}>
               Bạn có chắc đã nhận đủ tiền cọc{" "}
               <strong>{money(c.depositAmount)}</strong> cho hợp đồng này không?
+            </p>
+            <label style={{ display: "block", marginTop: 14, fontSize: "0.85rem", fontWeight: 600 }}>
+              Hình thức nhận cọc
+              <select
+                value={depositMethod}
+                onChange={(e) => setDepositMethod(e.target.value)}
+                disabled={receivingDeposit}
+                style={{ display: "block", width: "100%", marginTop: 6 }}
+              >
+                <option value="CASH">Tiền mặt</option>
+                <option value="BANK_TRANSFER">Chuyển khoản (đã thấy tiền vào tài khoản)</option>
+              </select>
+            </label>
+            <p style={{ margin: "10px 0 0", fontSize: "0.8rem", color: "var(--neutral-500)" }}>
+              Biên nhận cọc sẽ được lưu vào Lịch sử thanh toán › Tiền cọc và người thuê sẽ được thông báo.
             </p>
           </div>
         </Modal>

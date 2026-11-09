@@ -19,6 +19,13 @@ const LEGACY_INDEXES = [
       index.name ===
       "landlordId_1_roomId_1_contractId_1_billingPeriod_1_invoiceType_1",
   ],
+  // Rebuilt so incident invoices (several per month) are not limited to one per period.
+  [
+    "invoices",
+    (index) =>
+      index.name === "one_live_invoice_per_period" &&
+      !index.partialFilterExpression?.invoiceType,
+  ],
   // Platform-wide login names, now unique per landlord (same CCCD with several landlords).
   ["users", (index) => index.name === "email_1" && index.unique],
   ["users", (index) => index.name === "username_1" && index.unique],
@@ -91,4 +98,84 @@ async function migrateAuditLogs(db = mongoose.connection.db) {
   }
 }
 
-module.exports = { migrateFinanceIndexes, unifyPlanFeatures, migrateAuditLogs };
+// Sandbox simulator transfers that ended up unmatched (repeated clicks before the simulator was
+// made idempotent) are test noise, not money to reconcile: hide them from "Giao dịch chưa khớp".
+async function ignoreSimulatedUnmatched(db = mongoose.connection.db) {
+  if (!(await db.listCollections({ name: "unmatchedpayments" }).hasNext())) return 0;
+  const result = await db.collection("unmatchedpayments").updateMany(
+    { gateway: "SANDBOX_SIMULATOR", status: "PENDING_REVIEW" },
+    {
+      $set: {
+        status: "IGNORED",
+        notes: "Giao dịch giả lập (sandbox) — tự động bỏ qua, không phải tiền thật",
+        updatedAt: new Date(),
+      },
+    },
+  );
+  if (result.modifiedCount)
+    console.log(`Đã bỏ qua ${result.modifiedCount} giao dịch giả lập chưa khớp`);
+  return result.modifiedCount;
+}
+
+// Deposits used to live only on the contract. Give every deposit already received one
+// CONTRACT_DEPOSIT payment so the deposit history is complete (idempotent: one per contract).
+async function backfillDepositPayments(db = mongoose.connection.db) {
+  if (!(await db.listCollections({ name: "contracts" }).hasNext())) return 0;
+  const payments = db.collection("payments");
+  const contracts = await db
+    .collection("contracts")
+    .find({
+      depositAmount: { $gt: 0 },
+      depositStatus: { $in: ["PAID", "REFUNDED", "PARTIALLY_REFUNDED", "APPLIED"] },
+      isDeleted: { $ne: true },
+    })
+    .project({ landlordId: 1, branchId: 1, tenantId: 1, contractCode: 1, depositAmount: 1, depositReceivedAt: 1, depositReceivedBy: 1, depositReferenceCode: 1, startDate: 1, createdAt: 1 })
+    .toArray();
+  if (!contracts.length) return 0;
+  const recorded = new Set(
+    (await payments.distinct("contractId", { purpose: "CONTRACT_DEPOSIT" })).map(String),
+  );
+  let created = 0;
+  for (const c of contracts) {
+    if (recorded.has(String(c._id))) continue;
+    // A bank reference means it came in by transfer; otherwise it was confirmed by hand.
+    const bank = c.depositReferenceCode && !c.depositReferenceCode.startsWith("COC-");
+    const referenceCode = c.depositReferenceCode || `COC-${c.contractCode}`;
+    const at = c.depositReceivedAt || c.startDate || c.createdAt || new Date();
+    try {
+      await payments.insertOne({
+        purpose: "CONTRACT_DEPOSIT",
+        landlordId: c.landlordId,
+        branchId: c.branchId,
+        contractId: c._id,
+        contractCode: c.contractCode,
+        tenantId: c.tenantId,
+        amount: c.depositAmount,
+        paymentMethod: bank ? "BANK_TRANSFER" : "CASH",
+        gateway: bank ? "SEPAY" : "CASH",
+        referenceCode,
+        ...(bank ? {} : { receiptNumber: referenceCode }),
+        transactionDate: at,
+        status: "SUCCESS",
+        ...(c.depositReceivedBy ? { confirmedBy: c.depositReceivedBy } : {}),
+        note: "Bổ sung từ dữ liệu cọc của hợp đồng",
+        isDeleted: false,
+        createdAt: at,
+        updatedAt: new Date(),
+      });
+      created += 1;
+    } catch (error) {
+      if (error.code !== 11000) throw error; // reference already used: leave that one alone
+    }
+  }
+  if (created) console.log(`Đã bổ sung ${created} giao dịch tiền cọc vào lịch sử thanh toán`);
+  return created;
+}
+
+module.exports = {
+  migrateFinanceIndexes,
+  unifyPlanFeatures,
+  migrateAuditLogs,
+  ignoreSimulatedUnmatched,
+  backfillDepositPayments,
+};

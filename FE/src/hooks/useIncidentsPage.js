@@ -39,6 +39,14 @@ export const COST_PAYER_LABELS = {
   NONE: "Miễn phí / Bảo hành",
 };
 
+export function formatRoomLabel(roomNumber) {
+  if (!roomNumber) return "—";
+  const text = String(roomNumber).trim();
+  if (/^phòng\s+/i.test(text)) return text;
+  if (/^p\./i.test(text)) return `Phòng ${text.replace(/^p\.\s*/i, "")}`;
+  return `Phòng ${text}`;
+}
+
 export function useIncidentsPage() {
   const { user } = useAuth();
   const isTenant = user?.role === "TENANT";

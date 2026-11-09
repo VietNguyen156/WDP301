@@ -46,7 +46,7 @@ export default function InvoiceLedgerTable({
             <tr>
               <th>Mã HĐ</th>
               <th>{perms.isTenant ? "Phòng" : "Phòng & Khách thuê"}</th>
-              <th style={{ textAlign: "right" }}>Bóc tách chi phí</th>
+              <th style={{ textAlign: "left" }}>Bóc tách chi phí</th>
               <th style={{ textAlign: "right" }}>Tổng thanh toán</th>
               <th style={{ textAlign: "center" }}>Trạng thái</th>
               <th>
@@ -122,15 +122,11 @@ export default function InvoiceLedgerTable({
                   inv.status,
                   inv.isOverdue,
                 );
-                const roomName =
-                  inv.roomId?.roomNumber ||
-                  inv.roomId?.name ||
-                  (typeof inv.roomId === "string" ? inv.roomId : "Phòng");
-                const tenantName =
-                  inv.tenantId?.name ||
-                  (typeof inv.tenantId === "string"
-                    ? inv.tenantId
-                    : "Khách thuê");
+                const roomName = inv.roomId?.roomNumber
+                  ? `Phòng ${inv.roomId.roomNumber}`
+                  : "Phòng";
+                const tenantName = inv.tenantId?.name || "Khách thuê";
+                const branchName = inv.branchId?.name;
 
                 return (
                   <tr
@@ -145,6 +141,7 @@ export default function InvoiceLedgerTable({
                           display: "flex",
                           alignItems: "center",
                           gap: "6px",
+                          whiteSpace: "nowrap",
                         }}
                       >
                         <span
@@ -152,21 +149,37 @@ export default function InvoiceLedgerTable({
                             fontWeight: "700",
                             fontFamily: "monospace",
                             color: "var(--primary)",
+                            fontSize: "0.82rem",
                           }}
+                          title={inv.invoiceCode}
                         >
                           {inv.invoiceCode}
                         </span>
+                        {inv.invoiceType === "INCIDENT" && (
+                          <span
+                            className="badge badge-warning"
+                            title="Hóa đơn thu tiền sửa chữa sự cố do người thuê chi trả"
+                          >
+                            Sửa chữa
+                          </span>
+                        )}
+                        {inv.invoiceType === "SETTLEMENT" && (
+                          <span className="badge badge-info">Quyết toán</span>
+                        )}
                         {inv.status === "PAID" && (
                           <CheckCircle2
                             size={14}
-                            style={{ color: "var(--success)" }}
+                            style={{ color: "var(--success)", flexShrink: 0 }}
                           />
                         )}
                       </div>
                       <span
                         style={{
-                          fontSize: "0.72rem",
+                          fontSize: "0.75rem",
                           color: "var(--neutral-500)",
+                          display: "block",
+                          marginTop: "2px",
+                          whiteSpace: "nowrap",
                         }}
                       >
                         {formatBillingPeriod(inv.billingPeriod)}
@@ -177,17 +190,19 @@ export default function InvoiceLedgerTable({
                         style={{
                           display: "flex",
                           alignItems: "center",
+                          flexWrap: "wrap",
                           gap: "6px",
                         }}
                       >
                         <span
                           style={{
-                            fontSize: "0.78rem",
+                            fontSize: "0.76rem",
                             fontWeight: "700",
                             backgroundColor: "var(--surface-container)",
-                            padding: "2px 6px",
-                            borderRadius: "4px",
+                            padding: "2px 7px",
+                            borderRadius: "5px",
                             color: "var(--neutral-800)",
+                            whiteSpace: "nowrap",
                           }}
                         >
                           {roomName}
@@ -197,6 +212,7 @@ export default function InvoiceLedgerTable({
                             style={{
                               fontWeight: "600",
                               color: "var(--neutral-900)",
+                              fontSize: "0.84rem",
                             }}
                           >
                             {tenantName}
@@ -208,27 +224,41 @@ export default function InvoiceLedgerTable({
                           style={{
                             fontSize: "0.75rem",
                             color: "var(--neutral-500)",
-                            marginTop: "2px",
+                            marginTop: "3px",
                           }}
                         >
-                          {inv.tenantId?.phoneNumber || "Khách thuê"}
+                          {[inv.tenantId?.phoneNumber, branchName]
+                            .filter(Boolean)
+                            .join(" · ") || "Khách thuê"}
                         </div>
                       )}
                     </td>
-                    <td style={{ textAlign: "right", fontSize: "0.78rem" }}>
-                      <div>Phòng: {formatCurrency(inv.roomAmount)}</div>
-                      <div style={{ color: "var(--neutral-500)" }}>
+                    <td style={{ textAlign: "left", fontSize: "0.8rem" }}>
+                      <div style={{ fontWeight: 600, color: "var(--neutral-800)" }}>
+                        Phòng: {formatCurrency(inv.roomAmount)}
+                      </div>
+                      <div
+                        style={{
+                          color: "var(--neutral-500)",
+                          fontSize: "0.75rem",
+                          marginTop: "2px",
+                        }}
+                      >
                         Điện: {formatCurrency(inv.electricDetail?.amount || 0)}{" "}
-                        | Nước: {formatCurrency(inv.waterDetail?.amount || 0)}
+                        · Nước: {formatCurrency(inv.waterDetail?.amount || 0)}
                       </div>
                     </td>
                     <td
-                      style={{ textAlign: "right", fontWeight: "700" }}
+                      style={{
+                        textAlign: "right",
+                        fontWeight: "700",
+                        whiteSpace: "nowrap",
+                      }}
                       className="tnum"
                     >
                       {formatCurrency(inv.totalAmount)}
                     </td>
-                    <td style={{ textAlign: "center" }}>
+                    <td style={{ textAlign: "center", whiteSpace: "nowrap" }}>
                       <Badge variant={statusMeta.variant}>
                         {statusMeta.label}
                       </Badge>
@@ -236,18 +266,21 @@ export default function InvoiceLedgerTable({
                     <td>
                       <code
                         style={{
-                          fontSize: "0.78rem",
+                          fontSize: "0.76rem",
                           fontWeight: "600",
                           backgroundColor: "var(--surface-container)",
-                          padding: "3px 6px",
-                          borderRadius: "4px",
+                          padding: "4px 8px",
+                          borderRadius: "6px",
+                          whiteSpace: "nowrap",
+                          display: "inline-block",
                         }}
+                        title={inv.paymentSyntax || inv.invoiceCode}
                       >
                         {inv.paymentSyntax || inv.invoiceCode}
                       </code>
                     </td>
                     <td
-                      style={{ textAlign: "right" }}
+                      style={{ textAlign: "right", whiteSpace: "nowrap" }}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="invoice-row-actions">
@@ -367,4 +400,3 @@ export default function InvoiceLedgerTable({
     </>
   );
 }
-

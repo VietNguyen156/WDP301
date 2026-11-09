@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Wrench,
   ArrowUpCircle,
+  ShieldCheck,
 } from "lucide-react";
 
 export const ROLE_LABELS = {
@@ -143,6 +144,11 @@ export function buildNavigationItems(access, branchesCount = 0) {
         label: "Hóa đơn & Thu tiền",
         icon: Receipt,
       },
+      {
+        path: "/admin?tab=security",
+        label: "Bảo mật & Audit Log",
+        icon: ShieldCheck,
+      },
     ];
   }
 
@@ -211,7 +217,7 @@ export function buildNavigationItems(access, branchesCount = 0) {
       ? [
           {
             path: "/unmatched",
-            label: "Đối soát SePay",
+            label: "Đối soát giao dịch",
             icon: Scale,
           },
         ]

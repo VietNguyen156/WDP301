@@ -89,6 +89,7 @@ export function useContractsPage() {
 
   const items = useMemo(() => resource.data?.items || [], [resource.data]);
   const total = resource.data?.total || 0;
+  const summary = resource.data?.summary || null;
 
   // Selected contract for Inspector panel
   const selectedContract = useMemo(() => {
@@ -96,22 +97,46 @@ export function useContractsPage() {
     return items.find((c) => c._id === selectedId) || items[0] || null;
   }, [items, selectedId]);
 
-  // Derived KPI metrics
+  // Accurate KPI & Tab counts across all pages (using backend summary, with fallback)
+  const summaryCountAll = useMemo(
+    () => summary?.all ?? total ?? items.length,
+    [summary, total, items.length],
+  );
   const activeCount = useMemo(
-    () => items.filter((c) => c.displayStatus === "ACTIVE").length,
-    [items],
+    () =>
+      summary?.active ??
+      items.filter((c) => c.displayStatus === "ACTIVE").length,
+    [summary, items],
   );
   const expiringCount = useMemo(
-    () => items.filter((c) => c.displayStatus === "EXPIRING_SOON").length,
-    [items],
+    () =>
+      summary?.expiringSoon ??
+      items.filter((c) => c.displayStatus === "EXPIRING_SOON").length,
+    [summary, items],
   );
   const expiredCount = useMemo(
-    () => items.filter((c) => c.displayStatus === "EXPIRED").length,
-    [items],
+    () =>
+      summary?.expired ??
+      items.filter((c) => c.displayStatus === "EXPIRED").length,
+    [summary, items],
+  );
+  const draftCount = useMemo(
+    () =>
+      summary?.draft ??
+      items.filter((c) => c.displayStatus === "DRAFT").length,
+    [summary, items],
+  );
+  const terminatedCount = useMemo(
+    () =>
+      summary?.terminated ??
+      items.filter((c) => c.displayStatus === "TERMINATED").length,
+    [summary, items],
   );
   const totalDeposit = useMemo(
-    () => items.reduce((acc, c) => acc + (c.depositAmount || 0), 0),
-    [items],
+    () =>
+      summary?.totalDeposit ??
+      items.reduce((acc, c) => acc + (c.depositAmount || 0), 0),
+    [summary, items],
   );
 
   function closeCreate() {
@@ -163,11 +188,13 @@ export function useContractsPage() {
     resource,
     items,
     total,
+    summaryCountAll,
     selectedContract,
     activeCount,
     expiringCount,
     expiredCount,
+    draftCount,
+    terminatedCount,
     totalDeposit,
   };
 }
-

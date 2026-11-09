@@ -8,6 +8,8 @@ const Subscription = require("../models/Subscription");
 const PlatformInvoice = require("../models/PlatformInvoice");
 const AuthSession = require("../models/AuthSession");
 const AuditLog = require("../models/AuditLog");
+const Payment = require("../models/Payment");
+const UnmatchedPayment = require("../models/UnmatchedPayment");
 const { validId } = require("../utils/scope");
 const {
   NotFoundError,
@@ -17,7 +19,7 @@ const {
 const v = require("../utils/validation");
 const audit = require("./auditService");
 const landlordProjection =
-  "name email username phoneNumber role status subscriptionId bankConfig createdAt";
+  "name email username phoneNumber role status subscriptionId bankConfig bankHub.bankAccountXid bankHub.linkedAt createdAt";
 const subscriptionStatuses = [
   "ACTIVE",
   "EXPIRED",
@@ -62,16 +64,54 @@ async function listLandlords(req) {
       .lean(),
     User.countDocuments(filter),
   ]);
+  // Banking is set up by the landlord (Bank Hub link), never by the admin: this is monitoring only.
+  const ids = items.map((u) => u._id);
+  const [unmatched, lastTransfers, linked, manual] = await Promise.all([
+    UnmatchedPayment.aggregate([
+      { $match: { landlordId: { $in: ids }, status: "PENDING_REVIEW" } },
+      { $group: { _id: "$landlordId", count: { $sum: 1 } } },
+    ]),
+    Payment.aggregate([
+      { $match: { landlordId: { $in: ids }, paymentMethod: "BANK_TRANSFER", status: "SUCCESS", isDeleted: false } },
+      { $group: { _id: "$landlordId", at: { $max: "$transactionDate" } } },
+    ]),
+    User.countDocuments({ ...filter, "bankHub.bankAccountXid": { $exists: true, $ne: null } }),
+    User.countDocuments({
+      ...filter,
+      "bankHub.bankAccountXid": { $in: [null] },
+      "bankConfig.accountNumber": { $exists: true, $nin: [null, ""] },
+    }),
+  ]);
+  const unmatchedBy = new Map(unmatched.map((r) => [String(r._id), r.count]));
+  const lastTransferBy = new Map(lastTransfers.map((r) => [String(r._id), r.at]));
   return {
-    items: items.map((u) => ({
-      ...u,
-      subscriptionId: u.subscriptionId
-        ? subscriptionView(u.subscriptionId)
-        : null,
-    })),
+    items: items.map((u) => {
+      const subscription = u.subscriptionId ? subscriptionView(u.subscriptionId) : null;
+      const { bankHub, ...rest } = u;
+      const viaBankHub = !!bankHub?.bankAccountXid;
+      return {
+        ...rest,
+        subscriptionId: subscription,
+        banking: {
+          // BANK_HUB: linked by the landlord through SePay Bank Hub; MANUAL: account typed in
+          // the profile (VietQR only, no automatic matching feed); null: nothing set.
+          source: viaBankHub ? "BANK_HUB" : u.bankConfig?.accountNumber ? "MANUAL" : null,
+          linkedAt: bankHub?.linkedAt || null,
+          // Same rule as the webhook: active landlord + subscription in force.
+          autoReconcile:
+            viaBankHub &&
+            u.status === "ACTIVE" &&
+            subscription?.displayStatus === "ACTIVE" &&
+            !subscription.startsInFuture,
+          pendingUnmatched: unmatchedBy.get(String(u._id)) || 0,
+          lastTransferAt: lastTransferBy.get(String(u._id)) || null,
+        },
+      };
+    }),
     total,
     page,
     limit,
+    bankingSummary: { linked, manual, none: Math.max(total - linked - manual, 0) },
   };
 }
 
@@ -410,6 +450,21 @@ async function listInvoices(req) {
       .sort({ createdAt: -1, _id: -1 })
       .skip(skip)
       .limit(limit)
+      .populate({
+        path: "landlordId",
+        select: landlordProjection,
+        match: { role: "LANDLORD", isDeleted: false },
+      })
+      .populate({
+        path: "planId",
+        select: "name code",
+        match: { isDeleted: false },
+      })
+      .populate({
+        path: "subscriptionId",
+        select: "startDate endDate status billingCycle",
+        match: { isDeleted: false },
+      })
       .lean(),
     PlatformInvoice.countDocuments(filter),
   ]);

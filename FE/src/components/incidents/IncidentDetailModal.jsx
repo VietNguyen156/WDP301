@@ -2,24 +2,29 @@ import { useState } from "react";
 import {
   Sparkles,
   RefreshCw,
-  DollarSign,
   History,
   X,
   Ban,
   Wrench,
   CheckCircle2,
   CheckCheck,
+  Building2,
+  DoorOpen,
+  User,
 } from "lucide-react";
 import { incidentApi, errorMessage } from "../../services/api";
 import { useResource } from "../../hooks/useResource";
+import { useLiveRefresh } from "../../hooks/useLiveRefresh";
+import { useAuth } from "../../context/AuthContext";
+import IncidentChargePanel from "./IncidentChargePanel";
+import IncidentExpensePanel from "./IncidentExpensePanel";
 import { useToast } from "../../context/ToastContext";
 import { Modal, Button, LoadingState } from "../ui";
-import { money } from "../../utils/format";
 import {
   STATUS_LABELS,
   PRIORITY_LABELS,
   CATEGORY_LABELS,
-  COST_PAYER_LABELS,
+  formatRoomLabel,
 } from "../../hooks/useIncidentsPage";
 
 function TriagePanel({ data, isStaff, onRetriage, retriaging }) {
@@ -30,11 +35,13 @@ function TriagePanel({ data, isStaff, onRetriage, retriaging }) {
   return (
     <div className="inc-triage-panel">
       <div className="inc-triage-head">
-        <Sparkles size={15} />
-        <strong>Phân loại tự động (TypeSafe)</strong>
+        <span className="inc-triage-head-title">
+          <Sparkles size={15} />
+          <strong>Phân loại tự động (TypeSafe)</strong>
+        </span>
         {canRetriage && (
           <Button
-            size="sm"
+            compact
             variant="secondary"
             onClick={onRetriage}
             disabled={retriaging}
@@ -89,6 +96,11 @@ export default function IncidentDetailModal({
   );
   const data = detailResource.data || incident;
   const toast = useToast();
+  const { user } = useAuth();
+  const isTenant = user?.role === "TENANT";
+  useLiveRefresh(["incidents"], detailResource.refresh);
+  const tenantPays = data.costPayer === "TENANT";
+  const waitingForQuote = tenantPays && data.quote?.status !== "ACCEPTED";
   const [retriaging, setRetriaging] = useState(false);
 
   async function handleRetriage() {
@@ -104,215 +116,163 @@ export default function IncidentDetailModal({
     }
   }
 
+  const roomNumber = data.roomId?.roomNumber || data.room?.roomNumber;
+  const branchName = data.branchId?.name || data.branch?.name;
+  const reporterName = data.reportedBy?.name;
+
   return (
     <Modal title={`Chi tiết sự cố: ${data.title}`} onClose={onClose} wide>
-      {detailResource.loading ? (
-        <LoadingState />
-      ) : (
-        <div className="inc-detail-grid">
-          {/* Left Column: Details & Images */}
-          <div>
-            <div style={{ marginBottom: "14px" }}>
-              <span
-                className={`inc-priority-chip priority-${data.priority?.toLowerCase()}`}
-                style={{ marginRight: "8px" }}
-              >
-                Ưu tiên {PRIORITY_LABELS[data.priority] || data.priority}
-              </span>
-              <span
-                style={{
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  padding: "2px 8px",
-                  borderRadius: "9999px",
-                  background: "#f1f5f9",
-                }}
-              >
-                {STATUS_LABELS[data.status] || data.status}
-              </span>
-            </div>
-
-            <p
-              style={{
-                fontSize: "14px",
-                lineHeight: 1.6,
-                color: "var(--inc-text-main)",
-              }}
-            >
-              {data.description}
-            </p>
-
-            <TriagePanel
-              data={data}
-              isStaff={isStaff}
-              onRetriage={handleRetriage}
-              retriaging={retriaging}
-            />
-
-            {/* Initial Images */}
-            {data.images?.length > 0 && (
-              <div style={{ marginTop: "16px" }}>
-                <strong style={{ fontSize: "13px" }}>Ảnh khi báo sự cố:</strong>
-                <div className="inc-thumb-grid">
-                  {data.images.map((img, i) => (
-                    <a
-                      className="inc-thumb-item"
-                      key={i}
-                      href={img}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <img src={img} alt="Hiện trường" />
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Resolved Images */}
-            {data.resolvedImages?.length > 0 && (
-              <div style={{ marginTop: "16px" }}>
-                <strong style={{ fontSize: "13px", color: "#059669" }}>
-                  Ảnh nghiệm thu sau sửa chữa:
-                </strong>
-                <div className="inc-thumb-grid">
-                  {data.resolvedImages.map((img, i) => (
-                    <a
-                      className="inc-thumb-item"
-                      key={i}
-                      href={img}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <img src={img} alt="Nghiệm thu" />
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Repair Cost Box */}
-            <div
-              style={{
-                marginTop: "20px",
-                padding: "14px",
-                background: "#f8fafc",
-                borderRadius: "8px",
-                border: "1px solid var(--inc-border)",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: "6px",
-                }}
-              >
-                <strong style={{ fontSize: "13px" }}>Chi phí sửa chữa:</strong>
-                {isStaff &&
-                  (data.status === "IN_PROGRESS" ||
-                    data.status === "SOLVED") && (
-                    <Button
-                      variant="secondary"
-                      compact
-                      onClick={() => onEditCost(data)}
-                    >
-                      <DollarSign size={13} /> Ghi nhận chi phí
-                    </Button>
-                  )}
-              </div>
-              {data.repairCost !== undefined ? (
-                <div>
-                  <span
-                    style={{
-                      fontSize: "16px",
-                      fontWeight: 700,
-                      color: "var(--inc-primary-container)",
-                    }}
-                  >
-                    {money(data.repairCost)}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "13px",
-                      color: "#64748b",
-                      marginLeft: "8px",
-                    }}
-                  >
-                    • Chịu phí:{" "}
-                    {COST_PAYER_LABELS[data.costPayer] || data.costPayer}
-                  </span>
-                  {data.notes && (
-                    <p
-                      style={{
-                        margin: "6px 0 0 0",
-                        fontSize: "12px",
-                        color: "#64748b",
-                      }}
-                    >
-                      Ghi chú: {data.notes}
-                    </p>
-                  )}
-                </div>
-              ) : (
+      <div className="inc-detail-body">
+        {detailResource.loading ? (
+          <LoadingState />
+        ) : (
+          <div className="inc-detail-grid">
+            {/* Left Column: Details & Images */}
+            <div className="inc-detail-main">
+              <div className="inc-detail-badges">
                 <span
-                  style={{
-                    fontSize: "12px",
-                    color: "#64748b",
-                    fontStyle: "italic",
-                  }}
+                  className={`inc-priority-chip priority-${data.priority?.toLowerCase()}`}
                 >
-                  Chưa ghi nhận chi phí sửa chữa.
+                  Ưu tiên {PRIORITY_LABELS[data.priority] || data.priority}
                 </span>
+                <span className="inc-status-pill">
+                  {STATUS_LABELS[data.status] || data.status}
+                </span>
+                {roomNumber && (
+                  <span className="inc-meta-pill">
+                    <DoorOpen size={13} />
+                    {formatRoomLabel(roomNumber)}
+                  </span>
+                )}
+                {branchName && (
+                  <span className="inc-meta-pill">
+                    <Building2 size={13} />
+                    {branchName}
+                  </span>
+                )}
+                {reporterName && (
+                  <span className="inc-meta-pill">
+                    <User size={13} />
+                    {reporterName}
+                  </span>
+                )}
+              </div>
+
+              <div className="inc-desc-box">
+                <span className="inc-desc-label">Mô tả sự cố</span>
+                <p className="inc-desc-text">
+                  {data.description || "Không có mô tả chi tiết."}
+                </p>
+              </div>
+
+              <TriagePanel
+                data={data}
+                isStaff={isStaff}
+                onRetriage={handleRetriage}
+                retriaging={retriaging}
+              />
+
+              {/* Initial Images */}
+              {data.images?.length > 0 && (
+                <div>
+                  <strong style={{ fontSize: "13px" }}>
+                    Ảnh khi báo sự cố:
+                  </strong>
+                  <div className="inc-thumb-grid">
+                    {data.images.map((img, i) => (
+                      <a
+                        className="inc-thumb-item"
+                        key={i}
+                        href={img}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <img src={img} alt="Hiện trường" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Resolved Images (older incidents may still have them) */}
+              {data.resolvedImages?.length > 0 && (
+                <div>
+                  <strong style={{ fontSize: "13px", color: "#059669" }}>
+                    Ảnh nghiệm thu sau sửa chữa:
+                  </strong>
+                  <div className="inc-thumb-grid">
+                    {data.resolvedImages.map((img, i) => (
+                      <a
+                        className="inc-thumb-item"
+                        key={i}
+                        href={img}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <img src={img} alt="Nghiệm thu" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Unified Cost & Quote Panel */}
+              <IncidentChargePanel
+                data={data}
+                isStaff={isStaff}
+                isTenant={isTenant}
+                onEditCost={onEditCost}
+                onChanged={detailResource.reload}
+              />
+
+              {isStaff && (
+                <IncidentExpensePanel
+                  data={data}
+                  isLandlord={user?.role === "LANDLORD"}
+                  onChanged={detailResource.reload}
+                />
               )}
             </div>
+
+            {/* Right Column: Timeline history */}
+            <aside className="inc-history-card">
+              <div className="inc-history-title">
+                <History size={15} style={{ color: "var(--inc-primary)" }} />
+                <span>Lịch sử luồng trạng thái</span>
+              </div>
+
+              <div className="inc-history-timeline">
+                {data.statusHistory?.map((h, idx) => (
+                  <div className="inc-timeline-item" key={idx}>
+                    <span className="inc-timeline-dot" />
+                    <strong style={{ display: "block", color: "#0f172a" }}>
+                      {STATUS_LABELS[h.status] || h.status}
+                    </strong>
+                    <span style={{ fontSize: "11.5px", color: "#64748b" }}>
+                      {h.changedAt
+                        ? new Date(h.changedAt).toLocaleString("vi-VN")
+                        : "—"}
+                    </span>
+                    {h.note && (
+                      <p
+                        style={{
+                          margin: "4px 0 0 0",
+                          fontSize: "12px",
+                          color: "#334155",
+                        }}
+                      >
+                        &ldquo;{h.note}&rdquo;
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </aside>
           </div>
+        )}
+      </div>
 
-          {/* Right Column: Timeline history */}
-          <div>
-            <strong
-              style={{
-                fontSize: "13px",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-              }}
-            >
-              <History size={15} /> Lịch sử luồng trạng thái
-            </strong>
-
-            <div className="inc-history-timeline">
-              {data.statusHistory?.map((h, idx) => (
-                <div className="inc-timeline-item" key={idx}>
-                  <span className="inc-timeline-dot" />
-                  <strong style={{ display: "block" }}>
-                    {STATUS_LABELS[h.status] || h.status}
-                  </strong>
-                  <span style={{ fontSize: "11px", color: "#64748b" }}>
-                    {h.changedAt
-                      ? new Date(h.changedAt).toLocaleString("vi-VN")
-                      : "—"}
-                  </span>
-                  {h.note && (
-                    <p
-                      style={{
-                        margin: "4px 0 0 0",
-                        fontSize: "12px",
-                        color: "#334155",
-                      }}
-                    >
-                      &ldquo;{h.note}&rdquo;
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      <footer className="modal-footer" style={{ marginTop: "24px" }}>
+      <footer className="modal-footer">
         <Button
           variant="secondary"
           onClick={onClose}
@@ -343,6 +303,12 @@ export default function IncidentDetailModal({
             </Button>
             <Button
               onClick={() => onTransition(data, "IN_PROGRESS")}
+              disabled={waitingForQuote}
+              title={
+                waitingForQuote
+                  ? "Cần người thuê đồng ý báo giá trước khi bắt đầu xử lý"
+                  : undefined
+              }
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -350,7 +316,9 @@ export default function IncidentDetailModal({
               }}
             >
               <Wrench size={14} />
-              <span>Tiếp nhận sự cố</span>
+              <span>
+                {waitingForQuote ? "Chờ người thuê duyệt giá" : "Tiếp nhận sự cố"}
+              </span>
             </Button>
           </>
         )}
@@ -383,21 +351,22 @@ export default function IncidentDetailModal({
               <RefreshCw size={14} />
               <span>Mở lại sự cố</span>
             </Button>
-            <Button
-              onClick={() => onTransition(data, "CLOSED")}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-              }}
-            >
-              <CheckCheck size={14} />
-              <span>Đóng hồ sơ sự cố</span>
-            </Button>
+            {!tenantPays && (
+              <Button
+                onClick={() => onTransition(data, "CLOSED")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <CheckCheck size={14} />
+                <span>Đóng hồ sơ sự cố</span>
+              </Button>
+            )}
           </>
         )}
       </footer>
     </Modal>
   );
 }
-

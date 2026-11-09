@@ -9,9 +9,14 @@ const errorHandler = (err, req, res, next) => {
   if (err.name === "ValidationError" && err.errors) {
     status = 400;
     code = "VALIDATION_ERROR";
-    message = Object.values(err.errors)
-      .map((e) => e.message)
-      .join("; ");
+    // Our own validators speak Vietnamese; Mongoose defaults ("Path `x` is required", "Cast to
+    // Number failed ...") name internal fields, so the user gets a plain sentence instead.
+    const messages = Object.values(err.errors).map((e) => e.message);
+    const technical = messages.some((m) => /^(Path|Validator|Cast to)\b|`/.test(m));
+    if (technical) console.error("Schema validation failed:", messages.join("; "));
+    message = technical
+      ? "Dữ liệu chưa hợp lệ. Vui lòng kiểm tra lại thông tin đã nhập."
+      : messages.join("; ");
   } else if (err.name === "CastError") {
     status = 400;
     code = "INVALID_ID";

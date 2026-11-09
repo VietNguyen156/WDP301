@@ -55,7 +55,7 @@ function validateBody(body, isCreate) {
     body.confirmAbnormal !== undefined &&
     typeof body.confirmAbnormal !== "boolean"
   )
-    throw new ValidationError("confirmAbnormal phải là true/false");
+    throw new ValidationError("Giá trị xác nhận chỉ số bất thường không hợp lệ");
   const readingDate =
     body.readingDate === undefined
       ? undefined

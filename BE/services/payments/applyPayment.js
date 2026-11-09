@@ -19,18 +19,8 @@ function assertPayable(invoice) {
   }
 }
 
-async function applyPayment(
-  { invoice, details, actor, action, metadata },
-  session,
-) {
-  assertPayable(invoice);
-  const before = {
-    paidAmount: invoice.paidAmount,
-    remainingAmount: invoice.remainingAmount,
-    overpaidAmount: invoice.overpaidAmount,
-    status: invoice.status,
-  };
-  Object.assign(invoice, paymentBalance(invoice, details.amount));
+// The QR on the invoice must ask for what is still owed (or vanish once nothing is).
+async function refreshVietQr(invoice, session) {
   if (!invoice.bankSnapshot?.bankCode) {
     const landlord = await User.findOne({
       _id: invoice.landlordId,
@@ -57,6 +47,21 @@ async function applyPayment(
   } else {
     invoice.vietQrUrl = undefined;
   }
+}
+
+async function applyPayment(
+  { invoice, details, actor, action, metadata },
+  session,
+) {
+  assertPayable(invoice);
+  const before = {
+    paidAmount: invoice.paidAmount,
+    remainingAmount: invoice.remainingAmount,
+    overpaidAmount: invoice.overpaidAmount,
+    status: invoice.status,
+  };
+  Object.assign(invoice, paymentBalance(invoice, details.amount));
+  await refreshVietQr(invoice, session);
   const [payment] = await Payment.create(
     [
       {
@@ -92,4 +97,4 @@ async function applyPayment(
   return { payment, invoice };
 }
 
-module.exports = { assertPayable, applyPayment };
+module.exports = { assertPayable, applyPayment, refreshVietQr };

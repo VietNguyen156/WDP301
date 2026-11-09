@@ -41,7 +41,7 @@ function validate(body, creating = false) {
   if (body.billingCycle !== undefined)
     v.choice(body.billingCycle, ["MONTHLY", "YEARLY"], "Chu kỳ");
   if (body.isActive !== undefined && typeof body.isActive !== "boolean")
-    throw new ValidationError("isActive phải là boolean");
+    throw new ValidationError("Trạng thái kích hoạt gói không hợp lệ");
   return body;
 }
 

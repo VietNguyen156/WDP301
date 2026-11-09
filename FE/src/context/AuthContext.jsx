@@ -198,6 +198,13 @@ export function AuthProvider({ children }) {
     return data;
   }
 
+  // Landlord sign-up: the API only creates the account (no session), so sign in right after
+  // with the same email + password.
+  async function register({ name, email, phoneNumber, password }) {
+    await authApi.register({ name, email, phoneNumber, password });
+    return login({ email, password });
+  }
+
   async function changePassword({ currentPassword, newPassword }) {
     const accountIdentifier = user?.username || user?.email || user?.phoneNumber;
     const res = await authApi.changePassword({ currentPassword, newPassword });
@@ -265,6 +272,7 @@ export function AuthProvider({ children }) {
         selectedBranchId,
         setSelectedBranchId,
         login,
+        register,
         changePassword,
         logout,
         isAuthenticated: !!user || !!token,

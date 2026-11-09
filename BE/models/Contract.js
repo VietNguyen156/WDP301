@@ -25,6 +25,11 @@ const contractSchema = new mongoose.Schema(
     tenantConfirmedAt: { type: Date },
     tenantConfirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     confirmedByBothParties: { type: Boolean, default: false },
+    // DRAFT → ACTIVE when both parties have signed.
+    activatedAt: Date,
+    // A draft cancelled before signing (status TERMINATED).
+    cancelledAt: Date,
+    cancellationReason: String,
     contractSigningLocation: { type: String, default: "Online qua Cổng cư dân điện tử" },
     contractTerms: {
       paymentDueDays: { type: Number, default: 5 }, // Hạn thanh toán (ngày)

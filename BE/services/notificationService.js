@@ -204,36 +204,54 @@ async function list(req) {
 }
 
 // ---- Recent activity (pre-fills "Hoạt động gần đây" from the audit log) ----
-// Audit action -> the same wording as the live "activity" events.
-const AUDIT_LABELS = {
-  CREATE_BRANCH: "tạo cơ sở mới",
-  DELETE_BRANCH: "xóa cơ sở",
-  UPDATE_BRANCH_PRICING: "cập nhật giá dịch vụ cơ sở",
-  UPDATE_ROOM: "cập nhật phòng",
-  DELETE_ROOM: "xóa phòng",
-  CREATE_CONTRACT: "lập hợp đồng mới",
-  CONFIRM_CONTRACT_LANDLORD: "xác nhận hợp đồng điện tử",
-  CONFIRM_CONTRACT_TENANT: "xác nhận hợp đồng điện tử",
-  RECEIVE_CONTRACT_DEPOSIT: "ghi nhận tiền cọc",
-  APPLY_CONTRACT_DEPOSIT: "cấn trừ tiền cọc",
-  PREPARE_CONTRACT_SETTLEMENT: "lập phiếu quyết toán hợp đồng",
-  SETTLE_CONTRACT: "thanh lý hợp đồng",
-  RENEW_CONTRACT: "gia hạn hợp đồng",
-  CREATE_INCIDENT: "báo sự cố",
-  UPDATE_INCIDENT_STATUS: "cập nhật trạng thái sự cố",
-  UPDATE_INCIDENT_COST: "ghi chi phí sửa chữa",
-  TRIAGE_INCIDENT: "phân loại lại sự cố",
-  CREATE_UTILITY_READING: "chốt số điện nước",
-  UPDATE_UTILITY_READING: "sửa chỉ số điện nước",
-  CREATE_INVOICE: "tạo hóa đơn",
-  ISSUE_INVOICE: "phát hành hóa đơn",
-  CANCEL_INVOICE: "hủy hóa đơn",
-  CONFIRM_CASH_PAYMENT: "ghi nhận thu tiền mặt",
-  REPORT_CASH_PAYMENT: "báo cáo thu tiền mặt",
-  REJECT_CASH_PAYMENT: "từ chối phiếu thu tiền mặt",
-  RECEIVE_BANK_PAYMENT: "nhận chuyển khoản",
-  RESOLVE_UNMATCHED_PAYMENT: "gán giao dịch chưa khớp vào hóa đơn",
+// Audit action -> [same wording as the live "activity" events, who may see it].
+// Audience rules live in realtime/audience.js (OWNER / STAFF / TENANT / ADMIN).
+const AUDIT_ACTIVITY = {
+  CREATE_BRANCH: ["tạo cơ sở mới", "OWNER"],
+  DELETE_BRANCH: ["xóa cơ sở", "STAFF"],
+  UPDATE_BRANCH_PRICING: ["cập nhật giá dịch vụ cơ sở", "STAFF"],
+  UPDATE_ROOM: ["cập nhật phòng", "STAFF"],
+  DELETE_ROOM: ["xóa phòng", "STAFF"],
+  CREATE_CONTRACT: ["lập hợp đồng mới", "TENANT"],
+  CONFIRM_CONTRACT_LANDLORD: ["xác nhận hợp đồng điện tử", "TENANT"],
+  CONFIRM_CONTRACT_TENANT: ["xác nhận hợp đồng điện tử", "TENANT"],
+  ACTIVATE_CONTRACT: ["đủ chữ ký hai bên, hợp đồng có hiệu lực", "TENANT"],
+  CANCEL_DRAFT_CONTRACT: ["hủy hợp đồng nháp", "TENANT"],
+  RECEIVE_CONTRACT_DEPOSIT: ["ghi nhận tiền cọc", "TENANT"],
+  APPLY_CONTRACT_DEPOSIT: ["cấn trừ tiền cọc", "TENANT"],
+  PREPARE_CONTRACT_SETTLEMENT: ["lập phiếu quyết toán hợp đồng", "TENANT"],
+  SETTLE_CONTRACT: ["thanh lý hợp đồng", "TENANT"],
+  RENEW_CONTRACT: ["gia hạn hợp đồng", "TENANT"],
+  CREATE_INCIDENT: ["báo sự cố", "TENANT"],
+  UPDATE_INCIDENT_STATUS: ["cập nhật trạng thái sự cố", "TENANT"],
+  UPDATE_INCIDENT_COST: ["ghi chi phí sửa chữa", "STAFF"],
+  TRIAGE_INCIDENT: ["phân loại lại sự cố", "STAFF"],
+  QUOTE_INCIDENT: ["gửi báo giá sửa chữa cho người thuê", "TENANT"],
+  ACCEPT_INCIDENT_QUOTE: ["đồng ý báo giá sửa chữa", "TENANT"],
+  DECLINE_INCIDENT_QUOTE: ["từ chối báo giá sửa chữa", "TENANT"],
+  TENANT_ACCEPT_INCIDENT: ["xác nhận nghiệm thu sửa chữa", "TENANT"],
+  TENANT_REJECT_INCIDENT_WORK: ["báo sửa chữa chưa đạt", "TENANT"],
+  CREATE_UTILITY_READING: ["chốt số điện nước", "STAFF"],
+  UPDATE_UTILITY_READING: ["sửa chỉ số điện nước", "STAFF"],
+  CREATE_INVOICE: ["tạo hóa đơn nháp", "STAFF"],
+  ISSUE_INVOICE: ["phát hành hóa đơn", "TENANT"],
+  CANCEL_INVOICE: ["hủy hóa đơn", "TENANT"],
+  CONFIRM_CASH_PAYMENT: ["ghi nhận thu tiền mặt", "TENANT"],
+  REPORT_CASH_PAYMENT: ["báo cáo thu tiền mặt (chờ duyệt)", "STAFF"],
+  REJECT_CASH_PAYMENT: ["từ chối phiếu thu tiền mặt", "STAFF"],
+  RECEIVE_BANK_PAYMENT: ["nhận chuyển khoản", "TENANT"],
+  RESOLVE_UNMATCHED_PAYMENT: ["gán giao dịch chưa khớp vào hóa đơn", "TENANT"],
+  CREATE_EXPENSE: ["ghi phiếu chi sửa chữa", "STAFF"],
+  VOID_EXPENSE: ["hủy phiếu chi", "STAFF"],
 };
+// Actions each role may ever see, so the query skips the rest up front.
+const actionsFor = (role) =>
+  Object.keys(AUDIT_ACTIVITY).filter((action) => {
+    const audience = AUDIT_ACTIVITY[action][1];
+    if (role === "TENANT") return audience === "TENANT";
+    if (role === "PROPERTY_MANAGER") return audience === "STAFF" || audience === "TENANT";
+    return true;
+  });
 const KIND = {
   BRANCH: "branch",
   ROOM: "room",
@@ -247,28 +265,28 @@ const ACTIVITY_LIMIT = 20;
 async function recentActivity(req) {
   // Lazy: activity.js requires the models index, as this file does.
   const { DESCRIBE, build } = require("../realtime/activity");
+  const { canSee } = require("../realtime/audience");
   const AuditLog = require("../models/AuditLog");
   const role = req.user.role;
   if (role === "SUPER_ADMIN") return { items: [] };
   const landlordId = role === "LANDLORD" ? req.user._id : req.user.landlordId;
-  const logs = await AuditLog.find({ landlordId, action: { $in: Object.keys(AUDIT_LABELS) } })
+  const logs = await AuditLog.find({ landlordId, action: { $in: actionsFor(role) } })
     .sort({ createdAt: -1 })
-    .limit(ACTIVITY_LIMIT * 3) // managers and tenants only keep the part they may see
+    .limit(ACTIVITY_LIMIT * 5) // managers and tenants only keep the part about them
     .populate("actorId", "name email")
     .lean();
-  const branches = new Set((req.user.assignedBranches || []).map(String));
   const items = [];
   for (const log of logs) {
     if (items.length >= ACTIVITY_LIMIT) break;
     const kind = KIND[log.entityType];
     const entity = (kind && (await DESCRIBE[kind](log.entityId).catch(() => null))) || {};
-    // Same audience rules as the live events.
-    if (role === "PROPERTY_MANAGER" && !branches.has(String(entity.branchId))) continue;
-    if (role === "TENANT" && String(entity.tenantId) !== String(req.user._id) && String(log.actorId?._id) !== String(req.user._id))
+    const [label, audience] = AUDIT_ACTIVITY[log.action];
+    // Same audience rules as the live events (realtime/audience.js).
+    if (!canSee(req.user, { ...entity, landlordId: entity.landlordId || log.landlordId }, audience))
       continue;
     const event = build({
       actor: { id: log.actorId?._id, name: who(log.actorId), role: log.actorRole },
-      label: AUDIT_LABELS[log.action],
+      label,
       entity,
     });
     items.push({ ...event, id: String(log._id), at: new Date(log.createdAt).toISOString() });

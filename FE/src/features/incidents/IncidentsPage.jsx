@@ -155,7 +155,7 @@ export default function IncidentsPage() {
       )}
 
       {/* 2. Modal View Detail & History */}
-      {viewingDetail && (
+      {viewingDetail && !transitioning && !editingCost && (
         <IncidentDetailModal
           incident={viewingDetail}
           isStaff={isStaff}

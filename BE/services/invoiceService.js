@@ -66,6 +66,10 @@ async function listInvoices(req) {
       .sort({ createdAt: -1, _id: -1 })
       .skip(skip)
       .limit(limit)
+      // Names for the list (room, tenant, branch) instead of bare ids.
+      .populate("roomId", "roomNumber floor")
+      .populate("tenantId", "name phoneNumber email")
+      .populate("branchId", "name")
       .lean(),
     Invoice.countDocuments(filter),
   ]);
@@ -93,12 +97,21 @@ async function invoiceInputs(req, room, billingPeriod, session, contractId) {
     startDate: { $lt: end },
     endDate: { $gte: start },
   }).session(session);
-  if (!contract)
+  if (!contract) {
+    const unsigned = await Contract.exists({
+      roomId: room._id,
+      landlordId,
+      isDeleted: false,
+      status: "DRAFT",
+    }).session(session);
     throw new AppError(
-      `Phòng ${room.roomNumber} không có hợp đồng hợp lệ cho kỳ này`,
+      unsigned
+        ? `Hợp đồng phòng ${room.roomNumber} chưa được cả chủ trọ và khách thuê ký xác nhận nên chưa thể tạo hóa đơn`
+        : `Phòng ${room.roomNumber} không có hợp đồng hợp lệ cho kỳ này`,
       409,
-      "CONTRACT_NOT_ACTIVE",
+      unsigned ? "CONTRACT_NOT_SIGNED" : "CONTRACT_NOT_ACTIVE",
     );
+  }
   await Contract.updateOne(
     { _id: contract._id, landlordId, isDeleted: false },
     { $inc: { mutationVersion: 1 } },
@@ -213,7 +226,7 @@ async function generateInvoices(req) {
       body.roomIds.length > 500
     ) {
       throw new AppError(
-        "roomIds phải có từ 1 đến 500 phòng",
+        "Vui lòng chọn từ 1 đến 500 phòng",
         400,
         "VALIDATION_ERROR",
       );
@@ -231,20 +244,49 @@ async function generateInvoices(req) {
     }).session(session);
     if (!branch)
       throw new AppError("Không tìm thấy cơ sở", 404, "RESOURCE_NOT_FOUND");
-    const rooms = await Room.find({
+    const rented = await Room.find({
       landlordId: branch.landlordId,
       branchId,
       isDeleted: false,
       status: "RENTED",
       ...(roomIds && { _id: { $in: roomIds } }),
     }).session(session);
-    if (!rooms.length || (roomIds && rooms.length !== roomIds.length)) {
+    // Rooms held by a contract that both parties have not signed yet are not billed.
+    const unsigned = await Contract.find({
+      landlordId: branch.landlordId,
+      branchId,
+      isDeleted: false,
+      status: "DRAFT",
+      roomId: { $in: rented.map((room) => room._id) },
+    })
+      .select("roomId")
+      .session(session)
+      .lean();
+    const unsignedRooms = new Set(unsigned.map((c) => String(c.roomId)));
+    if (roomIds && unsignedRooms.size) {
+      const numbers = rented
+        .filter((room) => unsignedRooms.has(String(room._id)))
+        .map((room) => room.roomNumber);
+      throw new AppError(
+        `Hợp đồng phòng ${numbers.join(", ")} chưa được cả chủ trọ và khách thuê ký xác nhận nên chưa thể tạo hóa đơn`,
+        409,
+        "CONTRACT_NOT_SIGNED",
+      );
+    }
+    const rooms = rented.filter((room) => !unsignedRooms.has(String(room._id)));
+    if (!rented.length || (roomIds && rented.length !== roomIds.length)) {
       throw new AppError(
         "Danh sách phòng không hợp lệ hoặc không có phòng đang thuê",
         400,
         "ROOM_NOT_BILLABLE",
       );
     }
+    if (!rooms.length)
+      throw new AppError(
+        "Các phòng đang thuê đều có hợp đồng chưa được hai bên ký xác nhận nên chưa thể tạo hóa đơn",
+        409,
+        "CONTRACT_NOT_SIGNED",
+      );
     if (rooms.length > 500)
       throw new AppError(
         "Mỗi lần tạo tối đa 500 hóa đơn",

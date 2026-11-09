@@ -86,8 +86,9 @@ async function request(method, path, payload) {
         response.body?.message ||
         response.body?.error ||
         `HTTP ${response.status}`;
+      console.error("SePay Bank Hub rejected request:", path, detail);
       throw new AppError(
-        `SePay Bank Hub từ chối yêu cầu: ${detail}`,
+        "SePay Bank Hub chưa xử lý được yêu cầu. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.",
         502,
         "BANKHUB_REQUEST_FAILED",
       );

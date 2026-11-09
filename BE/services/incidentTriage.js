@@ -130,15 +130,26 @@ async function ask(incident) {
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (error) {
-    throw new AppError(`Không gọi được TypeSafe: ${error.message}`, 502, "TRIAGE_UNAVAILABLE");
+    // Technical detail goes to the server log; the user gets a plain sentence.
+    console.error("TypeSafe request failed:", error.message);
+    throw new AppError(
+      "Dịch vụ phân loại sự cố tạm thời không phản hồi. Vui lòng thử lại sau.",
+      502,
+      "TRIAGE_UNAVAILABLE",
+    );
   }
   const data = await response.json().catch(() => null);
-  if (!response.ok || !data?.answers)
+  if (!response.ok || !data?.answers) {
+    console.error(
+      `TypeSafe error ${response.status}:`,
+      JSON.stringify(data?.detail ?? data).slice(0, 300),
+    );
     throw new AppError(
-      `TypeSafe trả lỗi ${response.status}: ${JSON.stringify(data?.detail ?? data).slice(0, 300)}`,
+      "Không phân loại được sự cố lúc này. Vui lòng thử lại sau.",
       502,
       "TRIAGE_FAILED",
     );
+  }
   return data;
 }
 

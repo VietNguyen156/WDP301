@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Modal } from "../../components/ui/Modal";
+import { Modal } from "../../components/ui";
 import { Button } from "../../components/ui/Button";
 import { Input, Select } from "../../components/ui/Input";
 import { invoiceService } from "../../services/invoiceService";
@@ -151,6 +151,7 @@ export function InvoiceGenerateModal({ isOpen, onClose, onGenerated, defaultBran
 
   return (
     <Modal
+      padded
       isOpen={isOpen}
       onClose={onClose}
       title="Tạo đợt Hóa đơn Hàng tháng"

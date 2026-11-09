@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { LIVE_CONTRACT_STATUSES } = require("../utils/statuses");
+const { OPEN_CONTRACT_STATUSES } = require("../utils/statuses");
 const Room = require("../models/Room");
 const Contract = require("../models/Contract");
 const branchService = require("./branchService");
@@ -190,7 +190,7 @@ async function remove(req) {
         roomId: before._id,
         landlordId: before.landlordId,
         isDeleted: false,
-        status: { $in: LIVE_CONTRACT_STATUSES },
+        status: { $in: OPEN_CONTRACT_STATUSES },
       }).session(session))
     )
       throw new BusinessRuleError("Phòng còn hợp đồng chưa thanh lý");

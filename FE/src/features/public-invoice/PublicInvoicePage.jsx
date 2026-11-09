@@ -22,12 +22,14 @@ export function PublicInvoicePage({ token: initialToken }) {
 
   // Sandbox: SePay test mode cannot scan a real transfer, so fake one through the real flow.
   async function simulatePayment() {
-    if (!currentToken) return;
+    if (!currentToken || simulating) return; // one simulated transfer at a time
     try {
       setSimulating(true);
       const result = await invoiceService.simulatePublicPayment(currentToken);
       if (result?.paid) {
         toast.success("Đã giả lập chuyển khoản thành công. Hóa đơn đã được gạch nợ.");
+      } else if (result?.duplicate) {
+        toast.info("Giao dịch giả lập này đã được ghi nhận trước đó.");
       } else if (result?.unmatched) {
         toast.warning(
           `Giao dịch giả lập đã ghi nhận nhưng chưa tự gạch nợ: ${result.reason || "không khớp hóa đơn"}`

@@ -8,7 +8,7 @@ const { getTenantScope } = require("../../utils/scope");
 const { getInvoice } = require("../invoiceService");
 const { paymentBalance } = require("../financeCalculation");
 const { recordAudit } = require("../auditService");
-const { assertPayable, applyPayment } = require("./applyPayment");
+const { assertPayable, applyPayment, refreshVietQr } = require("./applyPayment");
 
 async function confirmCash(req) {
   const body = req.body || {};
@@ -173,6 +173,7 @@ async function confirmCashReport(req) {
       status: invoice.status,
     };
     Object.assign(invoice, paymentBalance(invoice, payment.amount));
+    await refreshVietQr(invoice, session);
     payment.status = "SUCCESS";
     payment.confirmedBy = req.user._id;
     payment.reviewedBy = req.user._id;

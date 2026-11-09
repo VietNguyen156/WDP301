@@ -1,8 +1,7 @@
 // Bank transfers reported by SePay (classic webhook) or Bank Hub IPN: dedupe, match the invoice
 // from the transfer content and book it, or keep the money as an unmatched payment.
 const mongoose = require("mongoose");
-const { LIVE_CONTRACT_STATUSES, OWING_INVOICE_STATUSES } = require("../../utils/statuses");
-const crypto = require("node:crypto");
+const { OPEN_CONTRACT_STATUSES, OWING_INVOICE_STATUSES } = require("../../utils/statuses");
 const { Invoice, Payment, UnmatchedPayment, User, Contract } = require("../../models");
 const PaymentReceipt = require("../../models/PaymentReceipt");
 const { AppError } = require("../../utils/errors");
@@ -12,16 +11,23 @@ const { simulatorEnabled } = require("../../utils/paymentSimulator");
 const { systemActor } = require("../../utils/systemActor");
 const { parseVnDateTime } = require("../../utils/vnTime");
 const { applyPayment } = require("./applyPayment");
+const { recordDepositPayment } = require("./depositPayment");
+const {
+  contractStatusLabel,
+  invoiceStatusLabel,
+  accountStatusLabel,
+} = require("../../utils/statusLabels");
 const audit = require("../auditService");
 
-const DEPOSIT_PENDING_STATUSES = LIVE_CONTRACT_STATUSES;
+// A deposit can be paid while the contract still waits for signatures.
+const DEPOSIT_PENDING_STATUSES = OPEN_CONTRACT_STATUSES;
 // Deposit transfer content: "COC HDT<year><12 hex>" (contract code HDT-<year>-<hex> without dashes).
 const DEPOSIT_TOKEN = /COC\s*HDT(\d{4})([A-F0-9]{12})/g;
 const depositSyntax = (contractCode) => `COC ${contractCode.replace(/[^a-zA-Z0-9]/g, "")}`;
 
 function normalizeWebhook(body) {
   if (!body || !["in", "out"].includes(body.transferType))
-    throw new AppError("transferType không hợp lệ", 400, "VALIDATION_ERROR");
+    throw new AppError("Loại giao dịch ngân hàng không hợp lệ", 400, "VALIDATION_ERROR");
   const accountNumber = validate.text(body.accountNumber, "accountNumber", 50);
   const referenceCode = validate.text(body.referenceCode, "referenceCode", 100);
   const amount = validate.money(body.transferAmount, "transferAmount", true);
@@ -151,7 +157,7 @@ async function depositContractFromContent(landlordId, content, session) {
 // Why a matched deposit transfer cannot be booked; null when it can.
 function depositProblem(contract, amount) {
   if (contract.depositStatus !== "UNPAID") return "Hợp đồng đã ghi nhận tiền cọc trước đó";
-  if (!DEPOSIT_PENDING_STATUSES.includes(contract.status)) return `Hợp đồng không còn hiệu lực: ${contract.status}`;
+  if (!DEPOSIT_PENDING_STATUSES.includes(contract.status)) return `Hợp đồng ${contractStatusLabel(contract.status)}, không nhận cọc được`;
   if (amount !== contract.depositAmount)
     return `Số tiền ${amount.toLocaleString("vi-VN")}đ khác tiền cọc ${contract.depositAmount.toLocaleString("vi-VN")}đ`;
   return null;
@@ -162,6 +168,17 @@ async function bookDeposit(contract, incoming, landlord, session) {
   contract.depositReceivedAt = incoming.transactionDate;
   contract.depositReferenceCode = incoming.referenceCode;
   await contract.save({ session });
+  const payment = await recordDepositPayment(
+    contract,
+    {
+      paymentMethod: "BANK_TRANSFER",
+      referenceCode: incoming.referenceCode,
+      gateway: incoming.gateway,
+      transactionDate: incoming.transactionDate,
+      content: incoming.content,
+    },
+    session,
+  );
   await audit.record(
     {
       actor: systemActor(landlord._id),
@@ -176,10 +193,12 @@ async function bookDeposit(contract, incoming, landlord, session) {
         depositReceivedAt: incoming.transactionDate,
         referenceCode: incoming.referenceCode,
         gateway: incoming.gateway,
+        paymentId: payment._id,
       },
     },
     session,
   );
+  return payment;
 }
 
 async function processWebhook(body) {
@@ -233,10 +252,11 @@ async function receiveTransfer(incoming, body, landlordFilter) {
         : null;
       const depositIssue = contract && depositProblem(contract, incoming.amount);
       if (contract && !depositIssue) {
-        await bookDeposit(contract, incoming, landlord, session);
+        const payment = await bookDeposit(contract, incoming, landlord, session);
         receipt.contractId = contract._id;
+        receipt.paymentId = payment._id;
         await receipt.save({ session });
-        return { depositReceived: true, contract };
+        return { depositReceived: true, contract, payment };
       }
       const invoice = autoMatch && !contract
         ? await invoiceFromContent(landlord._id, incoming.content, session)
@@ -258,13 +278,13 @@ async function receiveTransfer(incoming, body, landlordFilter) {
               transactionDate: incoming.transactionDate,
               rawWebhookData: body,
               notes: suspended
-                ? `Tài khoản chủ trọ đang bị khóa (${landlord.status}); đối soát sau khi mở khóa`
+                ? `Tài khoản chủ trọ đang ${accountStatusLabel(landlord.status)}; đối soát sau khi tài khoản hoạt động lại`
                 : !autoMatch
                   ? "Gói hiện tại chưa bao gồm đối soát SePay tự động; vui lòng gán hóa đơn thủ công"
                   : contract
                     ? `Tiền cọc hợp đồng ${contract.contractCode} chưa được ghi nhận: ${depositIssue}`
                     : invoice
-                      ? `Hóa đơn không thể nhận tiền: ${invoice.status}`
+                      ? `Hóa đơn ${invoice.invoiceCode} ${invoiceStatusLabel(invoice.status)} nên không nhận thêm tiền`
                       : "Không xác định được hóa đơn",
             },
           ],
@@ -307,6 +327,35 @@ async function receiveTransfer(incoming, body, landlordFilter) {
 // Sandbox helper for the public invoice page: fakes the tenant's bank transfer (remaining
 // amount, standard payment syntax) and runs it through the same path as a real SePay
 // notification, so matching, plan features, audit and realtime behave exactly as in reality.
+// ---- Sandbox simulator guards ----
+// One simulation per invoice / contract at a time: rapid clicks get a clear 429 instead of
+// several transfers racing each other.
+const simulating = new Set();
+async function oneAtATime(key, run) {
+  if (simulating.has(key))
+    throw new AppError("Đang xử lý giao dịch giả lập trước đó, vui lòng đợi", 429, "SIMULATION_IN_PROGRESS");
+  simulating.add(key);
+  try {
+    return await run();
+  } finally {
+    simulating.delete(key);
+  }
+}
+
+// A simulated transfer that could not be matched only fills "Giao dịch chưa khớp" with test
+// junk: refuse it up front and say why.
+async function assertWouldMatch(landlordId) {
+  const landlord = await User.findOne({ _id: landlordId, role: "LANDLORD", isDeleted: false }).select("status").lean();
+  if (landlord?.status !== "ACTIVE")
+    throw new AppError("Tài khoản chủ trọ đang bị khóa nên giao dịch sẽ không tự đối soát", 409, "SIMULATION_WOULD_NOT_MATCH");
+  if (!(await hasFeature(landlordId, "SEPAY_WEBHOOK")))
+    throw new AppError(
+      "Chủ trọ không có gói dịch vụ đang hiệu lực nên giao dịch sẽ không tự đối soát",
+      409,
+      "SIMULATION_WOULD_NOT_MATCH",
+    );
+}
+
 async function simulatePublicPayment(token) {
   if (!simulatorEnabled())
     throw new AppError("Giả lập thanh toán chỉ dùng trong môi trường thử nghiệm", 403, "SIMULATOR_DISABLED");
@@ -319,23 +368,28 @@ async function simulatePublicPayment(token) {
   }).lean();
   if (!invoice || invoice.remainingAmount <= 0)
     throw new AppError("Hóa đơn không còn khoản cần thanh toán", 409, "INVOICE_ALREADY_PAID");
-  const landlord = await User.findById(invoice.landlordId).select("bankConfig").lean();
-  const suffix = crypto.randomBytes(6).toString("hex").toUpperCase();
-  const incoming = {
-    accountNumber: invoice.bankSnapshot?.accountNumber || landlord?.bankConfig?.accountNumber || "SANDBOX",
-    referenceCode: `SIM-${suffix}`,
-    amount: invoice.remainingAmount,
-    transactionDate: new Date(),
-    gateway: "SANDBOX_SIMULATOR",
-    content: invoice.paymentSyntax || invoice.invoiceCode,
-    gatewayTransactionId: `SIM:${suffix}`,
-  };
-  const result = await receiveTransfer(incoming, { simulator: true, invoiceCode: invoice.invoiceCode }, { _id: invoice.landlordId });
-  if (result.unmatched) {
-    const unmatched = await UnmatchedPayment.findById(result.unmatchedPaymentId).select("notes").lean();
-    return { ...result, reason: unmatched?.notes };
-  }
-  return result;
+  return oneAtATime(`invoice:${invoice._id}`, async () => {
+    await assertWouldMatch(invoice.landlordId);
+    const landlord = await User.findById(invoice.landlordId).select("bankConfig").lean();
+    // Same invoice + same amount already paid = same reference: a repeated click is reported
+    // as a duplicate by the normal dedupe instead of becoming a second (unmatched) transfer.
+    const step = `${invoice.invoiceCode}-${invoice.paidAmount || 0}`;
+    const incoming = {
+      accountNumber: invoice.bankSnapshot?.accountNumber || landlord?.bankConfig?.accountNumber || "SANDBOX",
+      referenceCode: `SIM-${step}`,
+      amount: invoice.remainingAmount,
+      transactionDate: new Date(),
+      gateway: "SANDBOX_SIMULATOR",
+      content: invoice.paymentSyntax || invoice.invoiceCode,
+      gatewayTransactionId: `SIM:${step}`,
+    };
+    const result = await receiveTransfer(incoming, { simulator: true, invoiceCode: invoice.invoiceCode }, { _id: invoice.landlordId });
+    if (result.unmatched) {
+      const unmatched = await UnmatchedPayment.findById(result.unmatchedPaymentId).select("notes").lean();
+      return { ...result, reason: unmatched?.notes };
+    }
+    return result;
+  });
 }
 
 // Sandbox helper on the contract page: fakes the tenant's deposit transfer (deposit amount,
@@ -343,27 +397,31 @@ async function simulatePublicPayment(token) {
 async function simulateDepositTransfer(contract) {
   if (!simulatorEnabled())
     throw new AppError("Giả lập thanh toán chỉ dùng trong môi trường thử nghiệm", 403, "SIMULATOR_DISABLED");
-  const landlord = await User.findById(contract.landlordId).select("bankConfig").lean();
-  const suffix = crypto.randomBytes(6).toString("hex").toUpperCase();
-  const incoming = {
-    accountNumber: landlord?.bankConfig?.accountNumber || "SANDBOX",
-    referenceCode: `SIM-${suffix}`,
-    amount: contract.depositAmount,
-    transactionDate: new Date(),
-    gateway: "SANDBOX_SIMULATOR",
-    content: depositSyntax(contract.contractCode),
-    gatewayTransactionId: `SIM:${suffix}`,
-  };
-  const result = await receiveTransfer(
-    incoming,
-    { simulator: true, contractCode: contract.contractCode },
-    { _id: contract.landlordId },
-  );
-  if (result.unmatched) {
-    const unmatched = await UnmatchedPayment.findById(result.unmatchedPaymentId).select("notes").lean();
-    return { ...result, reason: unmatched?.notes };
-  }
-  return result;
+  return oneAtATime(`deposit:${contract._id}`, async () => {
+    await assertWouldMatch(contract.landlordId);
+    const landlord = await User.findById(contract.landlordId).select("bankConfig").lean();
+    // A deposit is paid once: one fixed reference per contract, so repeats are duplicates.
+    const step = `COC-${contract.contractCode}`;
+    const incoming = {
+      accountNumber: landlord?.bankConfig?.accountNumber || "SANDBOX",
+      referenceCode: `SIM-${step}`,
+      amount: contract.depositAmount,
+      transactionDate: new Date(),
+      gateway: "SANDBOX_SIMULATOR",
+      content: depositSyntax(contract.contractCode),
+      gatewayTransactionId: `SIM:${step}`,
+    };
+    const result = await receiveTransfer(
+      incoming,
+      { simulator: true, contractCode: contract.contractCode },
+      { _id: contract.landlordId },
+    );
+    if (result.unmatched) {
+      const unmatched = await UnmatchedPayment.findById(result.unmatchedPaymentId).select("notes").lean();
+      return { ...result, reason: unmatched?.notes };
+    }
+    return result;
+  });
 }
 
 module.exports = {

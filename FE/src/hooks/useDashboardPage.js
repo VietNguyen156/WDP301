@@ -4,6 +4,7 @@ import {
   branchApi,
   contractApi,
   dashboardApi,
+  expenseApi,
   errorMessage,
 } from "../services/api";
 import { invoiceService } from "../services/invoiceService";
@@ -12,9 +13,6 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useResource } from "./useResource";
 import { useLiveRefresh } from "./useLiveRefresh";
-import { formatBillingPeriod } from "../utils/formatters";
-import { money, date } from "../utils/format";
-import { publicAppUrl, publicInvoiceUrl } from "../utils/publicLink";
 
 const computeCurrentMonthStr = () =>
   new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 7);
@@ -82,24 +80,34 @@ export function useDashboardPage() {
     [isLandlord, filterBranchId, billingPeriod, toast],
   );
 
-  // Phase 2: Details lists (payments, expiring contracts, unmatched)
+  // Phase 2: Details lists (payments, expiring contracts, unmatched, expenses fallback)
   const detailsResource = useResource(
     async () => {
       try {
-        const [paymentRes, contractRes, unmatchedRes] = await Promise.all([
-          paymentService.getPayments({
-            limit: 20,
-            branchId: filterBranchId || undefined,
-          }),
-          isLandlord
-            ? contractApi.list({ status: "EXPIRING_SOON", limit: 50 })
-            : Promise.resolve([]),
-          isLandlord
-            ? paymentService
-                .listUnmatched({ status: "PENDING_REVIEW" })
-                .catch(() => [])
-            : Promise.resolve([]),
-        ]);
+        const [paymentRes, contractRes, unmatchedRes, expenseRes] =
+          await Promise.all([
+            paymentService.getPayments({
+              limit: 20,
+              branchId: filterBranchId || undefined,
+            }),
+            isLandlord
+              ? contractApi.list({ status: "EXPIRING_SOON", limit: 50 })
+              : Promise.resolve([]),
+            isLandlord
+              ? paymentService
+                  .listUnmatched({ status: "PENDING_REVIEW" })
+                  .catch(() => [])
+              : Promise.resolve([]),
+            !isLandlord
+              ? expenseApi
+                  .list({
+                    status: "RECORDED",
+                    branchId: filterBranchId || undefined,
+                    limit: 100,
+                  })
+                  .catch(() => null)
+              : Promise.resolve(null),
+          ]);
         return {
           payments: Array.isArray(paymentRes)
             ? paymentRes
@@ -108,6 +116,7 @@ export function useDashboardPage() {
           unmatched: Array.isArray(unmatchedRes)
             ? unmatchedRes
             : unmatchedRes?.data || [],
+          expenses: expenseRes?.data || [],
         };
       } catch (err) {
         toast.error(errorMessage(err));
@@ -130,7 +139,10 @@ export function useDashboardPage() {
     [headlineResource, detailsResource],
   );
 
-  useLiveRefresh(["dashboard"], () => loadDashboardData(true));
+  useLiveRefresh(
+    ["dashboard", "invoices", "payments", "expenses", "contracts", "rooms"],
+    () => loadDashboardData(true),
+  );
 
   const branches = useMemo(
     () => headlineResource.data?.branches || [],
@@ -155,6 +167,10 @@ export function useDashboardPage() {
     () => detailsResource.data?.unmatched || [],
     [detailsResource.data],
   );
+  const expenses = useMemo(
+    () => detailsResource.data?.expenses || [],
+    [detailsResource.data],
+  );
 
   const loading = headlineResource.loading && !headlineResource.data;
   const detailsLoading = detailsResource.loading && !detailsResource.data;
@@ -177,16 +193,80 @@ export function useDashboardPage() {
   }, [invoices, filterBranchId, billingPeriod]);
 
   const activePayments = useMemo(() => {
-    if (!filterBranchId) return payments;
-    return payments.filter((payment) => {
-      const paymentBranchId =
+    const branchMap = new Map(branches.map((b) => [String(b._id), b.name]));
+    const invoiceByCode = new Map(
+      invoices.map((inv) => [inv.invoiceCode, inv]),
+    );
+    const invoiceById = new Map(
+      invoices.map((inv) => [String(inv._id), inv]),
+    );
+    const contractByCode = new Map(
+      contracts.map((c) => [c.contractCode, c]),
+    );
+    const contractById = new Map(
+      contracts.map((c) => [String(c._id), c]),
+    );
+
+    const enriched = payments.map((payment) => {
+      const invId = payment.invoiceId?._id || payment.invoiceId;
+      const matchedInv =
+        (invId && invoiceById.get(String(invId))) ||
+        (payment.invoiceCode && invoiceByCode.get(payment.invoiceCode)) ||
+        null;
+
+      const cId = payment.contractId?._id || payment.contractId;
+      const matchedContract =
+        (cId && contractById.get(String(cId))) ||
+        (payment.contractCode && contractByCode.get(payment.contractCode)) ||
+        null;
+
+      const rawBranchId =
         payment.branchId?._id ||
         payment.branchId ||
         payment.invoiceId?.branchId?._id ||
-        payment.invoiceId?.branchId;
-      return String(paymentBranchId) === String(filterBranchId);
+        payment.invoiceId?.branchId ||
+        payment.contractId?.branchId?._id ||
+        payment.contractId?.branchId ||
+        matchedInv?.branchId?._id ||
+        matchedInv?.branchId ||
+        matchedContract?.branchId?._id ||
+        matchedContract?.branchId;
+
+      const resolvedRoomNumber =
+        payment.invoiceId?.roomId?.roomNumber ||
+        payment.contractId?.roomId?.roomNumber ||
+        payment.roomNumber ||
+        matchedInv?.roomId?.roomNumber ||
+        matchedInv?.room?.roomNumber ||
+        matchedInv?.roomNumber ||
+        matchedContract?.roomId?.roomNumber ||
+        matchedContract?.room?.roomNumber ||
+        matchedContract?.roomNumber;
+
+      const resolvedBranchName =
+        payment.branchId?.name ||
+        payment.invoiceId?.branchId?.name ||
+        payment.contractId?.branchId?.name ||
+        payment.branchName ||
+        matchedInv?.branchId?.name ||
+        matchedInv?.branch?.name ||
+        matchedContract?.branchId?.name ||
+        matchedContract?.branch?.name ||
+        (rawBranchId ? branchMap.get(String(rawBranchId)) : undefined);
+
+      return {
+        ...payment,
+        _resolvedBranchId: rawBranchId,
+        roomNumber: resolvedRoomNumber,
+        branchName: resolvedBranchName,
+      };
     });
-  }, [payments, filterBranchId]);
+
+    if (!filterBranchId) return enriched;
+    return enriched.filter(
+      (payment) => String(payment._resolvedBranchId) === String(filterBranchId),
+    );
+  }, [payments, branches, invoices, contracts, filterBranchId]);
 
   const activeContracts = useMemo(() => {
     if (!filterBranchId) return contracts;
@@ -260,11 +340,20 @@ export function useDashboardPage() {
           )
         : debtData.totalAmount || 0;
 
+      const receivedAmount = col.receivedAmount ?? col.collectedAmount ?? 0;
+      const paidOutAmount = col.paidOutAmount || 0;
+      const netCashFlow =
+        col.netCashFlow !== undefined
+          ? col.netCashFlow
+          : receivedAmount - paidOutAmount;
+
       return {
         expectedRevenue: col.expectedAmount || 0,
         actualRevenue: col.collectedAmount || 0,
-        receivedAmount: col.receivedAmount || 0,
+        receivedAmount,
         receivedByMethod: col.receivedByMethod || {},
+        paidOutAmount,
+        netCashFlow,
         debtAmount: debtTotalAmount,
         debtInvoices: filteredDebtItems,
         debtRoomsCount: filteredDebtItems.length,
@@ -292,6 +381,28 @@ export function useDashboardPage() {
       }
     });
 
+    const paidOutAmount = expenses.reduce((sum, exp) => {
+      if (exp.status !== "RECORDED") return sum;
+      if (
+        filterBranchId &&
+        String(exp.branchId?._id || exp.branchId) !== String(filterBranchId)
+      ) {
+        return sum;
+      }
+      if (billingPeriod && exp.paidAt) {
+        const expPeriod = new Date(
+          new Date(exp.paidAt).getTime() + 7 * 3600000,
+        )
+          .toISOString()
+          .slice(0, 7);
+        if (expPeriod !== billingPeriod) return sum;
+      }
+      return sum + (exp.amount || 0);
+    }, 0);
+
+    const receivedAmount = actualRevenue;
+    const netCashFlow = receivedAmount - paidOutAmount;
+
     const collectionRate =
       expectedRevenue > 0
         ? Math.round((actualRevenue / expectedRevenue) * 100)
@@ -306,13 +417,23 @@ export function useDashboardPage() {
     return {
       expectedRevenue,
       actualRevenue,
+      receivedAmount,
+      paidOutAmount,
+      netCashFlow,
       debtAmount,
       debtInvoices,
       debtRoomsCount: debtInvoices.length,
       collectionRate,
       isFromStatsApi: false,
     };
-  }, [dashboardStats, dashboardDebts, activeInvoices, filterBranchId]);
+  }, [
+    dashboardStats,
+    dashboardDebts,
+    activeInvoices,
+    expenses,
+    filterBranchId,
+    billingPeriod,
+  ]);
 
   // Contracts Status & Expiring Watchlist
   const contractWatchlist = useMemo(() => {
@@ -381,62 +502,54 @@ export function useDashboardPage() {
     });
   }, [activeBranches, invoices, billingPeriod]);
 
-  // Zalo Reminder Copy Handler
-  const handleCopyZaloReminder = useCallback(
-    (inv) => {
-      if (inv.reminderMessage) {
-        navigator.clipboard.writeText(inv.reminderMessage);
-        const roomNum =
-          inv.room?.roomNumber ||
-          inv.roomId?.roomNumber ||
-          inv.roomNumber ||
-          "phòng trọ";
-        toast.success(
-          `Đã sao chép tin nhắn nhắc nợ gửi Zalo cho phòng ${roomNum}!`,
-        );
-        return;
+  // Debt reminder by email, sent by the server on the landlord's behalf.
+  const [sendingReminderId, setSendingReminderId] = useState(null);
+  const handleSendEmailReminder = useCallback(
+    async (inv) => {
+      const invoiceId = inv.invoiceId || inv._id;
+      if (!invoiceId) return;
+      setSendingReminderId(invoiceId);
+      try {
+        const sent = await dashboardApi.sendReminder(invoiceId);
+        toast.success(`Đã gửi email nhắc nợ tới ${sent?.to || "khách thuê"}.`);
+        headlineResource.refresh();
+      } catch (err) {
+        toast.error(errorMessage(err));
+      } finally {
+        setSendingReminderId(null);
       }
-
-      const rem =
-        inv.remainingAmount ??
-        Math.max(0, (inv.totalAmount || 0) - (inv.paidAmount || 0));
-      const branchName =
-        inv.branch?.name ||
-        inv.branchId?.name ||
-        inv.branchName ||
-        "Ban quản lý";
-      const roomNum =
-        inv.room?.roomNumber ||
-        inv.roomId?.roomNumber ||
-        inv.roomNumber ||
-        "phòng trọ";
-      const tenantName =
-        inv.tenant?.name ||
-        inv.contractId?.tenantName ||
-        inv.tenantName ||
-        "Quý khách";
-      const publicUrl = inv.publicPath
-        ? `${publicAppUrl()}${inv.publicPath}`
-        : inv.publicAccessToken
-          ? publicInvoiceUrl(inv.publicAccessToken)
-          : `${publicAppUrl()}/invoices`;
-
-      const message = `[DOMUS ERP - THÔNG BÁO TIỀN PHÒNG]
-Kính gửi Quý khách ${tenantName} (${roomNum} - ${branchName}),
-Ban quản lý xin gửi thông báo công nợ tiền thuê phòng & dịch vụ:
-- Kỳ hóa đơn: ${formatBillingPeriod(inv.billingPeriod)}
-- Số tiền còn phải nộp: ${money(rem)}
-- Hạn thanh toán: ${date(inv.dueDate)}
-👉 Xem chi tiết và quét mã VietQR tự động gạch nợ tại:
-${publicUrl}
-(Quý khách vui lòng thanh toán đúng hạn để tránh phát sinh gián đoạn dịch vụ. Trân trọng cảm ơn!)`;
-
-      navigator.clipboard.writeText(message);
-      toast.success(
-        `Đã sao chép tin nhắn nhắc nợ gửi Zalo cho phòng ${roomNum}!`,
-      );
     },
-    [toast],
+    [toast, headlineResource],
+  );
+
+  // Landlord's switch for the daily automatic reminder emails.
+  const reminderSettingsResource = useResource(
+    () =>
+      isLandlord
+        ? dashboardApi.reminderSettings().catch(() => null)
+        : Promise.resolve(null),
+    [isLandlord],
+  );
+  const reminderSettings = reminderSettingsResource.data;
+  const [savingReminderSettings, setSavingReminderSettings] = useState(false);
+  const toggleAutoReminder = useCallback(
+    async (autoEmail) => {
+      setSavingReminderSettings(true);
+      try {
+        await dashboardApi.updateReminderSettings({ autoEmail });
+        toast.success(
+          autoEmail
+            ? "Đã bật tự động gửi email nhắc nợ."
+            : "Đã tắt tự động gửi email nhắc nợ.",
+        );
+        reminderSettingsResource.refresh();
+      } catch (err) {
+        toast.error(errorMessage(err));
+      } finally {
+        setSavingReminderSettings(false);
+      }
+    },
+    [toast, reminderSettingsResource],
   );
 
   return {
@@ -460,7 +573,11 @@ ${publicUrl}
     financialMetrics,
     contractWatchlist,
     branchPerformance,
-    handleCopyZaloReminder,
+    handleSendEmailReminder,
+    sendingReminderId,
+    reminderSettings,
+    savingReminderSettings,
+    toggleAutoReminder,
   };
 }
 

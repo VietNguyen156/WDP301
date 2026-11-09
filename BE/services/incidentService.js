@@ -1,5 +1,10 @@
 const mongoose = require("mongoose");
+const crypto = require("crypto");
+const Invoice = require("../models/Invoice");
+const { makeVietQr } = require("./financeCalculation");
+const { currentPeriod } = require("../utils/vnTime");
 const { LIVE_CONTRACT_STATUSES } = require("../utils/statuses");
+const { incidentStatusLabel } = require("../utils/statusLabels");
 const Incident = require("../models/Incident");
 const Room = require("../models/Room");
 const Contract = require("../models/Contract");
@@ -8,6 +13,7 @@ const branchService = require("./branchService");
 const audit = require("./auditService");
 const { requireFeature } = require("./planFeatures");
 const incidentTriage = require("./incidentTriage");
+const expenseService = require("./expenseService");
 const {
   getTenantScope,
   scoped,
@@ -35,7 +41,12 @@ const TRANSITIONS = {
   CLOSED: [],
   REJECTED: [],
 };
-const COST_EDITABLE = ["IN_PROGRESS", "SOLVED"];
+// PENDING too: after a declined quote the landlord may take the cost before work starts.
+const COST_EDITABLE = ["PENDING", "IN_PROGRESS", "SOLVED"];
+const DAY_MS = 86400000;
+const vnd = (n) => `${Number(n || 0).toLocaleString("vi-VN")}đ`;
+// Tenant-paid repairs follow the quote → tenant approval → two-party acceptance → invoice flow.
+const tenantPays = (incident) => incident.costPayer === "TENANT";
 
 function images(value, label) {
   if (value === undefined) return undefined;
@@ -79,7 +90,10 @@ const populate = (query) =>
     .populate({ path: "roomId", select: "roomNumber floor" })
     .populate({ path: "branchId", select: "name" })
     .populate({ path: "reportedBy", select: "name role" })
-    .populate({ path: "assignedTo", select: "name role" });
+    .populate({ path: "assignedTo", select: "name role" })
+    .populate({ path: "quote.quotedBy", select: "name role" })
+    .populate({ path: "acceptance.staffBy", select: "name role" })
+    .populate({ path: "acceptance.tenantBy", select: "name role" });
 
 async function find(req, id, session = null) {
   const incident = await Incident.findOne(
@@ -137,7 +151,33 @@ async function list(req) {
 
 async function get(req) {
   const incident = await find(req, req.params.incidentId);
-  return populate(Incident.findById(incident._id)).lean();
+  const data = await populate(Incident.findById(incident._id)).lean();
+  if (req.user.role === "TENANT") return data;
+  // Staff see the money around the repair: what the tenant was billed / paid (thu) and what was
+  // paid out to whoever did the work (chi). Tenants never see pay-outs.
+  const [expenses, invoice] = await Promise.all([
+    expenseService.forIncident(incident._id),
+    incident.chargeInvoiceId
+      ? Invoice.findById(incident.chargeInvoiceId).select("invoiceCode totalAmount paidAmount remainingAmount status").lean()
+      : null,
+  ]);
+  const paidOut = expenses
+    .filter((e) => e.status === "RECORDED")
+    .reduce((sum, e) => sum + e.amount, 0);
+  const collected = invoice && invoice.status !== "CANCELLED" ? invoice.paidAmount : 0;
+  return {
+    ...data,
+    expenses,
+    finance: {
+      payer: data.costPayer,
+      billed: invoice && invoice.status !== "CANCELLED" ? invoice.totalAmount : 0,
+      collected,
+      invoice,
+      paidOut,
+      // Tenant-paid: collected minus pay-outs; landlord-paid: the pay-outs are the landlord's cost.
+      net: collected - paidOut,
+    },
+  };
 }
 
 // Resolve branch, room and contract for the reporter; tenants are bound to their own contracts.
@@ -256,6 +296,7 @@ async function updateStatus(req) {
   v.fields(body, ["status", "note", "resolvedImages", "assignedTo"]);
   v.choice(body.status, STATUSES, "Trạng thái");
   const text = note(body.note);
+  // Photos of the finished repair are optional.
   const resolved = images(body.resolvedImages, "Ảnh nghiệm thu");
   return mongoose.connection.transaction(async (session) => {
     await requireIncidents(req, session);
@@ -263,17 +304,27 @@ async function updateStatus(req) {
     const before = incident.toObject();
     if (!TRANSITIONS[incident.status]?.includes(body.status))
       throw new BusinessRuleError(
-        `Không thể chuyển sự cố từ ${incident.status} sang ${body.status}`,
+        `Không thể chuyển sự cố từ "${incidentStatusLabel(incident.status)}" sang "${incidentStatusLabel(body.status)}"`,
         "INCIDENT_INVALID_TRANSITION",
       );
     if (body.status === "REJECTED" && !text)
       throw new ValidationError("Vui lòng nhập lý do từ chối");
-    if (resolved) incident.resolvedImages = resolved;
-    if (body.status === "SOLVED" && !incident.resolvedImages.length)
-      throw new ValidationError(
-        "Cần ít nhất 1 ảnh nghiệm thu khi báo sửa xong",
-        "INCIDENT_EVIDENCE_REQUIRED",
+    if (
+      body.status === "IN_PROGRESS" &&
+      incident.status === "PENDING" &&
+      tenantPays(incident) &&
+      incident.quote?.status !== "ACCEPTED"
+    )
+      throw new BusinessRuleError(
+        "Sự cố do người thuê chi trả: cần người thuê duyệt báo giá trước khi bắt đầu xử lý",
+        "INCIDENT_QUOTE_NOT_ACCEPTED",
       );
+    if (body.status === "CLOSED" && tenantPays(incident))
+      throw new BusinessRuleError(
+        "Sự cố do người thuê chi trả: cần người thuê xác nhận nghiệm thu, hồ sơ sẽ tự đóng sau đó",
+        "INCIDENT_TENANT_ACCEPTANCE_REQUIRED",
+      );
+    if (resolved) incident.resolvedImages = resolved;
     if (body.status === "CLOSED" && !incident.costUpdatedAt)
       throw new BusinessRuleError(
         "Cần ghi nhận chi phí và người chịu phí trước khi đóng phiếu",
@@ -288,12 +339,20 @@ async function updateStatus(req) {
       );
     else if (body.status === "IN_PROGRESS" && !incident.assignedTo)
       incident.assignedTo = req.user._id;
+    // Staff acceptance ("đã sửa xong") is the SOLVED step; reopening clears it.
+    if (body.status === "SOLVED")
+      incident.acceptance = { staffBy: req.user._id, staffAt: new Date() };
+    else if (body.status === "IN_PROGRESS" && incident.status === "SOLVED")
+      incident.acceptance = undefined;
     incident.status = body.status;
     if (text) incident.notes = text;
     incident.statusHistory.push({
       status: body.status,
       changedBy: req.user._id,
-      note: text,
+      note:
+        body.status === "SOLVED" && tenantPays(incident)
+          ? [text, "Quản lý đã nghiệm thu, chờ người thuê xác nhận"].filter(Boolean).join(" · ")
+          : text,
     });
     await incident.save({ session });
     await audit.log({
@@ -317,8 +376,11 @@ async function updateCost(req) {
   const text = note(body.note);
   if (body.costPayer === "NONE" && body.repairCost > 0)
     throw new ValidationError("Có chi phí thì phải chọn người chịu phí");
-  if (body.costPayer === "TENANT" && req.user.role !== "LANDLORD")
-    throw new ForbiddenError("Chỉ chủ trọ được quyết định khách thuê chịu phí");
+  if (body.costPayer === "TENANT")
+    throw new BusinessRuleError(
+      "Chi phí do người thuê trả phải gửi báo giá để người thuê duyệt trước",
+      "INCIDENT_QUOTE_REQUIRED",
+    );
   return mongoose.connection.transaction(async (session) => {
     await requireIncidents(req, session);
     const incident = await find(req, req.params.incidentId, session);
@@ -328,10 +390,22 @@ async function updateCost(req) {
         "Chỉ ghi nhận chi phí khi sự cố đang xử lý hoặc đã sửa xong",
         "INCIDENT_COST_LOCKED",
       );
-    if (body.costPayer === "TENANT" && !incident.contractId)
-      throw new BusinessRuleError(
-        "Sự cố không gắn với hợp đồng nên không thể tính phí cho khách thuê",
-      );
+    // Who pays is decided once. A quote the tenant has not refused (waiting or accepted) locks
+    // the repair as tenant-paid; only a refused quote may be taken over by the landlord.
+    if (tenantPays(incident)) {
+      if (incident.quote?.status !== "DECLINED")
+        throw new BusinessRuleError(
+          "Sự cố đã báo giá cho người thuê chi trả nên không thể chuyển sang chủ trọ chịu",
+          "INCIDENT_PAYER_LOCKED",
+        );
+      if (req.user.role !== "LANDLORD")
+        throw new ForbiddenError("Chỉ chủ trọ được nhận chi phí khi người thuê từ chối báo giá");
+      incident.statusHistory.push({
+        status: incident.status,
+        changedBy: req.user._id,
+        note: "Người thuê từ chối báo giá, chủ trọ nhận chịu chi phí",
+      });
+    }
     incident.repairCost = body.repairCost;
     incident.costPayer = body.costPayer;
     incident.costUpdatedAt = new Date();
@@ -344,6 +418,218 @@ async function updateCost(req) {
       entityId: incident._id,
       before,
       after: incident.toObject(),
+      session,
+    });
+    return incident;
+  });
+}
+
+// The tenant on the incident's contract (only they approve quotes and acceptance).
+async function assertIncidentTenant(req, incident, session) {
+  const contract = incident.contractId
+    ? await Contract.findOne({ _id: incident.contractId, isDeleted: false }).session(session)
+    : null;
+  if (!contract || String(contract.tenantId) !== String(req.user._id))
+    throw new ForbiddenError("Chỉ người thuê đứng tên hợp đồng mới được duyệt");
+  return contract;
+}
+
+// Staff quotes the repair to the tenant; work starts only after the tenant accepts.
+async function sendQuote(req) {
+  const body = v.fields(req.body || {}, ["amount", "note"]);
+  v.number(body.amount, "Số tiền báo giá", 1);
+  const text = note(body.note);
+  return mongoose.connection.transaction(async (session) => {
+    await requireIncidents(req, session);
+    const incident = await find(req, req.params.incidentId, session);
+    if (incident.status !== "PENDING")
+      throw new BusinessRuleError(
+        "Chỉ báo giá khi sự cố chưa bắt đầu xử lý",
+        "INCIDENT_QUOTE_LOCKED",
+      );
+    if (incident.quote?.status === "ACCEPTED")
+      throw new BusinessRuleError("Người thuê đã duyệt báo giá này", "INCIDENT_QUOTE_ACCEPTED");
+    // Already recorded as landlord-paid / free: the tenant cannot be billed for it any more.
+    if (incident.costUpdatedAt && !tenantPays(incident))
+      throw new BusinessRuleError(
+        "Sự cố đã ghi nhận chủ trọ chịu phí (hoặc miễn phí) nên không thể báo giá cho người thuê",
+        "INCIDENT_PAYER_LOCKED",
+      );
+    if (!incident.contractId)
+      throw new BusinessRuleError(
+        "Sự cố không gắn với hợp đồng thuê nên không thể tính phí cho người thuê",
+        "INCIDENT_NO_CONTRACT",
+      );
+    const before = incident.toObject();
+    incident.quote = {
+      amount: body.amount,
+      note: text,
+      status: "PENDING",
+      quotedBy: req.user._id,
+      quotedAt: new Date(),
+    };
+    incident.costPayer = "TENANT";
+    incident.repairCost = body.amount;
+    incident.costUpdatedAt = new Date();
+    incident.statusHistory.push({
+      status: incident.status,
+      changedBy: req.user._id,
+      note: [`Báo giá cho người thuê: ${vnd(body.amount)}`, text].filter(Boolean).join(" · "),
+    });
+    await incident.save({ session });
+    await audit.log({
+      req,
+      action: "QUOTE_INCIDENT",
+      entityType: "INCIDENT",
+      entityId: incident._id,
+      before,
+      after: incident.toObject(),
+      session,
+    });
+    return incident;
+  });
+}
+
+// Tenant accepts or declines the quote.
+async function respondQuote(req) {
+  const body = v.fields(req.body || {}, ["accept", "note"]);
+  if (typeof body.accept !== "boolean")
+    throw new ValidationError("Vui lòng chọn đồng ý hoặc từ chối báo giá");
+  const text = note(body.note);
+  if (!body.accept && !text) throw new ValidationError("Vui lòng nhập lý do từ chối báo giá");
+  return mongoose.connection.transaction(async (session) => {
+    const incident = await find(req, req.params.incidentId, session);
+    await assertIncidentTenant(req, incident, session);
+    if (incident.quote?.status !== "PENDING" || incident.status !== "PENDING")
+      throw new BusinessRuleError("Không có báo giá nào đang chờ bạn duyệt", "INCIDENT_NO_PENDING_QUOTE");
+    const before = incident.toObject();
+    incident.quote.status = body.accept ? "ACCEPTED" : "DECLINED";
+    incident.quote.respondedBy = req.user._id;
+    incident.quote.respondedAt = new Date();
+    incident.quote.responseNote = text;
+    incident.statusHistory.push({
+      status: incident.status,
+      changedBy: req.user._id,
+      note: [
+        body.accept
+          ? `Người thuê đồng ý báo giá ${vnd(incident.quote.amount)}`
+          : `Người thuê từ chối báo giá ${vnd(incident.quote.amount)}`,
+        text,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    });
+    await incident.save({ session });
+    await audit.log({
+      req,
+      action: body.accept ? "ACCEPT_INCIDENT_QUOTE" : "DECLINE_INCIDENT_QUOTE",
+      entityType: "INCIDENT",
+      entityId: incident._id,
+      before,
+      after: incident.toObject(),
+      session,
+    });
+    return incident;
+  });
+}
+
+// Invoice for a tenant-paid repair, issued at once so it can be paid by VietQR or cash.
+async function issueIncidentInvoice(incident, contract, session) {
+  const [room, landlord] = await Promise.all([
+    Room.findById(incident.roomId).select("roomNumber").session(session).lean(),
+    User.findById(incident.landlordId).select("bankConfig").session(session).lean(),
+  ]);
+  const amount = incident.repairCost;
+  const billingPeriod = currentPeriod();
+  const [year, month] = billingPeriod.split("-").map(Number);
+  const invoiceCode = `HDSC${crypto.randomBytes(10).toString("hex").toUpperCase()}`;
+  const paymentSyntax = `${invoiceCode} P${String(room?.roomNumber || "").replace(/[^A-Za-z0-9]/g, "")}`;
+  const bank = landlord?.bankConfig;
+  const dueDays = contract.contractTerms?.paymentDueDays || 5;
+  const [invoice] = await Invoice.create(
+    [
+      {
+        invoiceType: "INCIDENT",
+        incidentId: incident._id,
+        landlordId: incident.landlordId,
+        branchId: incident.branchId,
+        roomId: incident.roomId,
+        contractId: contract._id,
+        tenantId: contract.tenantId,
+        invoiceCode,
+        billingPeriod,
+        year,
+        month,
+        dueDate: new Date(Date.now() + dueDays * DAY_MS),
+        paymentSyntax,
+        roomAmount: 0,
+        additionalFees: [{ reason: `Sửa chữa sự cố: ${incident.title}`, amount }],
+        totalAmount: amount,
+        remainingAmount: amount,
+        status: "ISSUED",
+        bankSnapshot: bank,
+        notes: `Thu tiền sửa chữa sự cố "${incident.title}" theo báo giá người thuê đã duyệt`,
+        vietQrUrl:
+          bank?.bankCode && bank.accountNumber && bank.accountName
+            ? makeVietQr(bank, amount, paymentSyntax)
+            : undefined,
+      },
+    ],
+    { session },
+  );
+  return invoice;
+}
+
+// Tenant's acceptance of a tenant-paid repair: accept closes it and issues the invoice,
+// decline sends it back to the repair team.
+async function tenantAcceptance(req) {
+  const body = v.fields(req.body || {}, ["accept", "note"]);
+  if (typeof body.accept !== "boolean")
+    throw new ValidationError("Vui lòng chọn nghiệm thu đạt hoặc chưa đạt");
+  const text = note(body.note);
+  if (!body.accept && !text) throw new ValidationError("Vui lòng nêu điểm chưa đạt để sửa lại");
+  return mongoose.connection.transaction(async (session) => {
+    const incident = await find(req, req.params.incidentId, session);
+    const contract = await assertIncidentTenant(req, incident, session);
+    if (incident.status !== "SOLVED" || !tenantPays(incident))
+      throw new BusinessRuleError("Sự cố này không chờ bạn nghiệm thu", "INCIDENT_NOT_AWAITING_TENANT");
+    const before = incident.toObject();
+    let invoice = null;
+    if (body.accept) {
+      incident.acceptance.tenantBy = req.user._id;
+      incident.acceptance.tenantAt = new Date();
+      incident.acceptance.tenantNote = text;
+      incident.status = "CLOSED";
+      if (incident.repairCost > 0) {
+        invoice = await issueIncidentInvoice(incident, contract, session);
+        incident.chargeInvoiceId = invoice._id;
+        incident.chargeInvoiceCode = invoice.invoiceCode;
+      }
+    } else {
+      incident.acceptance = undefined;
+      incident.status = "IN_PROGRESS";
+    }
+    incident.statusHistory.push({
+      status: incident.status,
+      changedBy: req.user._id,
+      note: body.accept
+        ? [
+            "Người thuê xác nhận nghiệm thu",
+            invoice && `Xuất hóa đơn ${invoice.invoiceCode} (${vnd(invoice.totalAmount)})`,
+            text,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : `Người thuê chưa đồng ý nghiệm thu: ${text}`,
+    });
+    await incident.save({ session });
+    await audit.log({
+      req,
+      action: body.accept ? "TENANT_ACCEPT_INCIDENT" : "TENANT_REJECT_INCIDENT_WORK",
+      entityType: "INCIDENT",
+      entityId: incident._id,
+      before,
+      after: { ...incident.toObject(), chargeInvoiceId: invoice?._id },
       session,
     });
     return incident;
@@ -382,4 +668,15 @@ async function retriage(req) {
   return populate(Incident.findById(incident._id)).lean();
 }
 
-module.exports = { list, get, create, updateStatus, updateCost, triageAfterCreate, retriage };
+module.exports = {
+  list,
+  get,
+  create,
+  updateStatus,
+  updateCost,
+  sendQuote,
+  respondQuote,
+  tenantAcceptance,
+  triageAfterCreate,
+  retriage,
+};

@@ -40,10 +40,13 @@ export default function ContractsPage() {
     resource,
     items,
     total,
+    summaryCountAll,
     selectedContract,
     activeCount,
     expiringCount,
     expiredCount,
+    draftCount,
+    terminatedCount,
     totalDeposit,
   } = useContractsPage();
 
@@ -95,10 +98,16 @@ export default function ContractsPage() {
       <ContractsKpiRibbon
         total={total}
         itemsLength={items.length}
+        summaryCountAll={summaryCountAll}
         activeCount={activeCount}
         expiringCount={expiringCount}
         expiredCount={expiredCount}
         totalDeposit={totalDeposit}
+        status={status}
+        onSelectStatus={(nextStatus) => {
+          setStatus(nextStatus);
+          setPage(1);
+        }}
       />
 
       {/* 3. Filter Toolbar & Search */}
@@ -107,9 +116,12 @@ export default function ContractsPage() {
         setStatus={setStatus}
         total={total}
         itemsLength={items.length}
+        summaryCountAll={summaryCountAll}
         activeCount={activeCount}
         expiringCount={expiringCount}
         expiredCount={expiredCount}
+        draftCount={draftCount}
+        terminatedCount={terminatedCount}
         page={page}
         setPage={setPage}
         search={search}

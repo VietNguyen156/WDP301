@@ -19,7 +19,7 @@ exports.gatewayIpn = async (req, res) => {
   if (result.paid) {
     chainChanged(landlordId, ["plans", "subscription"], { admins: true });
     activity
-      .system({ label: "thanh toán gói dịch vụ qua cổng SePay", kind: "platformInvoice", id: invoiceId })
+      .system({ label: "thanh toán gói dịch vụ qua cổng payOS", kind: "platformInvoice", id: invoiceId })
       .catch(() => {});
   }
 };

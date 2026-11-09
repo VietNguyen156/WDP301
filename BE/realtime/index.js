@@ -113,10 +113,26 @@ function emit(rooms, event, payload) {
   }
 }
 
+// The tenant hears that their deposit was booked and where its receipt is.
+function depositReceiptEvent(contract) {
+  const tenantId = contract?.tenantId?._id || contract?.tenantId;
+  if (!tenantId) return;
+  emit([`user:${tenantId}`], "activity", {
+    id: `${Date.now()}-deposit-${contract._id || contract.id}`,
+    at: new Date().toISOString(),
+    actor: { id: null, name: null, role: "SYSTEM" },
+    action: "ghi nhận tiền cọc",
+    message: `Chủ trọ đã nhận ${Number(contract.depositAmount || 0).toLocaleString("vi-VN")}đ tiền cọc hợp đồng ${contract.contractCode}`,
+    details: "Biên nhận cọc nằm trong Lịch sử thanh toán › Tiền cọc",
+    link: "/payments?tab=deposits",
+  });
+}
+
 // Bank / gateway changes have no signed-in user: refresh hints and activity are emitted here.
 function paymentEvent({ invoice, payment, depositReceived, contract, unmatched, landlordId, amount }) {
   if (depositReceived && contract) {
     live.chainChanged(contract.landlordId, ["contracts", "payments", "dashboard"]);
+    depositReceiptEvent(contract);
     activity
       .system({ label: "ghi nhận tiền cọc chuyển khoản", kind: "contract", id: contract._id, extra: `${contract.depositAmount.toLocaleString("vi-VN")}đ` })
       .catch(() => {});
@@ -151,6 +167,7 @@ function paymentEvent({ invoice, payment, depositReceived, contract, unmatched, 
     activity
       .system({
         label: "nhận chuyển khoản",
+        audience: activity.AUDIENCE.TENANT, // the payer sees their invoice paid
         kind: "invoice",
         id: invoice._id,
         extra: `${payment.amount.toLocaleString("vi-VN")}đ`,
@@ -195,4 +212,4 @@ activity.setEmitter(emit);
 
 const close = () => io?.close();
 
-module.exports = { attach, emit, paymentEvent, incidentEvent, close };
+module.exports = { attach, emit, paymentEvent, depositReceiptEvent, incidentEvent, close };

@@ -6,15 +6,21 @@ const { AppError, ForbiddenError } = require("../utils/errors");
 const respond = require("../utils/response");
 const { isAllowedOrigin } = require("../utils/appUrls");
 // FE and API on different domains (e.g. Vercel + Render) need SameSite=None, which browsers
-// only accept together with Secure: so Secure follows SameSite, not NODE_ENV. This lets a
-// deployed "development" build (sandbox payments, simulator on) keep users signed in.
-const cookieOptions = () => {
+// only accept together with Secure: so Secure follows SameSite, not NODE_ENV. On local HTTP
+// development (not HTTPS), fall back to Lax so browsers don't reject the refresh cookie.
+const cookieOptions = (req) => {
+  const isHttps =
+    process.env.NODE_ENV === "production" ||
+    Boolean(req?.secure) ||
+    req?.headers?.["x-forwarded-proto"] === "https";
+  const configured = process.env.COOKIE_SAME_SITE;
   const sameSite =
-    process.env.COOKIE_SAME_SITE ||
-    (process.env.NODE_ENV === "production" ? "none" : "lax");
+    configured === "none" && !isHttps
+      ? "lax"
+      : configured || (process.env.NODE_ENV === "production" ? "none" : "lax");
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production" || sameSite === "none",
+    secure: isHttps || sameSite === "none",
     sameSite,
     path: "/api",
     maxAge: 7 * 86400000,
@@ -40,11 +46,12 @@ router.post(
   async (req, res) => {
     const { refreshToken, ...data } = await service.login(req.body);
     // Several accounts matched: no session yet, the client shows the account chooser.
-    if (data.selectionRequired) return respond(res, data, 200, "Chọn tài khoản để tiếp tục");
-    const legacyCookie = cookieOptions();
+    if (data.selectionRequired)
+      return respond(res, data, 200, "Chọn tài khoản để tiếp tục");
+    const legacyCookie = cookieOptions(req);
     delete legacyCookie.maxAge;
     res.clearCookie("refreshToken", { ...legacyCookie, path: "/api/v1/auth" });
-    res.cookie("refreshToken", refreshToken, cookieOptions());
+    res.cookie("refreshToken", refreshToken, cookieOptions(req));
     respond(res, data);
   },
 );
@@ -65,7 +72,7 @@ router.post(
   authenticateAccount,
   async (req, res) => {
     const data = await service.changePassword(req);
-    clearRefreshCookie(res);
+    clearRefreshCookie(req, res);
     respond(res, data, 200, "Đã đổi mật khẩu. Vui lòng đăng nhập lại.");
   },
 );
@@ -76,15 +83,15 @@ router.post(["/otp/request", "/otp/verify"], accountLimit(), () => {
     "OTP_ACTIVATION_RETIRED",
   );
 });
-function clearRefreshCookie(res) {
-  const options = cookieOptions();
+function clearRefreshCookie(req, res) {
+  const options = cookieOptions(req);
   delete options.maxAge;
   res.clearCookie("refreshToken", options);
   res.clearCookie("refreshToken", { ...options, path: "/api/v1/auth" });
 }
 router.post("/logout", async (req, res) => {
   await service.logout(req.cookies.refreshToken);
-  clearRefreshCookie(res);
+  clearRefreshCookie(req, res);
   respond(res, null);
 });
 router.get("/me", authenticateAccount, async (req, res) =>

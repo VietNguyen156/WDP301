@@ -1499,3 +1499,331 @@
 .contract-renew-presets button { padding: 6px 12px; border-radius: 8px; border: 1px solid #cbd5e1; background: #ffffff; font-size: 13px; font-weight: 600; color: #334155; cursor: pointer; }
 .contract-renew-presets button.is-active { border-color: #0f766e; background: #f0fdfa; color: #0f766e; }
 .contract-renew-note { margin: 0; font-size: 12.5px; color: #64748b; }
+
+/* Draft contract: not in force until both parties sign */
+.contract-draft-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.contract-draft-note > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.contract-draft-note > div {
+  flex: 1;
+}
+.contract-draft-note > button {
+  flex-shrink: 0;
+}
+@media print {
+  .contract-draft-note > button {
+    display: none;
+  }
+}
+
+
+/* ==============================================================
+   CONTRACTS FILTER TOOLBAR & INTERACTIVE KPI RIBBON REDESIGN
+   ============================================================== */
+
+.contracts-kpi-card.is-clickable {
+  cursor: pointer;
+}
+
+.contracts-kpi-card.is-selected-kpi {
+  border-color: var(--contracts-primary);
+  box-shadow: 0 0 0 2px rgba(0, 92, 85, 0.16), 0 4px 12px rgba(0, 92, 85, 0.08);
+}
+
+.contracts-kpi-card.warning.is-selected-kpi {
+  border-color: #d97706;
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2), 0 4px 12px rgba(217, 119, 6, 0.08);
+}
+
+.contracts-kpi-card.danger.is-selected-kpi {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2), 0 4px 12px rgba(220, 38, 38, 0.08);
+}
+
+.contracts-filter-card {
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.contracts-tabs-row {
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+}
+
+.contracts-quick-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.contracts-tab-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.contracts-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.65);
+  color: #0f172a;
+}
+
+.contracts-tab-btn.is-active {
+  background: var(--contracts-primary);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 92, 85, 0.25);
+}
+
+.contracts-pagination-hint {
+  font-size: 12.5px;
+  color: #64748b;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+.contracts-pagination-hint strong {
+  color: #0f172a;
+}
+
+/* Search Box with Clear Button */
+.contracts-search-box {
+  position: relative;
+  flex: 1 1 280px;
+  min-width: 240px;
+  display: flex;
+  align-items: center;
+}
+
+.contracts-search-icon {
+  position: absolute;
+  left: 12px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.contracts-search-box .contracts-search-input {
+  width: 100%;
+  height: 38px;
+  padding: 7px 34px 7px 36px;
+  border-radius: 9px;
+  border: 1px solid #cbd5e1;
+  font-size: 13px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.contracts-search-clear {
+  position: absolute;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  border: none;
+  background: #f1f5f9;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.contracts-search-clear:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+/* Labeled Filter Select Pills */
+.contracts-filter-selects-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.contracts-filter-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 10px 0 11px;
+  border-radius: 9px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 12.5px;
+  color: #334155;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.contracts-filter-field:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.contracts-filter-field:focus-within {
+  border-color: var(--contracts-primary);
+  box-shadow: 0 0 0 2px rgba(0, 92, 85, 0.15);
+}
+
+.contracts-filter-field.is-filtered {
+  background: #f0fdfa;
+  border-color: #0f766e;
+}
+
+.contracts-filter-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.contracts-filter-field.is-filtered .contracts-filter-field-label {
+  color: #0f766e;
+}
+
+.contracts-select-clean {
+  border: none;
+  background: transparent;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0f172a;
+  outline: none;
+  cursor: pointer;
+  padding-right: 4px;
+}
+
+.contracts-filter-field.is-filtered .contracts-select-clean {
+  color: #005c55;
+}
+
+.contracts-btn-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 13px;
+  border-radius: 9px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.contracts-btn-reset:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.contracts-btn-reset.is-active {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #be123c;
+}
+
+.contracts-btn-reset.is-active:hover {
+  background: #ffe4e6;
+  border-color: #fda4af;
+}
+
+/* Row 3: Active Filter Chips Bar */
+.contracts-active-chips-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.contracts-active-chips-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+}
+
+.contracts-active-chips-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.contracts-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px 3px 10px;
+  border-radius: 9999px;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.contracts-filter-chip button {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  border: none;
+  background: rgba(15, 118, 110, 0.12);
+  color: #0f766e;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.15s ease;
+}
+
+.contracts-filter-chip button:hover {
+  background: rgba(15, 118, 110, 0.25);
+}
+
+@media (max-width: 768px) {
+  .contracts-filter-selects-group {
+    width: 100%;
+  }
+
+  .contracts-filter-field {
+    flex: 1 1 calc(50% - 6px);
+    justify-content: space-between;
+  }
+
+  .contracts-btn-reset {
+    width: 100%;
+    justify-content: center;
+  }
+}

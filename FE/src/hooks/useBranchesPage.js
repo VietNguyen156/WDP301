@@ -118,7 +118,7 @@ export function useBranchesPage() {
   const debtBranchesCount = useMemo(() => {
     return rawItems.filter((b) => {
       const invs = rawInvoices.filter(
-        (inv) => String(inv.branchId) === String(b._id),
+        (inv) => String(inv.branchId?._id || inv.branchId) === String(b._id),
       );
       const debt = invs.reduce((sum, inv) => {
         const rem = Math.max(0, (inv.totalAmount || 0) - (inv.paidAmount || 0));
@@ -176,7 +176,7 @@ export function useBranchesPage() {
     if (quickFilter === "DEBT") {
       result = result.filter((b) => {
         const invs = rawInvoices.filter(
-          (inv) => String(inv.branchId) === String(b._id),
+          (inv) => String(inv.branchId?._id || inv.branchId) === String(b._id),
         );
         const debt = invs.reduce((sum, inv) => {
           const rem = Math.max(

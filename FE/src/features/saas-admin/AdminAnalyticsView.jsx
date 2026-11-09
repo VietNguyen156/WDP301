@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Users,
-  Building,
+  DoorOpen,
   CreditCard,
   Wallet,
   TrendingUp,
@@ -13,13 +13,16 @@ import {
   Download,
   Zap,
   ArrowUpRight,
-  ShieldCheck,
+  CheckCircle2,
   Filter,
+  Landmark,
+  Link2,
+  ArrowRight,
 } from "lucide-react";
 import { adminApi, errorMessage } from "../../services/api";
 import { money } from "../../utils/format";
 import { useToast } from "../../context/ToastContext";
-import { LoadingState, ErrorState, EmptyState, Button } from "../../components/ui";
+import { LoadingState, ErrorState, Button } from "../../components/ui";
 import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 
 export function AdminAnalyticsView({ onNavigateTab }) {
@@ -28,74 +31,81 @@ export function AdminAnalyticsView({ onNavigateTab }) {
   const [error, setError] = useState(null);
   const [stats, setStats] = useState(null);
   const [landlordsList, setLandlordsList] = useState([]);
+  const [bankingSummary, setBankingSummary] = useState(null);
   const [priorityFilter, setPriorityFilter] = useState("ALL");
+  const [activePreset, setActivePreset] = useState("month");
 
-  // Date range filters
   const [from, setFrom] = useState(() =>
-    new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
+    new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      .toISOString()
+      .slice(0, 10),
   );
   const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
 
-  const fetchStats = useCallback(async (silent) => {
-    if (silent !== true) setLoading(true);
-    setError(null);
-    try {
-      const [statsRes, landlordsRes] = await Promise.allSettled([
-        adminApi.getAnalytics({ from, to }),
-        adminApi.listLandlords({ limit: 100 }),
-      ]);
+  const fetchStats = useCallback(
+    async (silent) => {
+      if (silent !== true) setLoading(true);
+      setError(null);
+      try {
+        const [statsRes, landlordsRes] = await Promise.allSettled([
+          adminApi.getAnalytics({ from, to }),
+          adminApi.listLandlords({ limit: 100 }),
+        ]);
 
-      if (statsRes.status === "fulfilled") {
-        setStats(statsRes.value);
-      } else {
-        throw statsRes.reason;
-      }
+        if (statsRes.status === "fulfilled") {
+          setStats(statsRes.value);
+        } else {
+          throw statsRes.reason;
+        }
 
-      if (landlordsRes.status === "fulfilled" && landlordsRes.value?.items) {
-        setLandlordsList(landlordsRes.value.items);
+        if (landlordsRes.status === "fulfilled") {
+          setLandlordsList(landlordsRes.value?.items || []);
+          setBankingSummary(landlordsRes.value?.bankingSummary || null);
+        }
+      } catch (err) {
+        setError(errorMessage(err));
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [from, to]);
-  useLiveRefresh(["admin","plans","subscription"], () => fetchStats(true));
+    },
+    [from, to],
+  );
+
+  useLiveRefresh(["admin", "plans", "subscription"], () => fetchStats(true));
 
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
 
-  function setPreset(days) {
+  function setPreset(presetKey) {
+    setActivePreset(presetKey);
     const end = new Date();
     const start = new Date();
-    if (days === "month") {
+    if (presetKey === "month") {
       const first = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
         .toISOString()
         .slice(0, 10);
       setFrom(first);
-      setTo(new Date().toISOString().slice(0, 10));
+      setTo(end.toISOString().slice(0, 10));
       return;
     }
-    if (days === "all") {
+    if (presetKey === "all") {
       setFrom("2026-01-01");
-      setTo(new Date().toISOString().slice(0, 10));
+      setTo(end.toISOString().slice(0, 10));
       return;
     }
-    start.setDate(end.getDate() - days);
+    start.setDate(end.getDate() - Number(presetKey));
     setFrom(start.toISOString().slice(0, 10));
     setTo(end.toISOString().slice(0, 10));
   }
 
-  // Handle Export report
   const handleExportReport = () => {
-    toast.info("Đang tạo tệp tổng hợp dữ liệu SaaS kỳ này...");
+    toast.info("Đang chuẩn bị bản in báo cáo tổng hợp hệ thống SaaS...");
     setTimeout(() => {
       window.print();
-    }, 500);
+    }, 400);
   };
 
-  // Calculate Plan Distribution from live data
   const planDistribution = useMemo(() => {
     const total = landlordsList.length || stats?.users?.landlords || 0;
     let freeCount = 0;
@@ -133,32 +143,39 @@ export function AdminAnalyticsView({ onNavigateTab }) {
     };
   }, [landlordsList, stats]);
 
-  // Dynamic Event Logs
+  const unmatchedTotal = useMemo(
+    () =>
+      landlordsList.reduce(
+        (sum, l) => sum + (l.banking?.pendingUnmatched || 0),
+        0,
+      ),
+    [landlordsList],
+  );
+
   const eventLogs = useMemo(() => {
     const events = [];
     const saas = stats?.saas;
     const users = stats?.users;
 
-    // 1. Overdue Invoices Alert
     if ((saas?.overdueInvoiceCount || 0) > 0) {
       events.push({
         id: "overdue-invoices",
         priority: "HIGH",
-        priorityText: "Cao",
+        priorityText: "Khẩn cấp",
         type: "Hóa đơn SaaS Quá hạn",
         icon: AlertOctagon,
         iconColor: "#dc2626",
         title: `Phát hiện ${saas.overdueInvoiceCount} hóa đơn SaaS quá hạn chưa thanh toán`,
-        detail: "Cần kiểm tra đối soát hoặc đôn đốc chủ chuỗi thanh toán để duy trì tài khoản",
+        detail:
+          "Cần kiểm tra đối soát hoặc đôn đốc chủ chuỗi thanh toán để duy trì gói thuê bao.",
         time: "Cần xử lý ngay",
-        status: "Chờ Admin đôn đốc",
+        status: "Chờ thu hồi",
         statusBadgeClass: "stitch-badge-danger",
         actionText: "Kiểm tra hóa đơn",
         onAction: () => onNavigateTab?.("invoices"),
       });
     }
 
-    // 2. Expiring Subscriptions Alert
     if ((saas?.expiringWithin7Days || 0) > 0) {
       events.push({
         id: "expiring-subs",
@@ -167,17 +184,17 @@ export function AdminAnalyticsView({ onNavigateTab }) {
         type: "Thuê bao sắp hết hạn",
         icon: Clock,
         iconColor: "#d97706",
-        title: `Có ${saas.expiringWithin7Days} gói thuê bao ACTIVE sắp tới hạn gia hạn trong 7 ngày`,
-        detail: "Hệ thống sẽ gửi thông báo tự động; Admin có thể gia hạn hoặc nâng cấp gói trước",
+        title: `Có ${saas.expiringWithin7Days} gói thuê bao ACTIVE sắp hết hạn trong 7 ngày tới`,
+        detail:
+          "Admin có thể chủ động tạo kỳ gia hạn hoặc duyệt yêu cầu nâng cấp gói từ chủ trọ.",
         time: "Trong 7 ngày",
-        status: "Chờ gia hạn",
+        status: "Sắp đáo hạn",
         statusBadgeClass: "stitch-badge-warning",
-        actionText: "Xử lý thuê bao",
+        actionText: "Quản lý thuê bao",
         onAction: () => onNavigateTab?.("subscriptions"),
       });
     }
 
-    // 3. Suspended Accounts
     if ((users?.suspendedAccounts || 0) > 0) {
       events.push({
         id: "suspended-users",
@@ -186,52 +203,54 @@ export function AdminAnalyticsView({ onNavigateTab }) {
         type: "Tài khoản bị tạm khóa",
         icon: AlertTriangle,
         iconColor: "#ea580c",
-        title: `Có ${users.suspendedAccounts} tài khoản trong hệ thống đang ở trạng thái SUSPENDED`,
-        detail: "Các tài khoản vi phạm hoặc theo biên bản xử lý; quyền truy cập và session đã thu hồi",
+        title: `Có ${users.suspendedAccounts} tài khoản trên hệ thống đang ở trạng thái SUSPENDED`,
+        detail:
+          "Phiên đăng nhập của các tài khoản này đã được thu hồi để đảm bảo an toàn vận hành.",
         time: "Đang hiệu lực",
         status: "Đang tạm khóa",
         statusBadgeClass: "stitch-badge-warning",
-        actionText: "Quản lý chủ trọ",
+        actionText: "Xem chủ trọ",
         onAction: () => onNavigateTab?.("landlords"),
       });
     }
 
-    // 4. New Landlord Signups
     if ((users?.newAccounts || 0) > 0) {
       events.push({
         id: "new-accounts",
         priority: "NORMAL",
         priorityText: "Thông thường",
-        type: "Chủ trọ mới gia nhập",
+        type: "Tài khoản mới gia nhập",
         icon: Users,
         iconColor: "#0284c7",
         title: `Ghi nhận +${users.newAccounts} tài khoản mới tạo trong kỳ thống kê`,
-        detail: "Chủ trọ đã được cấp gói dùng thử và tự động kích hoạt quyền quản trị cơ sở",
-        time: "Kỳ này",
+        detail:
+          "Các tài khoản chủ trọ mới đã được khởi tạo và sẵn sàng cấu hình cơ sở lưu trú.",
+        time: "Kỳ báo cáo",
         status: "Đã kích hoạt",
         statusBadgeClass: "stitch-badge-info",
-        actionText: "Xem danh sách",
+        actionText: "Danh sách chủ trọ",
         onAction: () => onNavigateTab?.("landlords"),
       });
     }
 
-    // 5. SePay Webhook Status
     events.push({
       id: "sepay-status",
       priority: "NORMAL",
       priorityText: "Thông thường",
-      type: "Cổng VietQR SePay",
+      type: "Đối soát Thu tiền SaaS",
       icon: Zap,
       iconColor: "#005c55",
-      title: "Cổng thanh toán tự động VietQR kết nối liên ngân hàng NAPAS 247",
-      detail: `Đã ghi nhận ${saas?.paidInvoiceCount || 0} hóa đơn SaaS đã thanh toán trong kỳ`,
+      title: `Đã thu thành công ${saas?.paidInvoiceCount || 0} hóa đơn SaaS (${money(saas?.collectedAmount || 0)}) trong kỳ`,
+      detail: `${bankingSummary?.linked || 0} chủ trọ đã liên kết SePay Bank Hub nhận đối soát tự động.`,
       time: "Theo kỳ báo cáo",
-      status: "Chưa có dữ liệu giám sát",
-      statusBadgeClass: "stitch-badge-neutral",
+      status: "Đang hoạt động",
+      statusBadgeClass: "stitch-badge-info",
+      actionText: "Sổ hóa đơn SaaS",
+      onAction: () => onNavigateTab?.("invoices"),
     });
 
     return events;
-  }, [stats, onNavigateTab]);
+  }, [stats, bankingSummary, onNavigateTab]);
 
   const filteredEvents = useMemo(() => {
     if (priorityFilter === "ALL") return eventLogs;
@@ -239,7 +258,7 @@ export function AdminAnalyticsView({ onNavigateTab }) {
   }, [eventLogs, priorityFilter]);
 
   if (loading && !stats) {
-    return <LoadingState message="Đang nạp dữ liệu vận hành Super Admin..." />;
+    return <LoadingState message="Đang nạp dữ liệu điều hành toàn sàn..." />;
   }
 
   if (error && !stats) {
@@ -248,284 +267,382 @@ export function AdminAnalyticsView({ onNavigateTab }) {
 
   const { users, saas, property } = stats || {};
   const totalLandlords = users?.landlords || 0;
-  const activeLandlords = Math.max(0, totalLandlords - (users?.suspendedAccounts || 0));
-  const activePercent = totalLandlords > 0 ? Math.round((activeLandlords / totalLandlords) * 100) : 100;
+  const activeLandlords = Math.max(
+    0,
+    totalLandlords - (users?.suspendedAccounts || 0),
+  );
+  const activePercent =
+    totalLandlords > 0
+      ? Math.round((activeLandlords / totalLandlords) * 100)
+      : 100;
   const totalRooms = property?.activeRoomCount || 0;
-  // Estimated branches based on active rooms (average 12 rooms/branch) or minimum 1
+  const overdueInvoicesList = saas?.overdueInvoices || [];
+
+  const funnelSteps = [
+    {
+      label: "Tổng Chủ trọ đăng ký",
+      value: totalLandlords,
+      pct: 100,
+      tone: "slate",
+      sub: `${activeLandlords} tài khoản đang hoạt động`,
+    },
+    {
+      label: "Có thuê bao đang hiệu lực",
+      value: saas?.activeLandlords || 0,
+      pct: totalLandlords
+        ? Math.min(100, Math.round(((saas?.activeLandlords || 0) / totalLandlords) * 100))
+        : 0,
+      tone: "blue",
+      sub: `${saas?.expiringWithin7Days || 0} sắp hết hạn trong 7 ngày`,
+    },
+    {
+      label: "Thuê bao trả phí (Paying)",
+      value: saas?.payingLandlords || 0,
+      pct: totalLandlords
+        ? Math.min(100, Math.round(((saas?.payingLandlords || 0) / totalLandlords) * 100))
+        : 0,
+      tone: "emerald",
+      sub: `Chuyển đổi từ dùng thử: ${saas?.trialConversionRate || 0}%`,
+    },
+    {
+      label: "Đã liên kết SePay Bank Hub",
+      value: bankingSummary?.linked || 0,
+      pct: totalLandlords
+        ? Math.min(100, Math.round(((bankingSummary?.linked || 0) / totalLandlords) * 100))
+        : 0,
+      tone: "teal",
+      sub: "Tự động gạch nợ hóa đơn & tiền cọc",
+    },
+  ];
 
   return (
     <div className="admin-view-body animate-fade-in">
-      {/* ========================================================
-          TOP DIAGNOSTIC STATUS STRIP (Matching Stitch Header Specs)
-          ======================================================== */}
-      <div className="stitch-diag-strip">
-        <div className="stitch-diag-left">
-          <div className="stitch-diag-badge success">
-            <span className="stitch-diag-dot success"></span>
-            <span>Uptime: <strong>Chưa có dữ liệu</strong></span>
-          </div>
-          <div className="stitch-diag-badge info">
-            <span className="stitch-diag-dot info"></span>
-            <span>DB Load: <strong>Chưa có dữ liệu</strong></span>
-          </div>
-          <div className="stitch-diag-badge teal">
-            <span className="stitch-diag-dot teal pulse"></span>
-            <span>SePay Webhook: <strong>Chưa có dữ liệu</strong></span>
-          </div>
-          <div className="stitch-diag-node">
-            <ShieldCheck size={13} color="#0f766e" />
-            <span>Thông tin hạ tầng chưa được cung cấp từ API</span>
-          </div>
-        </div>
-
-        <div className="stitch-diag-right">
-          <button
-            type="button"
-            className="stitch-action-link"
-            onClick={() => onNavigateTab?.("landlords")}
-          >
-            + Cấp quyền Landlord
-          </button>
-          <span className="stitch-action-link">
-            SePay: chưa có dữ liệu giám sát
-          </span>
-        </div>
-      </div>
-
-      {/* ========================================================
-          PAGE HEADER (Title & Master Control Action Group)
-          ======================================================== */}
-      <div className="stitch-page-header">
-        <div className="stitch-header-titles">
-          <div className="stitch-title-badge-row">
-            <h1 className="stitch-page-title">
-              Tổng quan Vận hành Nền tảng Toàn sàn
-            </h1>
-            <span className="stitch-badge-super-view">
-              Super Admin View
-            </span>
-          </div>
-          <p className="stitch-page-subtitle">
-            Giám sát thời gian thực quy mô cơ sở lưu trú, lưu lượng luân chuyển dòng tiền SePay và thuê bao gói dịch vụ SaaS.
-          </p>
-        </div>
-
-        <div className="stitch-header-actions">
-          <span className="stitch-btn-secondary">
-            Hạ tầng Cloud: chưa có dữ liệu từ API
-          </span>
-          <button
-            type="button"
-            className="stitch-btn-primary"
-            onClick={handleExportReport}
-          >
-            <Download size={15} />
-            <span>Xuất báo cáo hệ thống</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ========================================================
-          CONTROL / FILTER BAR (Date Range & Quick Presets)
-          ======================================================== */}
-      <div className="admin-control-bar">
+      {/* 1. Filter & Action Toolbar */}
+      <div className="admin-control-bar admin-surface-toolbar">
         <div className="admin-filters-left">
-          <Calendar size={18} color="#005c55" />
           <div className="admin-date-group">
+            <Calendar size={15} color="#005c55" />
             <span className="admin-date-label">Kỳ thống kê:</span>
             <input
               type="date"
               className="admin-input-compact"
               value={from}
-              onChange={(e) => setFrom(e.target.value)}
+              onChange={(e) => {
+                setFrom(e.target.value);
+                setActivePreset("");
+              }}
             />
-            <span className="admin-date-separator">đến</span>
+            <span className="admin-date-separator">→</span>
             <input
               type="date"
               className="admin-input-compact"
               value={to}
-              onChange={(e) => setTo(e.target.value)}
+              onChange={(e) => {
+                setTo(e.target.value);
+                setActivePreset("");
+              }}
             />
           </div>
 
-          <div className="admin-presets-wrap">
+          <div className="plans-segmented">
             <button
               type="button"
-              className="admin-action-btn"
+              className={activePreset === "month" ? "is-active" : ""}
               onClick={() => setPreset("month")}
             >
               Tháng này
             </button>
             <button
               type="button"
-              className="admin-action-btn"
+              className={activePreset === 7 ? "is-active" : ""}
               onClick={() => setPreset(7)}
             >
               7 ngày qua
             </button>
             <button
               type="button"
-              className="admin-action-btn"
+              className={activePreset === "all" ? "is-active" : ""}
               onClick={() => setPreset("all")}
             >
-              Toàn sàn
+              Toàn thời gian
             </button>
           </div>
         </div>
 
-        <Button compact variant="secondary" onClick={fetchStats} busy={loading}>
-          <RotateCw size={14} />
-          <span>Làm mới dữ liệu</span>
-        </Button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Button
+            compact
+            variant="secondary"
+            onClick={() => fetchStats()}
+            busy={loading}
+          >
+            <RotateCw size={14} />
+            <span>Làm mới</span>
+          </Button>
+          <button
+            type="button"
+            className="stitch-btn-primary"
+            onClick={handleExportReport}
+          >
+            <Download size={15} />
+            <span>Xuất báo cáo</span>
+          </button>
+        </div>
       </div>
 
-      {/* ========================================================
-          SECTION 1: 4 PRIMARY METRIC CARDS (Exact Stitch Layout)
-          ======================================================== */}
+      {/* 2. 4 Executive KPI Cards */}
       <div className="admin-metrics-grid">
-        {/* Metric 1: Chủ trọ trên Hệ thống */}
+        {/* Card 1: MRR */}
+        <div
+          className="stitch-metric-card"
+          onClick={() => onNavigateTab?.("subscriptions")}
+          title="Bấm để quản lý Thuê bao SaaS"
+        >
+          <div className="stitch-metric-header">
+            <span className="stitch-metric-label">Doanh thu Định kỳ (MRR)</span>
+            <div className="stitch-metric-icon teal">
+              <Wallet size={18} />
+            </div>
+          </div>
+          <div className="stitch-metric-value-wrap">
+            <span className="stitch-metric-number highlight-teal">
+              {money(saas?.mrr || 0)}
+            </span>
+            <span className="stitch-metric-unit">/ tháng</span>
+          </div>
+          <div className="stitch-metric-footer">
+            <div className="stitch-metric-trend up">
+              <ArrowUpRight size={15} />
+              <span>{saas?.payingLandlords || 0} thuê bao trả phí</span>
+            </div>
+            <span className="stitch-pill success">
+              Trial → Paid: {saas?.trialConversionRate || 0}%
+            </span>
+          </div>
+        </div>
+
+        {/* Card 2: Thực thu SaaS kỳ này */}
+        <div
+          className="stitch-metric-card"
+          onClick={() => onNavigateTab?.("invoices")}
+          title="Bấm để xem Hóa đơn & Thu tiền SaaS"
+        >
+          <div className="stitch-metric-header">
+            <span className="stitch-metric-label">Thực thu SaaS Kỳ này</span>
+            <div className="stitch-metric-icon amber">
+              <CreditCard size={18} />
+            </div>
+          </div>
+          <div className="stitch-metric-value-wrap">
+            <span className="stitch-metric-number">
+              {money(saas?.collectedAmount || 0)}
+            </span>
+          </div>
+          <div className="stitch-metric-footer">
+            <div className="stitch-metric-subtext-dot">
+              <span className="stitch-dot success" />
+              <span>{saas?.paidInvoiceCount || 0} hóa đơn đã thu</span>
+            </div>
+            {(saas?.overdueInvoiceCount || 0) > 0 ? (
+              <span className="stitch-pill danger">
+                {saas.overdueInvoiceCount} quá hạn
+              </span>
+            ) : (
+              <span className="stitch-pill success">0 quá hạn</span>
+            )}
+          </div>
+        </div>
+
+        {/* Card 3: Chủ trọ trên hệ thống */}
         <div
           className="stitch-metric-card"
           onClick={() => onNavigateTab?.("landlords")}
           title="Bấm để xem danh sách Chủ trọ"
         >
           <div className="stitch-metric-header">
-            <span className="stitch-metric-label">Chủ trọ trên Hệ thống</span>
-            <div className="stitch-metric-icon teal">
+            <span className="stitch-metric-label">Chủ trọ Toàn hệ thống</span>
+            <div className="stitch-metric-icon blue">
               <Users size={18} />
             </div>
           </div>
           <div className="stitch-metric-value-wrap">
             <span className="stitch-metric-number">{totalLandlords}</span>
-            <span className="stitch-metric-unit">chủ trọ</span>
+            <span className="stitch-metric-unit">chủ chuỗi</span>
           </div>
           <div className="stitch-metric-footer">
             <div className="stitch-metric-trend up">
               <TrendingUp size={15} />
-              <span>+{users?.newAccounts || 0} kỳ này</span>
+              <span>+{users?.newAccounts || 0} tài khoản mới</span>
             </div>
-            <span className="stitch-pill success">{activePercent}% active</span>
+            <span className="stitch-pill success">
+              {activePercent}% hoạt động
+            </span>
           </div>
         </div>
 
-        {/* Metric 2: Tổng Tòa nhà / Cơ sở */}
-        <div className="stitch-metric-card">
+        {/* Card 4: Quy mô vận hành toàn sàn */}
+        <div
+          className="stitch-metric-card"
+          onClick={() => onNavigateTab?.("plans")}
+          title="Bấm để xem cấu hình Gói dịch vụ & Hạn ngạch"
+        >
           <div className="stitch-metric-header">
-            <span className="stitch-metric-label">Tổng Tòa nhà / Cơ sở</span>
-            <div className="stitch-metric-icon blue">
-              <Building size={18} />
+            <span className="stitch-metric-label">Quy mô Phòng &amp; Nhân sự</span>
+            <div className="stitch-metric-icon teal">
+              <DoorOpen size={18} />
             </div>
           </div>
           <div className="stitch-metric-value-wrap">
-            <span className="stitch-metric-number">-</span>
-            <span className="stitch-metric-unit">tòa nhà</span>
+            <span className="stitch-metric-number">{totalRooms}</span>
+            <span className="stitch-metric-unit">phòng đang vận hành</span>
           </div>
           <div className="stitch-metric-footer">
             <div className="stitch-metric-subtext">
-            Quy mô phòng: <strong>{totalRooms}</strong>
+              <strong>{users?.managers || 0}</strong> quản lý ·{" "}
+              <strong>{users?.tenants || 0}</strong> cư dân
             </div>
-            <span className="stitch-pill neutral">Số cơ sở chưa có trong API</span>
-          </div>
-        </div>
-
-        {/* Metric 3: GMV VietQR SePay Tháng Này */}
-        <div
-          className="stitch-metric-card"
-          onClick={() => onNavigateTab?.("invoices")}
-          title="Bấm để xem chi tiết đối soát thu tiền"
-        >
-          <div className="stitch-metric-header">
-            <span className="stitch-metric-label">GMV VietQR SePay Tháng Này</span>
-            <div className="stitch-metric-icon amber">
-              <CreditCard size={18} />
-            </div>
-          </div>
-          <div className="stitch-metric-value-wrap">
-            <span className="stitch-metric-number highlight-teal">
-              {money(saas?.collectedAmount || 0)}
-            </span>
-          </div>
-          <div className="stitch-metric-footer">
-            <div className="stitch-metric-subtext-dot">
-              <span className="stitch-dot success"></span>
-              <span>{saas?.paidInvoiceCount || 0} lượt gạch nợ tự động</span>
-            </div>
-            <span className="stitch-pill neutral">Chưa có dữ liệu đối soát</span>
-          </div>
-        </div>
-
-        {/* Metric 4: Doanh thu SaaS (MRR) */}
-        <div
-          className="stitch-metric-card"
-          onClick={() => onNavigateTab?.("subscriptions")}
-          title="Bấm để xem danh sách thuê bao SaaS"
-        >
-          <div className="stitch-metric-header">
-            <span className="stitch-metric-label">Doanh thu SaaS (MRR)</span>
-            <div className="stitch-metric-icon purple">
-              <Wallet size={18} />
-            </div>
-          </div>
-          <div className="stitch-metric-value-wrap">
-            <span className="stitch-metric-number">
-              {money(saas?.mrr || 0)}
-            </span>
-            <span className="stitch-metric-unit">đ/tháng</span>
-          </div>
-          <div className="stitch-metric-footer">
-            <div className="stitch-metric-trend up">
-              <ArrowUpRight size={15} />
-              <span>+{saas?.trialConversionRate || 0}% chuyển đổi</span>
-            </div>
-            <span className="stitch-pill purple">Định kỳ</span>
+            <span className="stitch-pill neutral">Toàn sàn</span>
           </div>
         </div>
       </div>
 
-      {/* ========================================================
-          SECTION 2: CHARTS & ANALYTICS (12-Col Grid)
-          ======================================================== */}
+      {/* 3. Analytical Insights Grid (7 Cols Left + 5 Cols Right) */}
       <div className="stitch-analytics-grid">
-        {/* Left: 6-Month Growth Area/Bar Chart (7 cols) */}
-        <div className="stitch-chart-card">
-          <div className="stitch-card-header">
-            <div>
-              <h2 className="stitch-card-title">Tăng trưởng Cơ sở & Chủ trọ mới</h2>
-              <p className="stitch-card-subtitle">
-                Thống kê số lượng phòng và chủ trọ gia nhập hệ sinh thái DOMUS (6 tháng gần nhất)
-              </p>
+        {/* Left Column: Funnel + Overdue SaaS Invoices Watchlist */}
+        <div className="stitch-chart-card" style={{ marginTop: 0, display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Part A: Subscription & Banking Funnel */}
+          <div>
+            <div className="stitch-card-header">
+              <div>
+                <h2 className="stitch-card-title">
+                  Phễu Chuyển đổi Thuê bao &amp; Liên kết SePay
+                </h2>
+                <p className="stitch-card-subtitle">
+                  Tỷ lệ chủ trọ kích hoạt gói dịch vụ, chuyển đổi trả phí và kết nối ngân hàng tự động
+                </p>
+              </div>
+              <button
+                type="button"
+                className="stitch-link-btn"
+                onClick={() => onNavigateTab?.("subscriptions")}
+              >
+                Chi tiết thuê bao <ArrowRight size={13} />
+              </button>
             </div>
-            <div className="stitch-legend-inline">
-              <span className="stitch-legend-item">
-                <span className="stitch-legend-color indigo"></span>
-                <span>Số phòng mới</span>
-              </span>
-              <span className="stitch-legend-item">
-                <span className="stitch-legend-color emerald"></span>
-                <span>Chủ trọ mới</span>
-              </span>
+
+            <div className="admin-funnel-list">
+              {funnelSteps.map((step) => (
+                <div key={step.label} className="admin-funnel-item">
+                  <div className="admin-funnel-top">
+                    <div>
+                      <strong className="admin-funnel-label">{step.label}</strong>
+                      <span className="admin-funnel-sub">{step.sub}</span>
+                    </div>
+                    <div className="admin-funnel-nums">
+                      <strong>{step.value}</strong>
+                      <span>({step.pct}%)</span>
+                    </div>
+                  </div>
+                  <div className="admin-funnel-track">
+                    <div
+                      className={`admin-funnel-fill ${step.tone}`}
+                      style={{ width: `${Math.max(step.pct, step.value > 0 ? 6 : 0)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Trend data is not part of the current analytics API contract. */}
-          <div className="stitch-svg-container">
-            <EmptyState
-              title="Chưa có dữ liệu xu hướng"
-              description="API analytics hiện chỉ trả về số liệu tổng hợp theo kỳ, chưa có chuỗi dữ liệu theo tháng."
-            />
+          {/* Part B: Overdue Platform Invoices Watchlist */}
+          <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 18 }}>
+            <div className="stitch-card-header" style={{ marginBottom: 12 }}>
+              <div>
+                <h3 className="stitch-card-title-sm">
+                  Hóa đơn SaaS Quá hạn Cần Đôn đốc ({overdueInvoicesList.length})
+                </h3>
+                <p className="stitch-card-subtitle">
+                  Danh sách chủ trọ chậm thanh toán phí thuê bao nền tảng
+                </p>
+              </div>
+              <button
+                type="button"
+                className="stitch-link-btn"
+                onClick={() => onNavigateTab?.("invoices")}
+              >
+                Mở sổ hóa đơn <ArrowRight size={13} />
+              </button>
+            </div>
+
+            {overdueInvoicesList.length === 0 ? (
+              <div className="admin-clean-status-banner">
+                <CheckCircle2 size={20} color="#059669" />
+                <div>
+                  <strong>100% Hóa đơn SaaS đúng hạn</strong>
+                  <p>
+                    Hiện không có chủ trọ nào nợ quá hạn phí thuê bao nền tảng DOMUS.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Mã HĐ</th>
+                      <th>Chủ trọ</th>
+                      <th>Gói cước</th>
+                      <th>Số tiền</th>
+                      <th>Trễ hạn</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {overdueInvoicesList.slice(0, 5).map((item) => (
+                      <tr key={item.invoiceId}>
+                        <td style={{ fontFamily: "monospace", fontWeight: 700 }}>
+                          {item.invoiceCode}
+                        </td>
+                        <td>
+                          <strong>{item.landlord?.name || "—"}</strong>
+                          <div style={{ fontSize: 11, color: "#64748b" }}>
+                            {item.landlord?.email || item.landlord?.phoneNumber || ""}
+                          </div>
+                        </td>
+                        <td>
+                          <span className="plan-code-badge pro">
+                            {item.plan?.code || item.plan?.name || "SAAS"}
+                          </span>
+                        </td>
+                        <td>
+                          <strong style={{ color: "#dc2626" }}>
+                            {money(item.amount || 0)}
+                          </strong>
+                        </td>
+                        <td>
+                          <span className="status-pill overdue">
+                            Quá hạn {item.overdueDays || 1} ngày
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right: Subscription Breakdown & Gateway Pulse (5 cols) */}
+        {/* Right Column: Plan Breakdown + Banking Integration Status */}
         <div className="stitch-side-cards-col">
           {/* Card A: Phân bố Gói Cước SaaS */}
           <div className="stitch-card-box">
             <div className="stitch-card-header">
-              <h3 className="stitch-card-title-sm">Phân bố Gói Cước SaaS</h3>
-              <span className="stitch-card-meta">{planDistribution.total} tài khoản</span>
+              <h3 className="stitch-card-title-sm">Cơ cấu Gói dịch vụ SaaS</h3>
+              <span className="stitch-card-meta">
+                {planDistribution.total} chủ trọ
+              </span>
             </div>
 
-            {/* Segmented Progress Bar */}
             <div className="stitch-segmented-bar">
               <div
                 className="stitch-seg-fill gray"
@@ -543,33 +660,36 @@ export function AdminAnalyticsView({ onNavigateTab }) {
                 title={`Pro Chuỗi: ${planDistribution.pro.pct}%`}
               />
               <div
-                className="stitch-seg-fill purple"
+                className="stitch-seg-fill teal"
                 style={{ width: `${planDistribution.enterprise.pct}%` }}
                 title={`Enterprise: ${planDistribution.enterprise.pct}%`}
               />
             </div>
 
-            {/* Legend Grid */}
             <div className="stitch-plan-legend-grid">
               <div className="stitch-legend-pill-box">
                 <div className="stitch-pill-label">
-                  <span className="stitch-dot-circle gray"></span>
+                  <span className="stitch-dot-circle gray" />
                   <span>Free Trial ({planDistribution.free.pct}%)</span>
                 </div>
-                <span className="stitch-pill-val">{planDistribution.free.count}</span>
+                <span className="stitch-pill-val">
+                  {planDistribution.free.count}
+                </span>
               </div>
 
               <div className="stitch-legend-pill-box">
                 <div className="stitch-pill-label">
-                  <span className="stitch-dot-circle blue"></span>
+                  <span className="stitch-dot-circle blue" />
                   <span>Starter ({planDistribution.starter.pct}%)</span>
                 </div>
-                <span className="stitch-pill-val">{planDistribution.starter.count}</span>
+                <span className="stitch-pill-val">
+                  {planDistribution.starter.count}
+                </span>
               </div>
 
               <div className="stitch-legend-pill-box">
                 <div className="stitch-pill-label">
-                  <span className="stitch-dot-circle emerald"></span>
+                  <span className="stitch-dot-circle emerald" />
                   <span>Pro Chuỗi ({planDistribution.pro.pct}%)</span>
                 </div>
                 <span className="stitch-pill-val highlight-emerald">
@@ -579,110 +699,122 @@ export function AdminAnalyticsView({ onNavigateTab }) {
 
               <div className="stitch-legend-pill-box">
                 <div className="stitch-pill-label">
-                  <span className="stitch-dot-circle purple"></span>
+                  <span className="stitch-dot-circle teal" />
                   <span>Enterprise ({planDistribution.enterprise.pct}%)</span>
                 </div>
-                <span className="stitch-pill-val highlight-purple">
+                <span className="stitch-pill-val highlight-emerald">
                   {planDistribution.enterprise.count}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Card B: SePay & Cổng Ngân Hàng Status */}
+          {/* Card B: Liên kết Ngân hàng & SePay Bank Hub */}
           <div className="stitch-card-box">
             <div className="stitch-card-header">
               <div className="stitch-title-with-icon">
-                <Zap size={18} color="#005c55" />
-                <h3 className="stitch-card-title-sm">SePay &amp; Cổng Ngân Hàng</h3>
+                <Landmark size={18} color="#005c55" />
+                <h3 className="stitch-card-title-sm">
+                  Liên kết SePay &amp; Ngân hàng
+                </h3>
               </div>
-              <span className="stitch-pill neutral">
-                <span>Chưa có dữ liệu giám sát</span>
+              <span className="stitch-pill success">
+                <Link2 size={12} /> Bank Hub Live
               </span>
             </div>
 
             <div className="stitch-gateway-metrics-row">
               <div className="stitch-gw-stat">
-                <div className="stitch-gw-label">Độ trễ trung bình</div>
-                <div className="stitch-gw-num text-emerald">-</div>
+                <div className="stitch-gw-label">Đã nối Bank Hub</div>
+                <div className="stitch-gw-num text-emerald">
+                  {bankingSummary?.linked ?? 0}
+                </div>
               </div>
               <div className="stitch-gw-stat">
-                <div className="stitch-gw-label">Tỷ lệ khớp lệnh</div>
-                <div className="stitch-gw-num text-teal">-</div>
+                <div className="stitch-gw-label">Chỉ nhập STK tay</div>
+                <div className="stitch-gw-num text-teal">
+                  {bankingSummary?.manual ?? 0}
+                </div>
               </div>
               <div className="stitch-gw-stat">
-                <div className="stitch-gw-label">VietQR Banks</div>
-                <div className="stitch-gw-num">-</div>
+                <div className="stitch-gw-label">Chưa cấu hình</div>
+                <div className="stitch-gw-num">
+                  {bankingSummary?.none ?? 0}
+                </div>
               </div>
             </div>
 
             <div className="stitch-gw-footer">
-              <span>Hàng đợi Webhook: <strong>Chưa có dữ liệu</strong></span>
+              <span>
+                Giao dịch chờ đối soát:{" "}
+                <strong style={{ color: unmatchedTotal > 0 ? "#b45309" : "#0f766e" }}>
+                  {unmatchedTotal} giao dịch
+                </strong>
+              </span>
               <button
                 type="button"
                 className="stitch-link-btn"
-                onClick={() => onNavigateTab?.("invoices")}
+                onClick={() => onNavigateTab?.("landlords")}
               >
-                Xem nhật ký Hóa đơn & Thu tiền →
+                Giám sát TK nhận tiền →
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ========================================================
-          SECTION 3: SYSTEM ALERTS & EVENT LOG (Stitch Real-time Table)
-          ======================================================== */}
+      {/* 4. Actionable System Alerts & Event Log */}
       <div className="stitch-alerts-box">
         <div className="stitch-alerts-header">
           <div>
-            <h2 className="stitch-alerts-title">Cảnh báo Thời gian thực &amp; Sự kiện Nền tảng</h2>
+            <h2 className="stitch-alerts-title">
+              Tác vụ Cần Lưu ý &amp; Sự kiện Vận hành Nền tảng
+            </h2>
             <p className="stitch-alerts-subtitle">
-              Các trường hợp cần can thiệp vận hành của Super Admin Master
+              Tổng hợp tự động các cảnh báo công nợ, thuê bao sắp đáo hạn và biến động tài khoản
             </p>
           </div>
 
           <div className="stitch-alerts-controls">
             <div className="stitch-filter-select-wrap">
-              <Filter size={14} color="#d97706" />
+              <Filter size={14} color="#0f766e" />
               <select
                 className="stitch-select-compact"
                 value={priorityFilter}
                 onChange={(e) => setPriorityFilter(e.target.value)}
               >
-                <option value="ALL">Tất cả mức độ ưu tiên</option>
-                <option value="HIGH">Mức độ Cao (Khẩn cấp)</option>
-                <option value="MEDIUM">Mức độ Trung bình</option>
-                <option value="NORMAL">Mức độ Thông thường</option>
+                <option value="ALL">Tất cả mức độ ({eventLogs.length})</option>
+                <option value="HIGH">Khẩn cấp (Cao)</option>
+                <option value="MEDIUM">Cần lưu ý (Trung bình)</option>
+                <option value="NORMAL">Thông thường</option>
               </select>
             </div>
-            <button
-              type="button"
-              className="stitch-text-btn"
-              onClick={() => toast.success("Đã ghi nhận tất cả cảnh báo vận hành")}
-            >
-              Đánh dấu đã đọc tất cả
-            </button>
           </div>
         </div>
 
-        {/* Table of Events */}
         <div className="admin-table-wrap">
           <table className="admin-table">
             <thead>
               <tr>
-                <th style={{ width: 110 }}>Mức độ</th>
-                <th style={{ width: 200 }}>Loại sự kiện</th>
-                <th>Chi tiết sự kiện &amp; Chủ thể</th>
-                <th style={{ width: 130 }}>Thời gian</th>
-                <th style={{ width: 160 }}>Trạng thái xử lý</th>
-                <th style={{ width: 140, textAlign: "right" }}>Thao tác Admin</th>
+                <th style={{ width: 120 }}>Mức độ</th>
+                <th style={{ width: 200 }}>Phân loại</th>
+                <th>Chi tiết sự kiện &amp; Đề xuất xử lý</th>
+                <th style={{ width: 130 }}>Phạm vi</th>
+                <th style={{ width: 150 }}>Trạng thái</th>
+                <th style={{ width: 150, textAlign: "right" }}>Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {filteredEvents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: "center", padding: "30px 16px", color: "#64748b" }}>
+                  <td
+                    colSpan={6}
+                    style={{
+                      textAlign: "center",
+                      padding: "30px 16px",
+                      color: "#64748b",
+                    }}
+                  >
                     Không có sự kiện hoặc cảnh báo nào trong bộ lọc hiện tại.
                   </td>
                 </tr>
@@ -691,49 +823,54 @@ export function AdminAnalyticsView({ onNavigateTab }) {
                   const Icon = evt.icon;
                   return (
                     <tr key={evt.id} className="stitch-event-row">
-                      {/* Priority */}
                       <td>
-                        <span className={`stitch-priority-pill ${evt.priority.toLowerCase()}`}>
-                          <span className={`stitch-priority-dot ${evt.priority.toLowerCase()}`}></span>
+                        <span
+                          className={`stitch-priority-pill ${evt.priority.toLowerCase()}`}
+                        >
+                          <span
+                            className={`stitch-priority-dot ${evt.priority.toLowerCase()}`}
+                          />
                           <span>{evt.priorityText}</span>
                         </span>
                       </td>
-
-                      {/* Event Type */}
                       <td>
                         <div className="stitch-event-type-wrap">
                           <Icon size={16} color={evt.iconColor} />
-                          <span className="stitch-event-type-text">{evt.type}</span>
+                          <span className="stitch-event-type-text">
+                            {evt.type}
+                          </span>
                         </div>
                       </td>
-
-                      {/* Detail */}
                       <td>
                         <div className="stitch-event-title">{evt.title}</div>
                         <div className="stitch-event-detail">{evt.detail}</div>
                       </td>
-
-                      {/* Time */}
-                      <td style={{ whiteSpace: "nowrap", color: "#64748b", fontSize: 12.5 }}>
+                      <td
+                        style={{
+                          whiteSpace: "nowrap",
+                          color: "#64748b",
+                          fontSize: 12.5,
+                        }}
+                      >
                         {evt.time}
                       </td>
-
-                      {/* Status */}
                       <td>
-                        <span className={`stitch-status-pill ${evt.statusBadgeClass}`}>
+                        <span
+                          className={`stitch-status-pill ${evt.statusBadgeClass}`}
+                        >
                           {evt.status}
                         </span>
                       </td>
-
-                      {/* Action */}
                       <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                        <button
-                          type="button"
-                          className="stitch-row-action-btn"
-                          onClick={evt.onAction}
-                        >
-                          {evt.actionText}
-                        </button>
+                        {evt.onAction && (
+                          <button
+                            type="button"
+                            className="stitch-row-action-btn"
+                            onClick={evt.onAction}
+                          >
+                            {evt.actionText}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -741,24 +878,6 @@ export function AdminAnalyticsView({ onNavigateTab }) {
               )}
             </tbody>
           </table>
-        </div>
-
-        {/* Table Footer */}
-        <div className="stitch-alerts-footer">
-          <div className="stitch-alerts-counter">
-            Hiển thị <strong>{filteredEvents.length}</strong> trên <strong>{eventLogs.length}</strong> cảnh báo &amp; sự kiện hệ thống
-          </div>
-          <div className="stitch-alerts-pagination">
-            <button type="button" className="stitch-page-btn" disabled>
-              Trước
-            </button>
-            <button type="button" className="stitch-page-btn active">
-              1
-            </button>
-            <button type="button" className="stitch-page-btn" disabled>
-              Sau
-            </button>
-          </div>
         </div>
       </div>
     </div>

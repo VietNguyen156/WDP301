@@ -70,8 +70,8 @@ export function SaaSPlansModal({
         if (active) setLoading(false);
       });
 
-      // Back from SePay (/plans?payment=...&invoice=...): the redirect alone proves nothing,
-      // so ask the backend to confirm with SePay before announcing success.
+      // Back from payOS (/plans?payment=...&invoice=...): the redirect alone proves nothing,
+      // so ask the backend to confirm with payOS before announcing success.
       const params = new URLSearchParams(window.location.search);
       const paymentStatus = params.get("payment");
       const invoiceCode = params.get("invoice");
@@ -79,7 +79,7 @@ export function SaaSPlansModal({
       if (paymentStatus === "success") {
         verifyReturn(invoiceCode);
       } else if (paymentStatus === "error" || paymentStatus === "cancel") {
-        toast.warning("Giao dịch thanh toán qua cổng SePay chưa hoàn tất hoặc đã bị hủy.");
+        toast.warning("Giao dịch thanh toán qua cổng payOS chưa hoàn tất hoặc đã bị hủy.");
       }
     }
     return () => {
@@ -87,7 +87,7 @@ export function SaaSPlansModal({
     };
   }, [isOpen]);
 
-  // SePay may need a few seconds after the redirect, so retry a little before giving up.
+  // payOS may need a few seconds after the redirect, so retry a little before giving up.
   async function verifyPayment(invoiceId, attempts = 1) {
     setVerifying(true);
     try {
@@ -95,18 +95,18 @@ export function SaaSPlansModal({
         const res = await planApi.verifyPayment(invoiceId);
         if (res?.status === "PAID") {
           await Promise.all([refreshUser(), fetchPlans()]);
-          toast.success("Thanh toán đã được SePay xác nhận. Gói mới đã được kích hoạt!");
+          toast.success("Thanh toán đã được payOS xác nhận. Gói mới đã được kích hoạt!");
           if (res.duplicateOrders > 0)
             toast.warning("Phát hiện hóa đơn bị thanh toán nhiều lần. Quản trị viên sẽ liên hệ để hoàn tiền khoản trùng.");
           return true;
         }
         if (res?.status === "UNAPPLIED") {
-          toast.error("SePay đã nhận tiền nhưng không thể kích hoạt gói. Vui lòng liên hệ quản trị viên.");
+          toast.error("payOS đã nhận tiền nhưng không thể kích hoạt gói. Vui lòng liên hệ quản trị viên.");
           return false;
         }
         if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, 3000));
       }
-      toast.info("SePay chưa xác nhận thanh toán. Vui lòng bấm \"Kiểm tra thanh toán\" sau ít phút.");
+      toast.info("payOS chưa xác nhận thanh toán. Vui lòng bấm \"Kiểm tra thanh toán\" sau ít phút.");
       return false;
     } catch (err) {
       toast.error(errorMessage(err));
@@ -136,21 +136,14 @@ export function SaaSPlansModal({
     if (!invoiceId) return;
     setCheckingOut(true);
     try {
-      const res = await planApi.checkoutInvoice(invoiceId, { paymentMethod: "BANK_TRANSFER" });
-      if (res?.checkoutUrl && res?.fields) {
-        toast.info("Đang chuyển hướng tới cổng thanh toán an toàn SePay...");
-        const form = document.createElement("form");
-        form.method = res.method || "POST";
-        form.action = res.checkoutUrl;
-        for (const [name, value] of Object.entries(res.fields)) {
-          const input = document.createElement("input");
-          input.type = "hidden";
-          input.name = name;
-          input.value = value;
-          form.appendChild(input);
-        }
-        document.body.appendChild(form);
-        form.submit();
+      const res = await planApi.checkoutInvoice(invoiceId);
+      // payOS returns a ready payment link: just go there.
+      if (res?.checkoutUrl) {
+        toast.info("Đang chuyển hướng tới cổng thanh toán an toàn payOS...");
+        window.location.assign(res.checkoutUrl);
+      } else {
+        toast.error("Không nhận được link thanh toán. Vui lòng thử lại.");
+        setCheckingOut(false);
       }
     } catch (err) {
       toast.error(errorMessage(err));
@@ -549,7 +542,7 @@ export function SaaSPlansModal({
                 onClick={() => handleCheckout(pendingInvoice.id || pendingInvoice._id)}
               >
                 {checkingOut ? <Loader2 size={15} className="animate-spin" /> : <ExternalLink size={15} />}
-                <span>Thanh toán ngay qua SePay</span>
+                <span>Thanh toán ngay qua payOS</span>
               </Button>
             )}
             {pendingInvoice && (
@@ -559,7 +552,7 @@ export function SaaSPlansModal({
                 style={{ fontSize: "13px", padding: "8px 16px", fontWeight: 600 }}
                 disabled={verifying}
                 onClick={() => verifyPayment(pendingInvoice.id || pendingInvoice._id)}
-                title="Hỏi SePay xem hóa đơn đã được thanh toán chưa"
+                title="Hỏi payOS xem hóa đơn đã được thanh toán chưa"
               >
                 {verifying ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
                 <span>Kiểm tra thanh toán</span>

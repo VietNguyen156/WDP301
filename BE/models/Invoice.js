@@ -5,7 +5,9 @@ const LIVE_STATUSES = ["DRAFT", "ISSUED", "PARTIALLY_PAID", "PAID", "OVERPAID", 
 
 const invoiceSchema = new mongoose.Schema(
   {
-    invoiceType: { type: String, enum: ["MONTHLY", "SETTLEMENT"], default: "MONTHLY" },
+    invoiceType: { type: String, enum: ["MONTHLY", "SETTLEMENT", "INCIDENT"], default: "MONTHLY" },
+    // INCIDENT: hóa đơn thu tiền sửa chữa sự cố do người thuê chi trả.
+    incidentId: { type: mongoose.Schema.Types.ObjectId, ref: "Incident" },
     depositAppliedAmount: { type: Number, default: 0, min: 0, validate: Number.isSafeInteger },
     landlordId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -221,13 +223,26 @@ invoiceSchema.index({ landlordId: 1, status: 1, billingPeriod: -1 });
 invoiceSchema.index({ landlordId: 1, status: 1, dueDate: 1 });
 // List pages: newest first within one landlord.
 invoiceSchema.index({ landlordId: 1, isDeleted: 1, createdAt: -1 });
-// One live invoice per room/contract/period; a CANCELLED one no longer blocks re-billing.
+// One live monthly / settlement invoice per room/contract/period; a CANCELLED one no longer
+// blocks re-billing. Incident invoices are many per period: one per incident instead.
 invoiceSchema.index(
   { landlordId: 1, roomId: 1, contractId: 1, billingPeriod: 1, invoiceType: 1 },
   {
     unique: true,
     name: "one_live_invoice_per_period",
-    partialFilterExpression: { isDeleted: false, status: { $in: LIVE_STATUSES } },
+    partialFilterExpression: {
+      isDeleted: false,
+      status: { $in: LIVE_STATUSES },
+      invoiceType: { $in: ["MONTHLY", "SETTLEMENT"] },
+    },
+  },
+);
+invoiceSchema.index(
+  { incidentId: 1 },
+  {
+    unique: true,
+    name: "one_live_invoice_per_incident",
+    partialFilterExpression: { invoiceType: "INCIDENT", isDeleted: false, status: { $in: LIVE_STATUSES } },
   },
 );
 

@@ -124,20 +124,22 @@ export default function CreateIncidentModal({
             />
           </div>
 
-          <SelectField
-            label={
-              isTenant && triageEnabled
-                ? "Mức độ ưu tiên (hệ thống sẽ tự đánh giá lại theo mô tả)"
-                : "Mức độ ưu tiên"
-            }
-            value={priority}
-            onChange={(e) => setPriority(e.target.value)}
-          >
-            <option value="LOW">Thấp (Có thể hoãn lại)</option>
-            <option value="MEDIUM">Trung bình (Bình thường)</option>
-            <option value="HIGH">Cao (Cần khắc phục sớm)</option>
-            <option value="URGENT">Khẩn cấp (Cháy chập, ngập nước)</option>
-          </SelectField>
+          <div className="span-2">
+            <SelectField
+              label={
+                isTenant && triageEnabled
+                  ? "Mức độ ưu tiên (hệ thống sẽ tự đánh giá lại theo mô tả)"
+                  : "Mức độ ưu tiên"
+              }
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+            >
+              <option value="LOW">Thấp (Có thể hoãn lại)</option>
+              <option value="MEDIUM">Trung bình (Bình thường)</option>
+              <option value="HIGH">Cao (Cần khắc phục sớm)</option>
+              <option value="URGENT">Khẩn cấp (Cháy chập, ngập nước)</option>
+            </SelectField>
+          </div>
 
           <div className="span-2">
             <Field label="Mô tả chi tiết tình trạng sự cố">

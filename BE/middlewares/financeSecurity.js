@@ -87,6 +87,12 @@ module.exports = {
     "X-Secret-Key",
     "SEPAY_BANKHUB_WEBHOOK_SECRET",
   ),
-  // Payment gateway IPN with auth type SECRET_KEY configured in my.sepay.vn.
-  verifySePayPgIpn: verifyHeader("X-Secret-Key", "SEPAY_PG_IPN_SECRET"),
+  // payOS webhook (SaaS plan payments): signed with the channel's checksum key over `data`.
+  verifyPayOsWebhook(req, res, next) {
+    const { config, validWebhook } = require("../services/saasPaymentService");
+    if (!config().checksumKey)
+      return next(new AppError("Chưa cấu hình xác thực payOS", 503, "WEBHOOK_NOT_CONFIGURED"));
+    if (validWebhook(req.body)) return next();
+    next(new AppError("Xác thực webhook không hợp lệ", 401, "WEBHOOK_UNAUTHORIZED"));
+  },
 };
