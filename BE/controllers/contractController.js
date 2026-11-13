@@ -2,6 +2,7 @@ const service = require("../services/contractService");
 const respond = require("../utils/response");
 const realtime = require("../realtime");
 exports.list = async (req, res) => respond(res, await service.list(req));
+exports.citizenCheck = async (req, res) => respond(res, await service.citizenCheck(req));
 exports.get = async (req, res) =>
   respond(res, await service.get(req, req.params.contractId));
 exports.create = async (req, res) => {

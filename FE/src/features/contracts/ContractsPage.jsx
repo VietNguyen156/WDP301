@@ -1,4 +1,4 @@
-import { Plus, Share2 } from "lucide-react";
+import { Plus, Download } from "lucide-react";
 import { useContractsPage } from "../../hooks/useContractsPage";
 import {
   ContractsKpiRibbon,
@@ -19,6 +19,8 @@ export default function ContractsPage() {
     landlord,
     creating,
     setCreating,
+    exportingResidence,
+    exportTemporaryResidence,
     setSelectedId,
     detailModalId,
     setDetailModalId,
@@ -72,14 +74,15 @@ export default function ContractsPage() {
               <button
                 type="button"
                 className="contracts-btn-outline"
-                onClick={() =>
-                  toast.success(
-                    "Đang xuất danh sách khai báo tạm trú theo chuẩn Bộ Công an (CSV)...",
-                  )
-                }
+                onClick={exportTemporaryResidence}
+                disabled={exportingResidence}
               >
-                <Share2 size={15} />
-                <span>Xuất tạm trú (Công an)</span>
+                <Download size={15} />
+                <span>
+                  {exportingResidence
+                    ? "Đang xuất tạm trú..."
+                    : "Xuất tạm trú (Công an)"}
+                </span>
               </button>
               <button
                 type="button"

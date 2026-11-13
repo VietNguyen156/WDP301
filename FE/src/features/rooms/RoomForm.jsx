@@ -11,7 +11,15 @@ import {
   SlidersHorizontal,
   Building,
   CheckCircle2,
+  Sofa,
 } from "lucide-react";
+import { FurnishingsEditor } from "../../components/furnishings/FurnishingsEditor";
+import {
+  cleanFurnishings,
+  effectiveFurnishings,
+  furnishingsError,
+  furnishingsTotal,
+} from "../../utils/furnishings";
 import {
   Button,
   Field,
@@ -34,7 +42,22 @@ export default function RoomForm({
   const manager = useAuth().user.role === "PROPERTY_MANAGER";
   const toast = useToast();
 
-  const [activeTab, setActiveTab] = useState("basic"); // "basic" | "pricing"
+  const [activeTab, setActiveTab] = useState("basic"); // "basic" | "furnishings" | "pricing"
+
+  // Furniture handed over with the room: empty room, or furnished with the branch catalogue
+  // or a list of its own (each item has a unit compensation price).
+  const branchFurnishings = branch.defaultFurnishings || [];
+  const [furnishingType, setFurnishingType] = useState(
+    () => effectiveFurnishings(room || {}, branch).furnishingType,
+  );
+  const [ownFurnishings, setOwnFurnishings] = useState(() => Array.isArray(room?.furnishings));
+  const [furnishingItems, setFurnishingItems] = useState(() =>
+    (Array.isArray(room?.furnishings) ? room.furnishings : branchFurnishings).map(
+      ({ name, quantity, price, note }) => ({ name, quantity, price, note: note || "" }),
+    ),
+  );
+  const shownFurnishings =
+    furnishingType === "UNFURNISHED" ? [] : ownFurnishings ? furnishingItems : branchFurnishings;
 
   const [form, setForm] = useState(
     bulk
@@ -201,6 +224,16 @@ export default function RoomForm({
       return;
     }
 
+    if (!bulk && !manager && furnishingType === "FURNISHED" && ownFurnishings) {
+      const problem = furnishingsError(furnishingItems);
+      if (problem) {
+        setActiveTab("furnishings");
+        setError(problem);
+        setBusy(false);
+        return;
+      }
+    }
+
     // Services validation
     if (!bulk && !manager && hasCustomPricing && serviceOption === "CUSTOM") {
       const names = new Set();
@@ -251,6 +284,12 @@ export default function RoomForm({
 
         if (room && !floorChanged) {
           delete body.floor;
+        }
+
+        body.furnishingType = furnishingType;
+        if (furnishingType === "FURNISHED") {
+          if (ownFurnishings) body.furnishings = cleanFurnishings(furnishingItems);
+          else if (Array.isArray(room?.furnishings)) body.furnishings = null; // back to the branch list
         }
 
         if (hasCustomPricing) {
@@ -345,6 +384,17 @@ export default function RoomForm({
             >
               <SlidersHorizontal size={15} />
               <span>Thông tin cơ bản & Tiện nghi</span>
+            </button>
+            <button
+              type="button"
+              className={`room-form-tab ${activeTab === "furnishings" ? "is-active" : ""}`}
+              onClick={() => setActiveTab("furnishings")}
+            >
+              <Sofa size={15} />
+              <span>Vật dụng bàn giao</span>
+              <span className="room-tab-badge">
+                {furnishingType === "UNFURNISHED" ? "Phòng trống" : `${shownFurnishings.length} món`}
+              </span>
             </button>
             <button
               type="button"
@@ -549,6 +599,109 @@ export default function RoomForm({
                       </Field>
                     </div>
                   </>
+                )}
+              </div>
+            ) : activeTab === "furnishings" ? (
+              /* Single Room - Furniture handed over with the room */
+              <div className="form-section" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <div className="furnishing-type-options" role="radiogroup" aria-label="Loại phòng">
+                  <label className={`furnishing-type-option ${furnishingType === "UNFURNISHED" ? "is-selected" : ""}`}>
+                    <input
+                      type="radio"
+                      name="furnishingType"
+                      checked={furnishingType === "UNFURNISHED"}
+                      onChange={() => setFurnishingType("UNFURNISHED")}
+                    />
+                    <div>
+                      <strong>Phòng trống</strong>
+                      <small>Không bàn giao vật dụng nào; hợp đồng ghi rõ phòng không kèm đồ.</small>
+                    </div>
+                  </label>
+                  <label className={`furnishing-type-option ${furnishingType === "FURNISHED" ? "is-selected" : ""}`}>
+                    <input
+                      type="radio"
+                      name="furnishingType"
+                      checked={furnishingType === "FURNISHED"}
+                      onChange={() => setFurnishingType("FURNISHED")}
+                    />
+                    <div>
+                      <strong>Phòng đầy đủ đồ</strong>
+                      <small>Bàn giao kèm vật dụng; đơn giá từng món được ghi vào hợp đồng khi ký.</small>
+                    </div>
+                  </label>
+                </div>
+
+                {furnishingType === "FURNISHED" && (
+                  <>
+                    <label className="pricing-toggle-card" style={{ cursor: "pointer" }}>
+                      <div className="pricing-toggle-left">
+                        <div className="pricing-toggle-icon">
+                          <Sofa size={20} />
+                        </div>
+                        <div>
+                          <h4 className="pricing-toggle-title">Khai danh mục riêng cho phòng này</h4>
+                          <p className="pricing-toggle-desc">
+                            {ownFurnishings
+                              ? "Phòng dùng danh mục riêng bên dưới, không theo cơ sở."
+                              : `Đang dùng danh mục chung của cơ sở ${branch.name} (${branchFurnishings.length} món). Bật để thêm, bớt hoặc đổi đơn giá cho riêng phòng này.`}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="room-switch">
+                        <input
+                          type="checkbox"
+                          checked={ownFurnishings}
+                          onChange={(e) => setOwnFurnishings(e.target.checked)}
+                        />
+                        <span className="room-slider" />
+                      </span>
+                    </label>
+
+                    {ownFurnishings ? (
+                      <FurnishingsEditor items={furnishingItems} onChange={setFurnishingItems} disabled={busy} />
+                    ) : branchFurnishings.length === 0 ? (
+                      <div className="furnishings-empty">
+                        Cơ sở chưa có danh mục vật dụng. Khai ở Cơ sở &gt; Cấu hình &gt; Dịch vụ &amp; Vật dụng, hoặc
+                        bật danh mục riêng cho phòng này.
+                      </div>
+                    ) : (
+                      <div className="furnishings-table-wrap">
+                        <table className="furnishings-table">
+                          <thead>
+                            <tr>
+                              <th>Vật dụng (theo cơ sở)</th>
+                              <th>SL</th>
+                              <th style={{ textAlign: "right" }}>Đơn giá</th>
+                              <th style={{ textAlign: "right" }}>Thành tiền</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {branchFurnishings.map((item) => (
+                              <tr key={item.name}>
+                                <td>{item.name}</td>
+                                <td>{item.quantity}</td>
+                                <td className="furnishings-amount">{money(item.price)}</td>
+                                <td className="furnishings-amount">{money(item.price * item.quantity)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr>
+                              <td colSpan={3}>Tổng giá trị tài sản bàn giao</td>
+                              <td className="furnishings-amount">{money(furnishingsTotal(branchFurnishings))}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {room?.status === "RENTED" && (
+                  <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>
+                    Phòng đang cho thuê: hợp đồng hiện tại giữ nguyên danh mục đã ký. Thay đổi ở đây áp dụng cho
+                    hợp đồng lập sau.
+                  </p>
                 )}
               </div>
             ) : (

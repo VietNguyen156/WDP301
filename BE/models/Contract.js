@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+const furnishingItem = require("./furnishingItem");
+const { FURNISHING_TYPES } = require("../utils/furnishings");
 
 const contractSchema = new mongoose.Schema(
   {
@@ -14,6 +16,19 @@ const contractSchema = new mongoose.Schema(
       heldDeposit: Number, electricAmount: Number, waterAmount: Number,
       deductionAmount: Number, outstandingDebt: Number, totalCharges: Number,
       refundedDepositAmount: Number, remainingDue: Number,
+      // Phần cọc bị giữ lại do khách vi phạm (tự ý chấm dứt trước hạn / không báo trước).
+      forfeitedDeposit: Number,
+      // Ghi nhận việc trả lại tiền cọc cho khách khi hoàn tất thanh lý.
+      refundMethod: { type: String, enum: ["CASH", "BANK_TRANSFER"] },
+      refundNote: String,
+      refundedAt: Date,
+      refundedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      completedAt: Date,
+    },
+    // Lý do chấm dứt (contractSettlementService.TERMINATION_REASONS)
+    terminationReason: {
+      type: String,
+      enum: ["EXPIRED", "MUTUAL", "TENANT_EARLY", "TENANT_BREACH", "LANDLORD_EARLY"],
     },
     mutationVersion: { type: Number, default: 0, select: false },
     electricImage: String,
@@ -132,6 +147,11 @@ const contractSchema = new mongoose.Schema(
       },
     ],
 
+    // Bản sao danh mục vật dụng bàn giao lúc lập hợp đồng (đơn giá đền bù khi mất/hỏng).
+    // Hợp đồng lập trước khi có tính năng này thì không có hai trường này.
+    furnishingType: { type: String, enum: FURNISHING_TYPES },
+    furnishings: { type: [furnishingItem], default: undefined },
+
     // Dữ liệu phục vụ quy trình Nghiệm thu Trả phòng & Quyết toán Tiền cọc (Check-out Settlement)
     actualEndDate: {
       type: Date,
@@ -147,6 +167,9 @@ const contractSchema = new mongoose.Schema(
         reason: { type: String, required: true },
         amount: { type: Number, required: true },
         evidenceImage: { type: String },
+        // Khi khoản trừ là đền bù một vật dụng trong danh mục bàn giao của hợp đồng
+        furnishingName: { type: String },
+        quantity: { type: Number },
       },
     ],
     refundedDepositAmount: {
@@ -189,7 +212,8 @@ require('./propertyValidators')(contractSchema.path('deductions').schema, ['amou
 require('./propertyValidators')(contractSchema, ['settlement.heldDeposit', 'settlement.electricAmount',
   'settlement.waterAmount', 'settlement.deductionAmount', 'settlement.outstandingDebt', 'settlement.totalCharges',
   'settlement.refundedDepositAmount', 'settlement.remainingDue', 'settlement.depositAppliedAmount',
-  'settlement.roomAmount', 'settlement.serviceAmount', 'settlement.paymentsAfterPreparation']);
+  'settlement.roomAmount', 'settlement.serviceAmount', 'settlement.paymentsAfterPreparation',
+  'settlement.forfeitedDeposit']);
 contractSchema.pre('validate', function () {
   if (this.startDate && this.endDate && this.endDate <= this.startDate) this.invalidate('endDate', 'Ngày kết thúc phải sau ngày bắt đầu');
 });

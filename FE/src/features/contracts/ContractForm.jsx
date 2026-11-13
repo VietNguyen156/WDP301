@@ -37,6 +37,8 @@ import {
 import { CredentialsModal } from "../../components/ui/CredentialsModal";
 import { money, today } from "../../utils/format";
 import "./Contracts.css";
+import { ContractFurnishings } from "../../components/furnishings/FurnishingsTable";
+import { effectiveFurnishings } from "../../utils/furnishings";
 
 export default function ContractForm({
   branchId = "",
@@ -217,6 +219,10 @@ export default function ContractForm({
       setError("Số CCCD của khách thuê bắt buộc phải gồm 12 chữ số theo quy định.");
       return;
     }
+    if (hasCccdError) {
+      setError("Vui lòng sửa các CCCD đang báo lỗi trước khi ký hợp đồng.");
+      return;
+    }
 
     // Validate PER_UNIT service quantities
     if (perUnitServices.length > 0) {
@@ -264,6 +270,70 @@ export default function ContractForm({
       setBusy(false);
     }
   }
+
+  // CCCD checks while typing: format, the same CCCD twice in this form, and CCCDs already on a
+  // draft/running contract of this landlord (asked from the server, debounced).
+  const cccdEntries = [
+    { key: "tenant", label: "khách thuê đại diện", value: form.tenant.citizenId.trim(), required: true },
+    ...form.roommates.map((r, i) => ({
+      key: i,
+      label: `người ở cùng #${i + 1}`,
+      value: (r.citizenId || "").trim(),
+      required: false,
+    })),
+  ];
+  const validCccds = [
+    ...new Set(cccdEntries.map((e) => e.value).filter((v) => /^\d{12}$/.test(v))),
+  ];
+  const validCccdKey = validCccds.join(",");
+  // `key` is the CCCD list the last answer covers; the lookup is pending while it differs.
+  // Until the new answer arrives, the previous one still flags the CCCDs it named.
+  const [cccdCheck, setCccdCheck] = useState({ key: "", inUse: {} });
+  const cccdInUse = cccdCheck.inUse;
+  const checkingCccd = validCccdKey !== "" && cccdCheck.key !== validCccdKey;
+
+  useEffect(() => {
+    if (!validCccdKey) return undefined;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      contractApi
+        .citizenCheck(validCccdKey.split(","))
+        .then((res) => ({
+          key: validCccdKey,
+          inUse: Object.fromEntries((res?.items || []).map((item) => [item.citizenId, item])),
+        }))
+        // The server re-checks on submit, so a failed lookup only skips the early warning.
+        .catch(() => ({ key: validCccdKey, inUse: {} }))
+        .then((next) => {
+          if (!cancelled) setCccdCheck(next);
+        });
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [validCccdKey]);
+
+  const cccdErrors = {};
+  cccdEntries.forEach((entry, index) => {
+    if (!entry.value) return;
+    if (!/^\d{12}$/.test(entry.value)) {
+      cccdErrors[entry.key] = "CCCD phải gồm đúng 12 chữ số.";
+      return;
+    }
+    const first = cccdEntries.findIndex((other) => other.value === entry.value);
+    if (first !== index) {
+      cccdErrors[entry.key] = `Trùng CCCD với ${cccdEntries[first].label}. Mỗi người chỉ khai một lần.`;
+      return;
+    }
+    const holder = cccdInUse[entry.value];
+    if (holder) {
+      const room = holder.roomNumber ? ` (phòng ${holder.roomNumber})` : "";
+      const as = holder.as === "ROOMMATE" ? "người ở cùng" : "khách thuê";
+      cccdErrors[entry.key] = `CCCD này đang là ${as} trong hợp đồng ${holder.contractCode}${room} còn hiệu lực. Kết thúc hoặc hủy hợp đồng đó trước.`;
+    }
+  });
+  const hasCccdError = Object.keys(cccdErrors).length > 0;
 
   function addRoommate() {
     setForm({
@@ -521,14 +591,25 @@ export default function ContractForm({
                     placeholder="Nguyễn Văn A"
                     required
                   />
-                  <Field
-                    label="Số CCCD gắn chip (12 chữ số)"
-                    value={form.tenant.citizenId}
-                    onChange={tenantChange("citizenId")}
-                    placeholder="001095012345"
-                    maxLength={12}
-                    required
-                  />
+                  <div>
+                    <Field
+                      label="Số CCCD gắn chip (12 chữ số)"
+                      value={form.tenant.citizenId}
+                      onChange={tenantChange("citizenId")}
+                      placeholder="001095012345"
+                      maxLength={12}
+                      inputMode="numeric"
+                      aria-invalid={!!cccdErrors.tenant}
+                      className={cccdErrors.tenant ? "cccd-input-invalid" : undefined}
+                      required
+                    />
+                    {cccdErrors.tenant && (
+                      <p className="cccd-field-error" role="alert">
+                        <AlertCircle size={13} />
+                        <span>{cccdErrors.tenant}</span>
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="form-grid-3col" style={{ marginTop: 10 }}>
@@ -603,7 +684,8 @@ export default function ContractForm({
                 </div>
 
                 {form.roommates.map((r, i) => (
-                  <div key={i} className="roommate-row">
+                  <div key={i}>
+                  <div className="roommate-row">
                     <input
                       type="text"
                       className="contracts-search-input"
@@ -615,10 +697,13 @@ export default function ContractForm({
                     />
                     <input
                       type="text"
-                      className="contracts-search-input"
                       style={{ paddingLeft: 10, fontSize: 12 }}
                       placeholder="Số CCCD"
                       value={r.citizenId}
+                      maxLength={12}
+                      inputMode="numeric"
+                      aria-invalid={cccdErrors[i] !== undefined}
+                      className={`contracts-search-input${cccdErrors[i] ? " cccd-input-invalid" : ""}`}
                       onChange={(e) => updateRoommate(i, "citizenId", e.target.value)}
                     />
                     <input
@@ -638,8 +723,20 @@ export default function ContractForm({
                       <Trash2 size={13} color="#dc2626" />
                     </button>
                   </div>
+                  {cccdErrors[i] && (
+                    <p className="cccd-field-error" role="alert">
+                      <AlertCircle size={13} />
+                      <span>{cccdErrors[i]}</span>
+                    </p>
+                  )}
+                  </div>
                 ))}
               </div>
+
+              {/* Vật dụng bàn giao kèm phòng: được chốt vào hợp đồng khi ký */}
+              {selectedRoom && (
+                <ContractFurnishings contract={effectiveFurnishings(selectedRoom, selectedBranch)} />
+              )}
 
               {/* Ghi chú hợp đồng */}
               <Field
@@ -661,7 +758,18 @@ export default function ContractForm({
                   <Button variant="secondary" onClick={onClose} disabled={busy}>
                     Hủy bỏ
                   </Button>
-                  <Button type="submit" busy={busy}>
+                  <Button
+                    type="submit"
+                    busy={busy}
+                    disabled={hasCccdError || checkingCccd}
+                    title={
+                      hasCccdError
+                        ? "Sửa các CCCD đang báo lỗi trước khi ký"
+                        : checkingCccd
+                          ? "Đang kiểm tra CCCD..."
+                          : undefined
+                    }
+                  >
                     <CheckCircle2 size={16} />
                     <span>Xác nhận Ký Hợp đồng</span>
                   </Button>

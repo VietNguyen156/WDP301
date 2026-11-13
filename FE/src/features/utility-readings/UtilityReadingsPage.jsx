@@ -94,6 +94,7 @@ export default function UtilityReadingsPage() {
             viewMode={viewMode}
             setViewMode={setViewMode}
             setCurrentIndex={setCurrentIndex}
+            stats={stats}
           />
 
           <UtilityKpiGrid
@@ -137,10 +138,10 @@ export default function UtilityReadingsPage() {
             />
           ) : viewMode === "wizard" && activeItem ? (
             <UtilityWizardView
+              filteredItems={filteredItems}
               activeItem={activeItem}
               currentIndex={currentIndex}
               setCurrentIndex={setCurrentIndex}
-              filteredLength={filteredItems.length}
               getItemValues={getItemValues}
               handleInputChange={handleInputChange}
               submitting={submitting}

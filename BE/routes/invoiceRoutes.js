@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const controller = require("../controllers/invoiceController");
 const { listPayments } = require("../controllers/paymentController");
-const { authenticate, authorize } = require("../middlewares/auth");
+const { authenticate, authorize, permit } = require("../middlewares/auth");
 const { publicInvoiceLimiter } = require("../middlewares/financeSecurity");
 router.get(
   "/public/:publicAccessToken",
@@ -18,16 +18,19 @@ router.post("/generate", authorize("LANDLORD"), controller.generateInvoices);
 router.get(
   "/",
   authorize("LANDLORD", "PROPERTY_MANAGER", "TENANT"),
+  permit("VIEW_FINANCE"),
   controller.listInvoices,
 );
 router.get(
   "/:invoiceId/payments",
   authorize("LANDLORD", "PROPERTY_MANAGER", "TENANT"),
+  permit("VIEW_FINANCE"),
   listPayments,
 );
 router.get(
   "/:invoiceId",
   authorize("LANDLORD", "PROPERTY_MANAGER", "TENANT"),
+  permit("VIEW_FINANCE"),
   controller.getInvoice,
 );
 router.post(
@@ -43,6 +46,7 @@ router.post(
 router.post(
   "/:invoiceId/reminders",
   authorize("LANDLORD", "PROPERTY_MANAGER"),
+  permit("SEND_REMINDERS"),
   controller.sendReminder,
 );
 module.exports = router;

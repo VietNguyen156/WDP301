@@ -88,7 +88,7 @@ export function TenantsTable({
           >
             {searchTerm
               ? `Không có khách thuê nào khớp với từ khóa "${searchTerm}". Bạn thử tìm theo số CCCD, tên hoặc số điện thoại.`
-              : "Không có khách thuê nào khớp với bộ lọc trạng thái hoặc quê quán đã chọn."}
+              : "Không có khách thuê nào khớp với bộ lọc trạng thái hoặc hồ sơ đã chọn."}
           </p>
           <Button variant="secondary" onClick={onResetFilters}>
             <RotateCcw size={14} />
@@ -111,10 +111,11 @@ export function TenantsTable({
             </thead>
             <tbody>
               {filteredTenants.map((item) => {
+                const rowId = item.id || item._id;
                 const cccd = item.citizenId || item.username || "";
                 const phone = item.phoneNumber || "";
                 return (
-                  <tr key={item._id || item.id}>
+                  <tr key={rowId}>
                     <td>
                       <div
                         style={{
@@ -176,7 +177,7 @@ export function TenantsTable({
                           <button
                             type="button"
                             onClick={() =>
-                              onCopyText(cccd, "số CCCD", item._id + "-cccd")
+                              onCopyText(cccd, "số CCCD", rowId + "-cccd")
                             }
                             style={{
                               border: "none",
@@ -184,7 +185,7 @@ export function TenantsTable({
                               cursor: "pointer",
                               padding: "3px",
                               color:
-                                copiedKey === item._id + "-cccd"
+                                copiedKey === rowId + "-cccd"
                                   ? "#16a34a"
                                   : "#94a3b8",
                               display: "flex",
@@ -193,7 +194,7 @@ export function TenantsTable({
                             }}
                             title="Sao chép số CCCD"
                           >
-                            {copiedKey === item._id + "-cccd" ? (
+                            {copiedKey === rowId + "-cccd" ? (
                               <Check size={13} />
                             ) : (
                               <Copy size={13} />
@@ -228,7 +229,7 @@ export function TenantsTable({
                               onCopyText(
                                 phone,
                                 "số điện thoại",
-                                item._id + "-phone",
+                                rowId + "-phone",
                               )
                             }
                             style={{
@@ -237,7 +238,7 @@ export function TenantsTable({
                               cursor: "pointer",
                               padding: "3px",
                               color:
-                                copiedKey === item._id + "-phone"
+                                copiedKey === rowId + "-phone"
                                   ? "#16a34a"
                                   : "#94a3b8",
                               display: "flex",
@@ -246,7 +247,7 @@ export function TenantsTable({
                             }}
                             title="Sao chép SĐT"
                           >
-                            {copiedKey === item._id + "-phone" ? (
+                            {copiedKey === rowId + "-phone" ? (
                               <Check size={13} />
                             ) : (
                               <Copy size={13} />

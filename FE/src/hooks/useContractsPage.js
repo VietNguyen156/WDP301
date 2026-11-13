@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { contractApi, branchApi } from "../services/api";
+import { contractApi, branchApi, errorMessage } from "../services/api";
 import { useResource, useDebounced } from "./useResource";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useLiveRefresh } from "./useLiveRefresh";
+import { downloadTemporaryResidenceCsv } from "../utils/temporaryResidenceExport";
 
 export function getContractProgress(startDate, endDate) {
   if (!startDate || !endDate) return { percent: 0, daysLeft: 0 };
@@ -41,6 +42,7 @@ export function useContractsPage() {
   const [creating, setCreating] = useState(
     params.get("create") === "1" && landlord,
   );
+  const [exportingResidence, setExportingResidence] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   // ?contractId=... (from the rooms page) opens that contract directly, whatever the list filters.
   const [detailModalId, setDetailModalId] = useState(params.get("contractId"));
@@ -158,6 +160,62 @@ export function useContractsPage() {
     }
   }
 
+  async function exportTemporaryResidence() {
+    if (exportingResidence) return;
+    setExportingResidence(true);
+    try {
+      const collected = [];
+      let currentPage = 1;
+      let expectedTotal = Infinity;
+
+      while (collected.length < expectedTotal) {
+        const res = await contractApi.list({
+          status,
+          branchId: activeBranchId,
+          page: currentPage,
+          limit: 100,
+          search: debounced,
+          depositStatus: depositFilter || undefined,
+          confirmation: confirmationFilter || undefined,
+        });
+        const batch = res?.items || [];
+        expectedTotal = res?.total ?? batch.length;
+        collected.push(...batch);
+        if (batch.length < 100 || batch.length === 0) break;
+        currentPage += 1;
+      }
+
+      const targetContracts = status
+        ? collected
+        : collected.filter(
+            (c) =>
+              c.displayStatus !== "TERMINATED" && c.displayStatus !== "DRAFT",
+          );
+
+      if (targetContracts.length === 0) {
+        toast.error(
+          "Không có cư dân đang cư trú phù hợp bộ lọc để xuất danh sách tạm trú.",
+        );
+        return;
+      }
+
+      const { residentCount, contractCount } =
+        downloadTemporaryResidenceCsv(targetContracts);
+      if (residentCount === 0) {
+        toast.error("Không tìm thấy thông tin cư dân trong các hợp đồng phù hợp.");
+        return;
+      }
+
+      toast.success(
+        `Đã xuất file CSV tạm trú gồm ${residentCount} cư dân (${contractCount} hợp đồng).`,
+      );
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setExportingResidence(false);
+    }
+  }
+
   return {
     toast,
     params,
@@ -166,6 +224,8 @@ export function useContractsPage() {
     landlord,
     creating,
     setCreating,
+    exportingResidence,
+    exportTemporaryResidence,
     selectedId,
     setSelectedId,
     detailModalId,

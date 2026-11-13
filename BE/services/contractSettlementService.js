@@ -21,18 +21,67 @@ const liveStatuses = LIVE_CONTRACT_STATUSES;
 const payableStatuses = OWING_INVOICE_STATUSES;
 const dayKey = vnDate;
 
+// Why the contract ends. Decides which end dates are allowed and whether the deposit may be kept.
+//   EXPIRED        hết hạn hợp đồng (trả phòng từ ngày kết thúc trở đi)
+//   MUTUAL         hai bên thỏa thuận chấm dứt
+//   TENANT_EARLY   khách trả phòng trước hạn, có báo trước đúng hợp đồng
+//   TENANT_BREACH  khách tự ý chấm dứt / không báo trước / vi phạm: được giữ lại cọc (Điều tiền cọc)
+//   LANDLORD_EARLY chủ trọ chấm dứt trước hạn: hoàn đủ phần cọc còn lại
+const TERMINATION_REASONS = ["EXPIRED", "MUTUAL", "TENANT_EARLY", "TENANT_BREACH", "LANDLORD_EARLY"];
+const EARLY_REASONS = ["TENANT_EARLY", "TENANT_BREACH", "LANDLORD_EARLY"];
+const REFUND_METHODS = ["CASH", "BANK_TRANSFER"];
+
+// Optional photo link (meter, damage): empty is allowed, otherwise it must be http(s).
+function optionalUrl(value, label) {
+  if (value === undefined || value === "") return undefined;
+  v.text(value, label);
+  if (!/^https?:\/\//.test(value)) throw new ValidationError(`${label} phải là URL http/https`);
+  return value;
+}
+
 function validateCharges(body) {
   v.number(body.finalElectricIndex, "Chỉ số điện cuối");
   v.number(body.finalWaterIndex, "Chỉ số nước cuối");
   if (!Array.isArray(body.deductions) || body.deductions.length > 30)
     throw new ValidationError("Các khoản khấu trừ không hợp lệ");
   for (const deduction of body.deductions) {
-    v.fields(deduction, ["reason", "amount", "evidenceImage"]);
+    v.fields(deduction, ["reason", "amount", "evidenceImage", "furnishingName", "quantity"]);
     v.text(deduction.reason, "Lý do khấu trừ");
     v.number(deduction.amount, "Số tiền khấu trừ");
-    v.text(deduction.evidenceImage, "Ảnh nghiệm thu");
-    if (!/^https?:\/\//.test(deduction.evidenceImage))
-      throw new ValidationError("Ảnh nghiệm thu phải là URL http/https");
+    deduction.evidenceImage = optionalUrl(deduction.evidenceImage, "Ảnh nghiệm thu");
+    if (deduction.evidenceImage === undefined) delete deduction.evidenceImage;
+    if (deduction.furnishingName !== undefined) {
+      v.text(deduction.furnishingName, "Vật dụng");
+      v.number(deduction.quantity, "Số lượng vật dụng", 1, 1000);
+    } else if (deduction.quantity !== undefined)
+      throw new ValidationError("Số lượng chỉ dùng cho khoản đền bù vật dụng");
+  }
+}
+
+// Damage to items in the contract's handover list is capped at the agreed unit price
+// (contract clause: compensate at that price, or the real repair cost if lower).
+function checkFurnishingDeductions(contract, deductions) {
+  const used = new Map();
+  for (const d of deductions) {
+    if (d.furnishingName === undefined) continue;
+    const item = (contract.furnishings || []).find((f) => f.name === d.furnishingName);
+    if (!item)
+      throw new ValidationError(
+        `"${d.furnishingName}" không có trong danh mục vật dụng bàn giao của hợp đồng`,
+        "SETTLEMENT_FURNISHING_UNKNOWN",
+      );
+    const quantity = (used.get(item.name) || 0) + d.quantity;
+    if (quantity > item.quantity)
+      throw new ValidationError(
+        `Số lượng "${item.name}" bị đền bù vượt số đã bàn giao (${item.quantity})`,
+        "SETTLEMENT_FURNISHING_QUANTITY",
+      );
+    used.set(item.name, quantity);
+    if (d.amount > item.price * d.quantity)
+      throw new ValidationError(
+        `Tiền đền bù "${item.name}" không được vượt đơn giá đã thỏa thuận (${item.price} x ${d.quantity})`,
+        "SETTLEMENT_FURNISHING_OVER_PRICE",
+      );
   }
 }
 
@@ -46,20 +95,46 @@ function validateBody(body) {
     "confirmedByBothParties",
     "electricImage",
     "waterImage",
+    "terminationReason",
+    "forfeitDeposit",
   ]);
   v.date(body.actualEndDate, "Ngày trả phòng");
   validateCharges(body);
+  v.choice(body.terminationReason, TERMINATION_REASONS, "Lý do chấm dứt hợp đồng");
+  if (body.forfeitDeposit !== undefined && typeof body.forfeitDeposit !== "boolean")
+    throw new ValidationError("Giá trị giữ lại cọc không hợp lệ");
+  if (body.forfeitDeposit && body.terminationReason !== "TENANT_BREACH")
+    throw new ValidationError(
+      "Chỉ được giữ lại tiền cọc khi khách vi phạm hợp đồng (tự ý chấm dứt hoặc không báo trước)",
+      "SETTLEMENT_FORFEIT_NOT_ALLOWED",
+    );
   if (body.confirmedByBothParties !== true)
     throw new ValidationError(
       "Cần xác nhận biên bản bởi chủ nhà và người thuê",
     );
   for (const key of ["electricImage", "waterImage"]) {
-    v.text(body[key], "Ảnh đồng hồ");
-    if (!/^https?:\/\//.test(body[key]))
-      throw new ValidationError("Ảnh đồng hồ phải là URL http/https");
+    body[key] = optionalUrl(body[key], "Ảnh đồng hồ");
+    if (body[key] === undefined) delete body[key];
   }
   v.text(body.settlementNotes, "Ghi chú", false);
   return body;
+}
+
+// The end date has to fit the reason: "hết hạn" from the contract end date on, the early
+// reasons before it.
+function checkReasonAgainstDates(contract, reason, actualEndDate) {
+  const end = dayKey(contract.endDate);
+  const out = dayKey(actualEndDate);
+  if (reason === "EXPIRED" && out < end)
+    throw new ValidationError(
+      `Hợp đồng kết thúc ngày ${end}; trả phòng trước ngày này hãy chọn lý do thỏa thuận hoặc trả phòng trước hạn`,
+      "SETTLEMENT_REASON_DATE",
+    );
+  if (EARLY_REASONS.includes(reason) && out >= end)
+    throw new ValidationError(
+      `Ngày trả phòng không trước ngày kết thúc hợp đồng (${end}); hãy chọn lý do hết hạn hợp đồng`,
+      "SETTLEMENT_REASON_DATE",
+    );
 }
 
 function calculateSettlement({
@@ -226,20 +301,25 @@ function assertSameBody(contract, body) {
     "electricImage",
     "waterImage",
     "confirmedByBothParties",
+    "terminationReason",
   ])
     if (body[key] !== contract[key])
       throw new BusinessRuleError(
         "Biên bản quyết toán đã được chốt",
         "SETTLEMENT_IMMUTABLE",
       );
-  const existing = contract.deductions.map(
-    ({ reason, amount, evidenceImage }) => ({ reason, amount, evidenceImage }),
-  );
-  const incoming = body.deductions.map(({ reason, amount, evidenceImage }) => ({
+  // forfeitedDeposit is stored (even 0) exactly when the landlord chose to keep the deposit.
+  if (Boolean(body.forfeitDeposit) !== (contract.settlement?.forfeitedDeposit != null))
+    throw new BusinessRuleError("Biên bản quyết toán đã được chốt", "SETTLEMENT_IMMUTABLE");
+  const pick = ({ reason, amount, evidenceImage, furnishingName, quantity }) => ({
     reason,
     amount,
-    evidenceImage,
-  }));
+    evidenceImage: evidenceImage || undefined,
+    furnishingName: furnishingName || undefined,
+    quantity: quantity || undefined,
+  });
+  const existing = contract.deductions.map(pick);
+  const incoming = body.deductions.map(pick);
   if (
     new Date(body.actualEndDate).getTime() !==
       contract.actualEndDate.getTime() ||
@@ -308,6 +388,8 @@ async function prepare(req, ctx, session) {
     throw new ValidationError(
       "Ngày trả phòng phải từ ngày bắt đầu đến hôm nay",
     );
+  checkReasonAgainstDates(contract, body.terminationReason, actualEndDate);
+  checkFurnishingDeductions(contract, body.deductions);
   const invoices = await Invoice.find({
     landlordId: contract.landlordId,
     branchId: contract.branchId,
@@ -359,6 +441,18 @@ async function prepare(req, ctx, session) {
     invoices,
     debt,
   });
+  // Tenant breach: the landlord keeps what is left of the deposit after every charge, as the
+  // contract's deposit clause allows. It never makes the tenant owe more than the charges.
+  const forfeitedDeposit = body.forfeitDeposit
+    ? Math.max(calculated.heldDeposit - calculated.totalCharges, 0)
+    : undefined;
+  const penaltyFees = forfeitedDeposit
+    ? [{ reason: "Giữ lại tiền cọc do Bên thuê vi phạm hợp đồng (tự ý chấm dứt / không báo trước)", amount: forfeitedDeposit }]
+    : [];
+  if (forfeitedDeposit) {
+    calculated.totalCharges += forfeitedDeposit;
+    calculated.refundedDepositAmount = 0;
+  }
   const billingPeriod = dayKey(actualEndDate).slice(0, 7);
   const [year, month] = billingPeriod.split("-").map(Number);
   const landlord = await User.findOne({
@@ -391,10 +485,10 @@ async function prepare(req, ctx, session) {
         electricDetail: calculated.electricDetail,
         waterDetail: calculated.waterDetail,
         servicesDetail: calculated.servicesDetail,
-        additionalFees: body.deductions.map(({ reason, amount }) => ({
-          reason,
-          amount,
-        })),
+        additionalFees: [
+          ...body.deductions.map(({ reason, amount }) => ({ reason, amount })),
+          ...penaltyFees,
+        ],
         totalAmount: finalAmount,
         remainingAmount: finalAmount,
         status: finalAmount === 0 ? "PAID" : "ISSUED",
@@ -425,9 +519,11 @@ async function prepare(req, ctx, session) {
     invoice.__v = (invoice.__v || 0) + 1;
     await invoice.save({ session });
   }
-  Object.assign(contract, body, {
+  const { forfeitDeposit: _forfeit, ...record } = body;
+  Object.assign(contract, record, {
     actualEndDate,
     settlement: {
+      forfeitedDeposit,
       state: "PREPARED",
       preparedAt: new Date(),
       invoiceId: finalInvoice._id,
@@ -527,11 +623,31 @@ async function prepareSettlement(req) {
   };
 }
 
+// Body: { refundMethod?: CASH | BANK_TRANSFER, refundNote? }. The settlement must already be
+// prepared (POST /settlement); when deposit is refunded the landlord records how it was paid back.
+function validateTermination(body = {}) {
+  v.fields(body, ["refundMethod", "refundNote"]);
+  if (body.refundMethod !== undefined) v.choice(body.refundMethod, REFUND_METHODS, "Hình thức hoàn cọc");
+  v.text(body.refundNote, "Ghi chú hoàn cọc", false);
+  return body;
+}
+
 async function terminate(req) {
+  const body = validateTermination(req.body || {});
   await mongoose.connection.transaction(async (session) => {
     const ctx = await context(req, session);
-    await prepare(req, ctx, session);
     const { contract, room } = ctx;
+    if (contract.settlement?.state !== "PREPARED")
+      throw new BusinessRuleError(
+        "Lập biên bản quyết toán trước khi thanh lý hợp đồng",
+        "SETTLEMENT_NOT_PREPARED",
+      );
+    const refund = contract.settlement.refundedDepositAmount || 0;
+    if (refund > 0 && !body.refundMethod)
+      throw new ValidationError(
+        "Chọn hình thức đã hoàn trả tiền cọc cho khách (tiền mặt hoặc chuyển khoản)",
+        "REFUND_METHOD_REQUIRED",
+      );
     const current = await balances(contract, session);
     if (current.remainingDue > 0)
       throw new BusinessRuleError(
@@ -546,6 +662,13 @@ async function terminate(req) {
     const before = contract.toObject();
     contract.status = "TERMINATED";
     contract.settlement.state = "COMPLETED";
+    contract.settlement.completedAt = new Date();
+    if (refund > 0) {
+      contract.settlement.refundMethod = body.refundMethod;
+      contract.settlement.refundNote = body.refundNote || undefined;
+      contract.settlement.refundedAt = new Date();
+      contract.settlement.refundedBy = req.user._id;
+    }
     contract.settlement.paymentsAfterPreparation = Math.max(
       contract.settlement.totalCharges -
         contract.settlement.depositAppliedAmount,
@@ -578,6 +701,7 @@ async function terminate(req) {
 }
 
 module.exports = {
+  TERMINATION_REASONS,
   calculateSettlement,
   prepareSettlement,
   terminate,

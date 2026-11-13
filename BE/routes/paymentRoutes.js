@@ -1,6 +1,6 @@
 const router = require("express").Router();
 const controller = require("../controllers/paymentController");
-const { authenticate, authorize } = require("../middlewares/auth");
+const { authenticate, authorize, permit } = require("../middlewares/auth");
 const {
   webhookLimiter,
   verifyWebhook,
@@ -10,6 +10,7 @@ router.use(authenticate);
 router.post(
   "/cash",
   authorize("LANDLORD", "PROPERTY_MANAGER"),
+  permit("REPORT_CASH"),
   controller.confirmCash,
 );
 router.post(
@@ -31,11 +32,13 @@ router.post(
 router.get(
   "/",
   authorize("LANDLORD", "PROPERTY_MANAGER", "TENANT"),
+  permit("VIEW_FINANCE"),
   controller.listPayments,
 );
 router.get(
   "/:paymentId",
   authorize("LANDLORD", "PROPERTY_MANAGER", "TENANT"),
+  permit("VIEW_FINANCE"),
   controller.getPayment,
 );
 module.exports = router;

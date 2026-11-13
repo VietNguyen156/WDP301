@@ -120,8 +120,11 @@ export function useUtilityReadingsPage() {
     return result;
   }, [items, filterStatus, roomSearch]);
 
-  // Current active item for wizard mode
-  const activeItem = filteredItems[currentIndex] || filteredItems[0] || null;
+  // Current active index & item for wizard mode (always clamped to filteredItems)
+  const safeCurrentIndex = filteredItems.length
+    ? Math.min(currentIndex, filteredItems.length - 1)
+    : 0;
+  const activeItem = filteredItems[safeCurrentIndex] || null;
 
   // Periods for dropdown selector (current month and last 5 months)
   const availablePeriods = useMemo(() => {
@@ -183,10 +186,31 @@ export function useUtilityReadingsPage() {
       return;
     }
 
+    const electricVal = Number(vals.electricNewIndex);
+    if (Number.isNaN(electricVal) || electricVal < item.previousElectricIndex) {
+      toast.error(
+        `Chỉ số điện mới (${vals.electricNewIndex}) không được nhỏ hơn chỉ số cũ (${item.previousElectricIndex}).`,
+      );
+      return;
+    }
+
     const isMeterWater = item.waterBillingType === "METER";
     if (isMeterWater && vals.waterNewIndex === "") {
       toast.error(
         "Phòng tính nước theo đồng hồ, vui lòng nhập chỉ số nước mới.",
+      );
+      return;
+    }
+
+    const waterVal =
+      isMeterWater && vals.waterNewIndex !== "" ? Number(vals.waterNewIndex) : null;
+    if (
+      isMeterWater &&
+      waterVal !== null &&
+      (Number.isNaN(waterVal) || waterVal < item.previousWaterIndex)
+    ) {
+      toast.error(
+        `Chỉ số nước mới (${vals.waterNewIndex}) không được nhỏ hơn chỉ số cũ (${item.previousWaterIndex}).`,
       );
       return;
     }
@@ -196,7 +220,7 @@ export function useUtilityReadingsPage() {
       branchId,
       roomId: item.room.id,
       billingPeriod,
-      electricNewIndex: Number(vals.electricNewIndex),
+      electricNewIndex: electricVal,
       waterNewIndex:
         vals.waterNewIndex !== "" ? Number(vals.waterNewIndex) : undefined,
       electricImage: vals.electricImage || undefined,
@@ -205,6 +229,7 @@ export function useUtilityReadingsPage() {
     };
 
     try {
+      const wasPendingCreate = !item.reading;
       if (item.reading) {
         // PUT update
         await utilityReadingApi.update(item.reading.id, {
@@ -224,9 +249,16 @@ export function useUtilityReadingsPage() {
       setAbnormalWarning(null);
       await readingResource.reload();
 
-      // In wizard mode, automatically advance to next pending room
-      if (viewMode === "wizard" && currentIndex < filteredItems.length - 1) {
-        setCurrentIndex((prev) => prev + 1);
+      // In wizard mode, advance only if the room stays in the current list;
+      // when filtering PENDING, the saved room drops out so the next room shifts into the same slot.
+      if (viewMode === "wizard") {
+        if (filterStatus === "PENDING" && wasPendingCreate) {
+          setCurrentIndex((prev) =>
+            Math.max(0, Math.min(prev, filteredItems.length - 2)),
+          );
+        } else if (safeCurrentIndex < filteredItems.length - 1) {
+          setCurrentIndex(safeCurrentIndex + 1);
+        }
       }
     } catch (err) {
       const resp = err.response?.data;
@@ -263,7 +295,7 @@ export function useUtilityReadingsPage() {
     setRoomSearch,
     viewMode,
     setViewMode,
-    currentIndex,
+    currentIndex: safeCurrentIndex,
     setCurrentIndex,
     readingResource,
     abnormalWarning,

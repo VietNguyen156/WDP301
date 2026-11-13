@@ -21,7 +21,7 @@ export default function UtilityFilterBar({
             setCurrentIndex(0);
           }}
         >
-          Tất cả phòng ({itemsCount})
+          Tất cả ({itemsCount})
         </button>
         <button
           type="button"
@@ -51,7 +51,7 @@ export default function UtilityFilterBar({
           <input
             type="text"
             className="util-search-input"
-            placeholder="Tìm phòng, tầng..."
+            placeholder="Tìm số phòng, tầng..."
             value={roomSearch}
             onChange={(e) => {
               setRoomSearch(e.target.value);
@@ -67,17 +67,17 @@ export default function UtilityFilterBar({
                 setCurrentIndex(0);
               }}
               title="Xóa tìm kiếm"
+              aria-label="Xóa tìm kiếm"
             >
-              <X size={12} strokeWidth={2.5} />
+              <X size={13} strokeWidth={2.5} />
             </button>
           )}
         </div>
 
         <span className="util-items-count">
-          {filteredCount} phòng đang hiển thị
+          {filteredCount} phòng hiển thị
         </span>
       </div>
     </div>
   );
 }
-

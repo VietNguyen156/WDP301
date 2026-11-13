@@ -284,9 +284,9 @@ export default function InvoiceLedgerTable({
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="invoice-row-actions">
-                        <Button
-                          size="sm"
-                          variant="outline"
+                        <button
+                          type="button"
+                          className="invoice-action-btn"
                           title="Xem chi tiết"
                           aria-label={`Xem chi tiết ${inv.invoiceCode}`}
                           onClick={() => {
@@ -294,57 +294,56 @@ export default function InvoiceLedgerTable({
                             setIsDetailOpen(true);
                           }}
                         >
-                          <Eye size={15} />
-                        </Button>
+                          <Eye size={15} strokeWidth={2} />
+                        </button>
                         {perms.canPayOnline &&
                           PAYABLE_STATUSES.includes(inv.status) && (
-                            <Button
-                              size="sm"
-                              variant="primary"
+                            <button
+                              type="button"
+                              className="invoice-action-btn is-primary"
                               title="Thanh toán qua VietQR"
                               aria-label={`Thanh toán ${inv.invoiceCode}`}
                               onClick={(e) => openPaymentPage(inv, e)}
                             >
-                              <QrCode size={15} />
-                            </Button>
+                              <QrCode size={15} strokeWidth={2} />
+                            </button>
                           )}
                         {perms.canCollectCash &&
                           PAYABLE_STATUSES.includes(inv.status) && (
-                            <Button
-                              size="sm"
-                              variant="primary"
+                            <button
+                              type="button"
+                              className="invoice-action-btn is-cash"
                               title={perms.cashActionLabel}
                               onClick={() => onOpenCashPayment(inv)}
                               aria-label={`Thu tiền mặt ${inv.invoiceCode}`}
                             >
-                              <Banknote size={15} />
-                            </Button>
+                              <Banknote size={15} strokeWidth={2} />
+                            </button>
+                          )}
+                        {perms.canShareLink &&
+                          canSharePublicInvoice(inv.status) && (
+                            <button
+                              type="button"
+                              className="invoice-action-btn is-link"
+                              title="Sao chép link thanh toán"
+                              aria-label={`Sao chép link thanh toán ${inv.invoiceCode}`}
+                              onClick={(e) => copyPublicLink(inv, e)}
+                            >
+                              <Link2 size={15} strokeWidth={2} />
+                            </button>
                           )}
                         {perms.canCancel &&
                           (!inv.paidAmount || inv.paidAmount === 0) &&
                           inv.status !== "CANCELLED" && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              title="Hủy"
-                              style={{ color: "var(--error)" }}
+                            <button
+                              type="button"
+                              className="invoice-action-btn is-danger"
+                              title="Hủy hóa đơn"
                               onClick={() => onOpenCancelInvoice(inv)}
                               aria-label={`Hủy hóa đơn ${inv.invoiceCode}`}
                             >
-                              <Trash2 size={15} />
-                            </Button>
-                          )}
-                        {perms.canShareLink &&
-                          canSharePublicInvoice(inv.status) && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              title="Sao chép link khách"
-                              aria-label={`Sao chép link khách ${inv.invoiceCode}`}
-                              onClick={(e) => copyPublicLink(inv, e)}
-                            >
-                              <Link2 size={15} />
-                            </Button>
+                              <Trash2 size={15} strokeWidth={2} />
+                            </button>
                           )}
                       </div>
                     </td>

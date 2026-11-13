@@ -136,6 +136,12 @@ export const staffApi = {
   create: (body) => axiosInstance.post("/staff", body).then(payload),
   resetPassword: (staffId) =>
     axiosInstance.post(`/staff/${staffId}/reset-password`, {}).then(payload),
+  setLock: (staffId, locked) =>
+    axiosInstance.put(`/staff/${staffId}/lock`, { locked }).then(payload),
+  updatePermissions: (staffId, permissions) =>
+    axiosInstance
+      .put(`/staff/${staffId}/permissions`, { permissions })
+      .then(payload),
 };
 
 export const tenantApi = {
@@ -196,6 +202,10 @@ export const contractApi = {
   list: (params) => axiosInstance.get("/contracts", { params }).then(payload),
   get: (id) => axiosInstance.get(`/contracts/${id}`).then(payload),
   create: (body) => axiosInstance.post("/contracts", body).then(payload),
+  citizenCheck: (citizenIds) =>
+    axiosInstance
+      .get("/contracts/citizen-check", { params: { citizenIds: citizenIds.join(",") } })
+      .then(payload),
   settlement: (id, body = {}) =>
     axiosInstance.post(`/contracts/${id}/settlement`, body).then(payload),
   terminate: (id, body = {}) =>

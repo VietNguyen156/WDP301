@@ -1,14 +1,14 @@
-// Outbound email, always sent for real.
+// Outbound email.
 // - smtp: any SMTP server, e.g. Gmail (SMTP_USER = Gmail address, SMTP_PASS = an App Password).
 //   Fine locally; Render free instances block SMTP ports, so use brevo there.
-// - brevo: Brevo's HTTP API (BREVO_API_KEY + a sender verified in Brevo), works on any host.
+// - brevo: Brevo's HTTP API (BREVO_API_KEY), works on any host. EMAIL_FROM_ADDRESS only has to
+//   be verified as a single sender in Brevo (a Gmail address is fine, no domain needed).
 // EMAIL_PROVIDER picks one; when empty it is inferred from whichever keys are set.
 // Nothing configured -> 503 EMAIL_NOT_CONFIGURED (and the daily reminder job does nothing).
 const nodemailer = require("nodemailer");
 const { requestJson } = require("../utils/httpJson");
 const { AppError } = require("../utils/errors");
 
-const BREVO_URL = "https://api.brevo.com/v3/smtp/email";
 const env = (key) => (process.env[key] || "").trim();
 
 function provider() {
@@ -67,7 +67,7 @@ async function sendSmtp({ from, to, replyTo, subject, html, text }) {
 }
 
 async function sendBrevo({ from, to, replyTo, subject, html, text }) {
-  const { ok, status, body } = await requestJson(BREVO_URL, {
+  const { ok, status, body } = await requestJson("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: {
       "api-key": env("BREVO_API_KEY"),
@@ -81,6 +81,7 @@ async function sendBrevo({ from, to, replyTo, subject, html, text }) {
       subject,
       htmlContent: html,
       textContent: text,
+      tags: ["nhac-no"],
     }),
     unavailable: { message: "Không kết nối được dịch vụ email, vui lòng thử lại sau", errorCode: "EMAIL_UNAVAILABLE" },
   });

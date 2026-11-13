@@ -5,6 +5,8 @@ export function TenantsKpiRibbon({
   hasActiveFilters,
   statusFilter,
   setStatusFilter,
+  profileFilter,
+  setProfileFilter,
   onResetFilters,
 }) {
   return (
@@ -199,16 +201,25 @@ export function TenantsKpiRibbon({
 
       {/* Card 4: Định danh CCCD 12 số */}
       <div
+        onClick={() =>
+          setProfileFilter(profileFilter === "HAS_CCCD" ? "ALL" : "HAS_CCCD")
+        }
         style={{
           backgroundColor: "#ffffff",
-          border: "1px solid #e2e8f0",
+          border:
+            profileFilter === "HAS_CCCD"
+              ? "1.5px solid #005c55"
+              : "1px solid #e2e8f0",
           borderRadius: "12px",
           padding: "16px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          cursor: "pointer",
           boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
+          transition: "all 0.15s ease",
         }}
+        title="Lọc cư dân đã định danh CCCD 12 số"
       >
         <div>
           <span

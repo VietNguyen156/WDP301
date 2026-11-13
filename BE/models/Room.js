@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+const furnishingItem = require("./furnishingItem");
+const { FURNISHING_TYPES } = require("../utils/furnishings");
 
 const roomSchema = new mongoose.Schema(
   {
@@ -66,6 +68,11 @@ const roomSchema = new mongoose.Schema(
       default: 0,
     },
 
+    // Phòng trống (UNFURNISHED) hay đầy đủ đồ (FURNISHED); xem utils/furnishings.js
+    furnishingType: { type: String, enum: FURNISHING_TYPES },
+    // Danh mục vật dụng riêng của phòng. Không có = dùng danh mục của cơ sở.
+    furnishings: { type: [furnishingItem], default: undefined },
+
     // Tiện nghi phòng
     amenities: [
       {
@@ -96,4 +103,5 @@ roomSchema.index({ landlordId: 1, branchId: 1, isDeleted: 1, floor: 1, roomNumbe
 
 require('./propertyValidators')(roomSchema, ['floor', 'basePrice', 'maxOccupants', 'currentElectricIndex', 'currentWaterIndex', 'electricityPrice', 'waterPrice']);
 require('./propertyValidators')(roomSchema.path('services').schema, ['price']);
+require('./propertyValidators')(roomSchema.path('furnishings').schema, ['price', 'quantity']);
 module.exports = mongoose.model("Room", roomSchema);

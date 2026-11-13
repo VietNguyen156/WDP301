@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const furnishingItem = require("./furnishingItem");
 
 const branchSchema = new mongoose.Schema(
   {
@@ -56,6 +57,10 @@ const branchSchema = new mongoose.Schema(
       },
     ],
 
+    // Danh mục vật dụng bàn giao kèm phòng & đơn giá đền bù (utils/furnishings.js).
+    // Phòng "đầy đủ đồ" không khai danh mục riêng thì dùng danh mục này.
+    defaultFurnishings: [furnishingItem],
+
     // Cài đặt ngày chốt số & hạn nộp tiền
     billingCycleDay: {
       type: Number,
@@ -100,4 +105,5 @@ branchSchema.index({ landlordId: 1, isDeleted: 1, createdAt: -1 });
 
 require('./propertyValidators')(branchSchema, ['totalFloors', 'defaultElectricityPrice', 'defaultWaterPrice', 'billingCycleDay', 'paymentDueDays']);
 require('./propertyValidators')(branchSchema.path('defaultServices').schema, ['price']);
+require('./propertyValidators')(branchSchema.path('defaultFurnishings').schema, ['price', 'quantity']);
 module.exports = mongoose.model("Branch", branchSchema);

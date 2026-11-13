@@ -1,8 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
+import {
+  Search,
+  X,
+  RefreshCw,
+  Printer,
+  RotateCcw,
+  Loader2,
+} from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
-import { Card } from "../../components/ui/Card";
 import { Modal } from "../../components/ui";
 import { paymentService } from "../../services/paymentService";
 import { useAuth } from "../../context/AuthContext";
@@ -19,11 +26,29 @@ import {
 } from "../../utils/formatters";
 import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 import { printReceipt } from "./printReceipt";
+import "./Payments.css";
 
 // Rent & services (invoice payments) and contract deposits are kept in separate histories.
 const TABS = ["ledger", "incidents", "deposits", "expenses", "unmatched"];
 // Which payment history each tab lists (GET /payments?purpose=...).
-const TAB_PURPOSE = { ledger: "INVOICE", incidents: "INCIDENT", deposits: "CONTRACT_DEPOSIT" };
+const TAB_PURPOSE = {
+  ledger: "INVOICE",
+  incidents: "INCIDENT",
+  deposits: "CONTRACT_DEPOSIT",
+};
+
+const METHOD_LABELS = {
+  CASH: "Tiền mặt",
+  VIETQR: "VietQR động",
+  BANK_TRANSFER: "Chuyển khoản",
+  DEPOSIT: "Trừ tiền cọc",
+};
+
+const STATUS_LABELS = {
+  SUCCESS: "Thành công",
+  PENDING_CONFIRMATION: "Chờ duyệt thu tiền",
+  FAILED: "Đã từ chối / Lỗi",
+};
 
 export function PaymentHistoryList() {
   const { user } = useAuth();
@@ -36,28 +61,19 @@ export function PaymentHistoryList() {
   );
   const isDeposits = activeSubTab === "deposits";
   const isIncidents = activeSubTab === "incidents";
+
   function selectTab(tab) {
     setActiveSubTab(tab);
     setPayments([]);
     setSearchParams(tab === "ledger" ? {} : { tab }, { replace: true });
   }
-  const tabStyle = (tab, color) => ({
-    padding: "6px 14px",
-    borderRadius: "6px",
-    fontSize: "0.85rem",
-    fontWeight: activeSubTab === tab ? "600" : "500",
-    backgroundColor: activeSubTab === tab ? "#ffffff" : "transparent",
-    color: activeSubTab === tab ? color : "var(--neutral-600)",
-    boxShadow: activeSubTab === tab ? "var(--shadow-sm)" : "none",
-    border: "none",
-    cursor: "pointer",
-  });
+
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
   const [methodFilter, setMethodFilter] = useState("ALL");
-  // No global branch switcher: payments of every branch in scope.
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [branchFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -67,37 +83,44 @@ export function PaymentHistoryList() {
   // Phiếu chi are internal: landlord and managers only.
   const canSeeExpenses = ["LANDLORD", "PROPERTY_MANAGER"].includes(user?.role);
 
-  const loadPayments = useCallback(async (silent) => {
-    try {
-      if (silent !== true) setLoading(true);
-      const res = await paymentService.getPayments({
-        paymentMethod: methodFilter,
-        branchId: branchFilter,
-        purpose: TAB_PURPOSE[activeSubTab] || "INVOICE",
-      });
-      const list = Array.isArray(res) ? res : res?.data || [];
-      setPayments(list);
-    } catch (err) {
-      toast.error(
-        err.message || "Không thể tải danh sách giao dịch thanh toán",
-      );
-      setPayments([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [methodFilter, branchFilter, activeSubTab, toast]);
+  const loadPayments = useCallback(
+    async (silent) => {
+      try {
+        if (silent !== true) setLoading(true);
+        const res = await paymentService.getPayments({
+          paymentMethod: methodFilter,
+          branchId: branchFilter,
+          purpose: TAB_PURPOSE[activeSubTab] || "INVOICE",
+        });
+        const list = Array.isArray(res) ? res : res?.data || [];
+        setPayments(list);
+      } catch (err) {
+        toast.error(
+          err.message || "Không thể tải danh sách giao dịch thanh toán",
+        );
+        setPayments([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [methodFilter, branchFilter, activeSubTab, toast],
+  );
   useLiveRefresh(["payments"], () => loadPayments(true));
 
   useEffect(() => {
-    if (TAB_PURPOSE[activeSubTab]) {
-      loadPayments();
-    }
+    if (!TAB_PURPOSE[activeSubTab]) return undefined;
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) loadPayments();
+    });
+    return () => {
+      active = false;
+    };
   }, [loadPayments, activeSubTab]);
-
 
   // One review at a time per row: a double click must not send two approvals.
   const [reviewingId, setReviewingId] = useState(null);
-  const [rejecting, setRejecting] = useState(null); // payment being rejected
+  const [rejecting, setRejecting] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
 
   async function approveCashReport(paymentId) {
@@ -131,19 +154,23 @@ export function PaymentHistoryList() {
     }
   }
 
-  // Client search filter
+  // Client search + status filter
   const filteredPayments = useMemo(() => {
-    if (!searchTerm.trim()) return payments;
-    const term = searchTerm.toLowerCase();
-    return payments.filter(
-      (p) =>
+    const term = searchTerm.trim().toLowerCase();
+    return payments.filter((p) => {
+      if (statusFilter !== "ALL" && p.status !== statusFilter) {
+        return false;
+      }
+      if (!term) return true;
+      return (
         p.referenceCode?.toLowerCase().includes(term) ||
         p.invoiceCode?.toLowerCase().includes(term) ||
         p.contractCode?.toLowerCase().includes(term) ||
         paymentPayer(p).name.toLowerCase().includes(term) ||
-        p.content?.toLowerCase().includes(term),
-    );
-  }, [payments, searchTerm]);
+        p.content?.toLowerCase().includes(term)
+      );
+    });
+  }, [payments, statusFilter, searchTerm]);
 
   // KPI Calculations
   const stats = useMemo(() => {
@@ -164,73 +191,97 @@ export function PaymentHistoryList() {
     return { total, cash, vietqr, bank, count: payments.length };
   }, [payments]);
 
+  function resetFilters() {
+    setMethodFilter("ALL");
+    setStatusFilter("ALL");
+    setSearchTerm("");
+  }
+
+  const activeChips = [
+    methodFilter !== "ALL" && {
+      key: "method",
+      label: `Kênh thu: ${METHOD_LABELS[methodFilter] || methodFilter}`,
+      onClear: () => setMethodFilter("ALL"),
+    },
+    statusFilter !== "ALL" && {
+      key: "status",
+      label: `Trạng thái: ${STATUS_LABELS[statusFilter] || statusFilter}`,
+      onClear: () => setStatusFilter("ALL"),
+    },
+    searchTerm.trim() && {
+      key: "search",
+      label: `Từ khóa: "${searchTerm.trim()}"`,
+      onClear: () => setSearchTerm(""),
+    },
+  ].filter(Boolean);
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+    <div className="payments-page">
       {/* Top Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-          gap: "12px",
-        }}
-      >
+      <div className="payments-header">
         <div>
-          <h2>Sổ quỹ & Đối soát Thu tiền (Finance & Cash Ledger)</h2>
+          <h2>Sổ quỹ &amp; Đối soát Thu tiền</h2>
           <p>
-            Đối soát dòng tiền thu từ VietQR tự động, tiền mặt tại chỗ và xử lý
-            chuyển khoản chưa khớp
+            Theo dõi dòng tiền thu từ VietQR tự động, tiền mặt tại chỗ, tiền
+            cọc và xử lý chuyển khoản chưa khớp.
           </p>
         </div>
+      </div>
 
-        {/* Sub-tab navigation */}
+      {/* Sub-tab navigation */}
+      <div className="payments-tabs-bar">
         <div
-          style={{
-            display: "flex",
-            backgroundColor: "var(--neutral-100)",
-            padding: "3px",
-            borderRadius: "8px",
-            gap: "2px",
-          }}
+          className="payments-tabs-group"
+          role="tablist"
+          aria-label="Phân loại sổ quỹ"
         >
           <button
             type="button"
             onClick={() => selectTab("ledger")}
-            style={tabStyle("ledger", "var(--primary)")}
+            className={`payments-tab-btn ${
+              activeSubTab === "ledger" ? "is-active" : ""
+            }`}
           >
-            🧾 Tiền phòng & dịch vụ
+            Tiền phòng &amp; dịch vụ
           </button>
           <button
             type="button"
             onClick={() => selectTab("incidents")}
-            style={tabStyle("incidents", "var(--primary)")}
+            className={`payments-tab-btn ${
+              activeSubTab === "incidents" ? "is-active" : ""
+            }`}
           >
-            🛠 Tiền sửa chữa sự cố
+            Tiền sửa chữa sự cố
           </button>
           <button
             type="button"
             onClick={() => selectTab("deposits")}
-            style={tabStyle("deposits", "var(--primary)")}
+            className={`payments-tab-btn ${
+              activeSubTab === "deposits" ? "is-active" : ""
+            }`}
           >
-            🔐 Tiền cọc
+            Tiền cọc
           </button>
           {canSeeExpenses && (
             <button
               type="button"
               onClick={() => selectTab("expenses")}
-              style={tabStyle("expenses", "var(--danger, #b91c1c)")}
+              className={`payments-tab-btn is-expense ${
+                activeSubTab === "expenses" ? "is-active" : ""
+              }`}
             >
-              💸 Phiếu chi
+              Phiếu chi
             </button>
           )}
           {canReviewUnmatched && (
             <button
               type="button"
               onClick={() => selectTab("unmatched")}
-              style={tabStyle("unmatched", "var(--warning-text)")}
+              className={`payments-tab-btn is-warning ${
+                activeSubTab === "unmatched" ? "is-active" : ""
+              }`}
             >
-              ⚡ Chuyển khoản chưa khớp (SePay)
+              Chuyển khoản chưa khớp
             </button>
           )}
         </div>
@@ -243,162 +294,141 @@ export function PaymentHistoryList() {
       ) : (
         <>
           {/* KPI Cards */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: "16px",
-            }}
-          >
-            <Card>
-              <div
-                style={{
-                  fontSize: "0.82rem",
-                  color: "var(--neutral-500)",
-                  fontWeight: "600",
-                }}
-              >
+          <div className="payments-kpi-grid">
+            <button
+              type="button"
+              onClick={() => setMethodFilter("ALL")}
+              className={`payments-kpi-card ${
+                methodFilter === "ALL" ? "is-selected" : ""
+              }`}
+              title="Hiển thị tất cả kênh thanh toán"
+            >
+              <div className="payments-kpi-label">
                 {isDeposits
-                  ? "TỔNG TIỀN CỌC ĐÃ NHẬN"
+                  ? "Tổng tiền cọc đã nhận"
                   : isIncidents
-                    ? "TỔNG TIỀN SỬA CHỮA ĐÃ THU"
-                    : "TỔNG DÒNG TIỀN THỰC THU"}
+                    ? "Tổng tiền sửa chữa đã thu"
+                    : "Tổng dòng tiền thực thu"}
               </div>
               <div
-                className="tnum"
-                style={{
-                  fontSize: "1.6rem",
-                  fontWeight: "700",
-                  color: "var(--primary)",
-                  margin: "6px 0 2px 0",
-                  fontFamily: "var(--font-heading)",
-                }}
+                className="payments-kpi-value"
+                style={{ color: "var(--primary)" }}
               >
                 {formatCurrency(stats.total)}
               </div>
-              <div style={{ fontSize: "0.78rem", color: "var(--neutral-500)" }}>
+              <div className="payments-kpi-sub">
                 {isDeposits
                   ? `${stats.count} hợp đồng · giữ hộ người thuê, không tính doanh thu`
                   : isIncidents
                     ? `${stats.count} giao dịch · người thuê chi trả theo báo giá`
-                    : `${stats.count} giao dịch đã hoàn tất`}
+                    : `${stats.count} giao dịch đã ghi nhận`}
               </div>
-            </Card>
+            </button>
 
-            <Card>
+            <button
+              type="button"
+              onClick={() =>
+                setMethodFilter(methodFilter === "CASH" ? "ALL" : "CASH")
+              }
+              className={`payments-kpi-card ${
+                methodFilter === "CASH" ? "is-selected" : ""
+              }`}
+              title="Lọc giao dịch thu tiền mặt"
+            >
+              <div className="payments-kpi-label">Thu tiền mặt tại chỗ</div>
               <div
-                style={{
-                  fontSize: "0.82rem",
-                  color: "var(--neutral-500)",
-                  fontWeight: "600",
-                }}
-              >
-                💵 THU TIỀN MẶT TẠI CHỖ (CASH)
-              </div>
-              <div
-                className="tnum"
-                style={{
-                  fontSize: "1.6rem",
-                  fontWeight: "700",
-                  color: "var(--neutral-900)",
-                  margin: "6px 0 2px 0",
-                  fontFamily: "var(--font-heading)",
-                }}
+                className="payments-kpi-value"
+                style={{ color: "var(--neutral-900)" }}
               >
                 {formatCurrency(stats.cash)}
               </div>
-              <div style={{ fontSize: "0.78rem", color: "var(--neutral-500)" }}>
+              <div className="payments-kpi-sub">
                 Thu ngân trực tiếp ký biên nhận
               </div>
-            </Card>
+            </button>
 
-            <Card>
+            <button
+              type="button"
+              onClick={() =>
+                setMethodFilter(methodFilter === "VIETQR" ? "ALL" : "VIETQR")
+              }
+              className={`payments-kpi-card ${
+                methodFilter === "VIETQR" ? "is-selected" : ""
+              }`}
+              title="Lọc giao dịch VietQR tự động"
+            >
+              <div className="payments-kpi-label">Qua VietQR tự động</div>
               <div
-                style={{
-                  fontSize: "0.82rem",
-                  color: "var(--neutral-500)",
-                  fontWeight: "600",
-                }}
-              >
-                📱 QUA VIETQR TỰ ĐỘNG
-              </div>
-              <div
-                className="tnum"
-                style={{
-                  fontSize: "1.6rem",
-                  fontWeight: "700",
-                  color: "var(--secondary)",
-                  margin: "6px 0 2px 0",
-                  fontFamily: "var(--font-heading)",
-                }}
+                className="payments-kpi-value"
+                style={{ color: "var(--secondary)" }}
               >
                 {formatCurrency(stats.vietqr)}
               </div>
-              <div style={{ fontSize: "0.78rem", color: "var(--neutral-500)" }}>
+              <div className="payments-kpi-sub">
                 Gạch nợ tức thời qua Webhook
               </div>
-            </Card>
+            </button>
 
-            <Card>
+            <button
+              type="button"
+              onClick={() =>
+                setMethodFilter(
+                  methodFilter === "BANK_TRANSFER" ? "ALL" : "BANK_TRANSFER",
+                )
+              }
+              className={`payments-kpi-card ${
+                methodFilter === "BANK_TRANSFER" ? "is-selected" : ""
+              }`}
+              title="Lọc giao dịch chuyển khoản trực tiếp"
+            >
+              <div className="payments-kpi-label">Chuyển khoản trực tiếp</div>
               <div
-                style={{
-                  fontSize: "0.82rem",
-                  color: "var(--neutral-500)",
-                  fontWeight: "600",
-                }}
-              >
-                🏦 CHUYỂN KHOẢN TRỰC TIẾP
-              </div>
-              <div
-                className="tnum"
-                style={{
-                  fontSize: "1.6rem",
-                  fontWeight: "700",
-                  color: "var(--neutral-700)",
-                  margin: "6px 0 2px 0",
-                  fontFamily: "var(--font-heading)",
-                }}
+                className="payments-kpi-value"
+                style={{ color: "var(--neutral-700)" }}
               >
                 {formatCurrency(stats.bank)}
               </div>
-              <div style={{ fontSize: "0.78rem", color: "var(--neutral-500)" }}>
-                Đối soát sao kê thủ công
-              </div>
-            </Card>
+              <div className="payments-kpi-sub">Đối soát sao kê thủ công</div>
+            </button>
           </div>
 
           {/* Filter Toolbar */}
-          <Card style={{ padding: "14px 18px" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-                gap: "12px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  flexWrap: "wrap",
-                }}
-              >
-                {/* Payment Method Filter */}
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "6px" }}
-                >
-                  <span
-                    style={{ fontSize: "0.85rem", color: "var(--neutral-600)" }}
+          <div className="payments-filter-card">
+            <div className="payments-filter-row">
+              <div className="payments-search-box">
+                <Search size={15} className="payments-search-icon" />
+                <input
+                  type="text"
+                  className="payments-search-input"
+                  placeholder="Tìm mã giao dịch, mã hóa đơn/HĐ, người nộp, nội dung..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    className="payments-search-clear"
+                    onClick={() => setSearchTerm("")}
+                    title="Xóa từ khóa"
+                    aria-label="Xóa từ khóa"
                   >
-                    Kênh thu:
-                  </span>
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              <div className="payments-controls-group">
+                <label
+                  className={`payments-filter-field ${
+                    methodFilter !== "ALL" ? "is-filtered" : ""
+                  }`}
+                >
+                  <span className="payments-filter-field-label">Kênh thu:</span>
                   <select
+                    className="payments-select-clean"
+                    aria-label="Lọc theo kênh thu"
                     value={methodFilter}
                     onChange={(e) => setMethodFilter(e.target.value)}
-                    style={{ width: "170px" }}
                   >
                     <option value="ALL">Tất cả hình thức</option>
                     <option value="CASH">Tiền mặt (CASH)</option>
@@ -406,31 +436,80 @@ export function PaymentHistoryList() {
                     <option value="BANK_TRANSFER">Chuyển khoản thường</option>
                     <option value="DEPOSIT">Trừ tiền cọc</option>
                   </select>
-                </div>
-              </div>
+                </label>
 
-              {/* Search box & Refresh */}
-              <div
-                style={{ display: "flex", gap: "8px", alignItems: "center" }}
-              >
-                <input
-                  type="text"
-                  placeholder="🔍 Tìm mã giao dịch, mã hóa đơn..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  style={{ minWidth: "240px" }}
-                />
+                <label
+                  className={`payments-filter-field ${
+                    statusFilter !== "ALL" ? "is-filtered" : ""
+                  }`}
+                >
+                  <span className="payments-filter-field-label">
+                    Trạng thái:
+                  </span>
+                  <select
+                    className="payments-select-clean"
+                    aria-label="Lọc theo trạng thái giao dịch"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                  >
+                    <option value="ALL">Tất cả trạng thái</option>
+                    <option value="SUCCESS">Thành công</option>
+                    <option value="PENDING_CONFIRMATION">
+                      Chờ duyệt thu tiền
+                    </option>
+                    <option value="FAILED">Đã từ chối / Lỗi</option>
+                  </select>
+                </label>
+
+                {activeChips.length > 0 && (
+                  <button
+                    type="button"
+                    className="payments-btn-reset"
+                    onClick={resetFilters}
+                    title="Đặt lại bộ lọc"
+                  >
+                    <RotateCcw size={14} />
+                    <span>Xóa lọc ({activeChips.length})</span>
+                  </button>
+                )}
+
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => loadPayments()}
                   loading={loading}
+                  title="Làm mới dữ liệu"
                 >
-                  🔄
+                  <RefreshCw size={14} />
+                  <span>Làm mới</span>
                 </Button>
               </div>
             </div>
-          </Card>
+
+            {activeChips.length > 0 && (
+              <div className="payments-result-meta">
+                <div className="payments-chips-list">
+                  <span>Đang lọc:</span>
+                  {activeChips.map((chip) => (
+                    <span key={chip.key} className="payments-chip">
+                      <span>{chip.label}</span>
+                      <button
+                        type="button"
+                        onClick={chip.onClear}
+                        aria-label={`Bỏ lọc ${chip.label}`}
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <span>
+                  Hiển thị <strong>{filteredPayments.length}</strong> /{" "}
+                  <strong>{payments.length}</strong> giao dịch
+                </span>
+              </div>
+            )}
+          </div>
 
           {/* Payments Table */}
           <div className="table-wrapper">
@@ -452,50 +531,33 @@ export function PaymentHistoryList() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td
-                      colSpan="10"
-                      style={{
-                        textAlign: "center",
-                        padding: "40px",
-                        color: "var(--neutral-500)",
-                      }}
-                    >
-                      ⏳ Đang tải dữ liệu sổ quỹ từ máy chủ...
+                    <td colSpan="10" className="payments-empty-cell">
+                      <div className="payments-loading-inline">
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>Đang tải dữ liệu sổ quỹ từ máy chủ...</span>
+                      </div>
                     </td>
                   </tr>
                 ) : filteredPayments.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan="10"
-                      style={{ textAlign: "center", padding: "48px 20px" }}
-                    >
-                      <div style={{ fontSize: "1.8rem", marginBottom: "8px" }}>
-                        📭
+                    <td colSpan="10" className="payments-empty-cell">
+                      <div className="payments-empty-title">
+                        {activeChips.length > 0
+                          ? "Không có giao dịch nào khớp với bộ lọc"
+                          : isDeposits
+                            ? "Chưa có khoản tiền cọc nào"
+                            : isIncidents
+                              ? "Chưa có khoản thu tiền sửa chữa nào"
+                              : "Chưa có giao dịch thu tiền nào"}
                       </div>
-                      <div
-                        style={{
-                          fontWeight: "600",
-                          color: "var(--neutral-700)",
-                        }}
-                      >
-                        {isDeposits
-                          ? "Chưa có khoản tiền cọc nào"
-                          : isIncidents
-                            ? "Chưa có khoản thu tiền sửa chữa nào"
-                            : "Chưa có giao dịch thu tiền nào"}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "0.85rem",
-                          color: "var(--neutral-500)",
-                          marginTop: "4px",
-                        }}
-                      >
-                        {isDeposits
-                          ? "Tiền cọc nhận qua chuyển khoản hoặc do chủ trọ xác nhận trong hợp đồng sẽ hiển thị tại đây."
-                          : isIncidents
-                            ? "Hóa đơn sửa chữa sự cố (người thuê chịu phí) trả bằng chuyển khoản hoặc tiền mặt sẽ hiển thị tại đây."
-                            : "Các giao dịch thanh toán qua VietQR hoặc thu tiền mặt sẽ tự động hiển thị tại đây."}
+                      <div className="payments-empty-desc">
+                        {activeChips.length > 0
+                          ? "Thử xóa bớt điều kiện tìm kiếm hoặc đổi kênh thu để xem thêm giao dịch."
+                          : isDeposits
+                            ? "Tiền cọc nhận qua chuyển khoản hoặc do chủ trọ xác nhận trong hợp đồng sẽ hiển thị tại đây."
+                            : isIncidents
+                              ? "Hóa đơn sửa chữa sự cố (người thuê chịu phí) trả bằng chuyển khoản hoặc tiền mặt sẽ hiển thị tại đây."
+                              : "Các giao dịch thanh toán qua VietQR hoặc thu tiền mặt sẽ tự động hiển thị tại đây."}
                       </div>
                     </td>
                   </tr>
@@ -521,40 +583,17 @@ export function PaymentHistoryList() {
                       "";
                     return (
                       <tr key={rowId}>
-                        <td
-                          style={{
-                            fontWeight: "700",
-                            fontFamily: "monospace",
-                            color: "var(--neutral-900)",
-                          }}
-                        >
-                          {p.referenceCode}
-                        </td>
+                        <td className="payments-ref-code">{p.referenceCode}</td>
                         <td>
-                          <strong>{roomLabel}</strong>
+                          <span className="payments-room-pill">{roomLabel}</span>
                           {branchLabel && (
-                            <span
-                              style={{
-                                color: "var(--neutral-500)",
-                                fontSize: "0.78rem",
-                                marginLeft: "4px",
-                              }}
-                            >
-                              ({branchLabel})
-                            </span>
+                            <div className="payments-branch-sub">
+                              {branchLabel}
+                            </div>
                           )}
                         </td>
                         <td>
-                          <span
-                            style={{
-                              fontWeight: "600",
-                              color: "var(--primary)",
-                              backgroundColor: "var(--primary-subtle)",
-                              padding: "2px 6px",
-                              borderRadius: "4px",
-                              fontSize: "0.82rem",
-                            }}
-                          >
+                          <span className="payments-doc-code">
                             {isDeposits ? p.contractCode : p.invoiceCode}
                           </span>
                         </td>
@@ -565,14 +604,25 @@ export function PaymentHistoryList() {
                             {methodMeta.label}
                           </Badge>
                         </td>
-                        <td style={{ color: "var(--neutral-600)" }}>
+                        <td
+                          style={{
+                            color: "var(--neutral-600)",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
                           {formatDate(p.transactionDate || p.createdAt, true)}
                         </td>
                         <td>
                           <div style={{ fontWeight: "600" }}>{payer.name}</div>
-                          <div style={{ fontSize: "0.78rem", color: "var(--neutral-500)" }}>
+                          <div
+                            style={{
+                              fontSize: "0.78rem",
+                              color: "var(--neutral-500)",
+                            }}
+                          >
                             {[
-                              payer.onBehalfOf && `Nộp thay cho ${payer.onBehalfOf}`,
+                              payer.onBehalfOf &&
+                                `Nộp thay cho ${payer.onBehalfOf}`,
                               payer.phone,
                               payer.place,
                             ]
@@ -591,11 +641,25 @@ export function PaymentHistoryList() {
                             </div>
                           )}
                         </td>
-                        <td style={{ fontSize: "0.82rem", color: "var(--neutral-600)" }}>
+                        <td
+                          style={{
+                            fontSize: "0.82rem",
+                            color: "var(--neutral-600)",
+                          }}
+                        >
                           {paymentHandlers(p).map((line) => (
                             <div key={line.label}>
-                              <span style={{ color: "var(--neutral-500)" }}>{line.label}: </span>
-                              <span style={{ fontWeight: 500, color: "var(--neutral-800)" }}>{line.value}</span>
+                              <span style={{ color: "var(--neutral-500)" }}>
+                                {line.label}:{" "}
+                              </span>
+                              <span
+                                style={{
+                                  fontWeight: 500,
+                                  color: "var(--neutral-800)",
+                                }}
+                              >
+                                {line.value}
+                              </span>
                             </div>
                           ))}
                         </td>
@@ -603,10 +667,13 @@ export function PaymentHistoryList() {
                           style={{
                             textAlign: "right",
                             fontWeight: "700",
-                            // Only SUCCESS reached the invoice; pending / rejected rows are not money in.
-                            color: statusMeta.counted ? "var(--success)" : "var(--neutral-500)",
-                            textDecoration: p.status === "FAILED" ? "line-through" : undefined,
+                            color: statusMeta.counted
+                              ? "var(--success)"
+                              : "var(--neutral-500)",
+                            textDecoration:
+                              p.status === "FAILED" ? "line-through" : undefined,
                             fontSize: "0.95rem",
+                            whiteSpace: "nowrap",
                           }}
                           className="tnum"
                         >
@@ -622,7 +689,9 @@ export function PaymentHistoryList() {
                               flexWrap: "wrap",
                             }}
                           >
-                            <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
+                            <Badge variant={statusMeta.variant}>
+                              {statusMeta.label}
+                            </Badge>
                             {canReviewCashReports &&
                               p.status === "PENDING_CONFIRMATION" && (
                                 <>
@@ -650,23 +719,33 @@ export function PaymentHistoryList() {
                               )}
                           </div>
                           {p.status === "FAILED" && p.reviewNote && (
-                            <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", marginTop: "4px" }}>
+                            <div
+                              style={{
+                                fontSize: "0.75rem",
+                                color: "var(--neutral-500)",
+                                marginTop: "4px",
+                              }}
+                            >
                               Lý do: {p.reviewNote}
                             </div>
                           )}
                         </td>
                         <td style={{ textAlign: "right" }}>
                           {p.status === "SUCCESS" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
+                            <button
+                              type="button"
+                              className="payments-print-btn"
                               onClick={() => {
                                 if (!printReceipt(p))
-                                  toast.error("Trình duyệt đã chặn cửa sổ in, hãy cho phép popup rồi thử lại.");
+                                  toast.error(
+                                    "Trình duyệt đã chặn cửa sổ in, hãy cho phép popup rồi thử lại.",
+                                  );
                               }}
+                              title="In biên nhận giao dịch"
                             >
-                              🖨 In
-                            </Button>
+                              <Printer size={14} />
+                              <span>In</span>
+                            </button>
                           )}
                         </td>
                       </tr>
@@ -691,8 +770,19 @@ export function PaymentHistoryList() {
             : ""
         }
         footer={
-          <div style={{ display: "flex", gap: "10px", width: "100%", justifyContent: "flex-end" }}>
-            <Button variant="outline" onClick={() => setRejecting(null)} disabled={!!reviewingId}>
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              width: "100%",
+              justifyContent: "flex-end",
+            }}
+          >
+            <Button
+              variant="outline"
+              onClick={() => setRejecting(null)}
+              disabled={!!reviewingId}
+            >
               Hủy
             </Button>
             <Button
@@ -706,7 +796,14 @@ export function PaymentHistoryList() {
           </div>
         }
       >
-        <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "6px" }}>
+        <label
+          style={{
+            display: "block",
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            marginBottom: "6px",
+          }}
+        >
           Lý do từ chối
         </label>
         <textarea
@@ -717,8 +814,15 @@ export function PaymentHistoryList() {
           placeholder="VD: Chưa nhận được tiền từ quản lý, sai số tiền..."
           style={{ width: "100%" }}
         />
-        <p style={{ fontSize: "0.78rem", color: "var(--neutral-500)", marginTop: "6px" }}>
-          Hóa đơn không thay đổi. Quản lý có thể báo thu lại bằng số biên lai khác.
+        <p
+          style={{
+            fontSize: "0.78rem",
+            color: "var(--neutral-500)",
+            marginTop: "6px",
+          }}
+        >
+          Hóa đơn không thay đổi. Quản lý có thể báo thu lại bằng số biên lai
+          khác.
         </p>
       </Modal>
     </div>

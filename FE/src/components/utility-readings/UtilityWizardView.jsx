@@ -11,10 +11,10 @@ import {
 import { Button } from "../ui";
 
 export default function UtilityWizardView({
+  filteredItems,
   activeItem,
   currentIndex,
   setCurrentIndex,
-  filteredLength,
   getItemValues,
   handleInputChange,
   submitting,
@@ -35,14 +35,49 @@ export default function UtilityWizardView({
       ? Number(vals.waterNewIndex) - activeItem.previousWaterIndex
       : null;
 
+  const invalidElectric = elecDiff !== null && elecDiff < 0;
+  const invalidWater = waterDiff !== null && waterDiff < 0;
   const isLocked = activeItem.reading?.isBilled;
 
   return (
     <div className="util-wizard-box">
+      {/* Quick Room Jump Strip for one-handed hallway navigation */}
+      {filteredItems.length > 1 && (
+        <div
+          className="util-room-strip"
+          role="navigation"
+          aria-label="Chọn nhanh phòng"
+        >
+          {filteredItems.map((it, idx) => {
+            const isCurrent = idx === currentIndex;
+            const stateClass = it.reading?.isBilled
+              ? "is-billed"
+              : it.reading
+                ? "is-recorded"
+                : "";
+            return (
+              <button
+                key={it.room.id}
+                type="button"
+                className={`util-room-chip ${stateClass} ${isCurrent ? "is-active" : ""}`}
+                onClick={() => setCurrentIndex(idx)}
+              >
+                {it.reading?.isBilled ? (
+                  <Lock size={11} />
+                ) : it.reading ? (
+                  <CheckCircle2 size={11} />
+                ) : null}
+                <span>P.{it.room.roomNumber}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="util-wizard-header">
         <div>
           <div className="util-wizard-room-title">
-            Phòng {activeItem.room.roomNumber}
+            <span>Phòng {activeItem.room.roomNumber}</span>
             <span
               style={{
                 fontSize: "12px",
@@ -56,64 +91,24 @@ export default function UtilityWizardView({
               Tầng {activeItem.room.floor}
             </span>
             {activeItem.reading?.isBilled ? (
-              <span
-                style={{
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  padding: "2px 10px",
-                  borderRadius: "9999px",
-                  background: "#f5f3ff",
-                  color: "#7c3aed",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px",
-                }}
-              >
+              <span className="util-status-pill is-billed">
                 <Lock size={12} /> Đã khóa sổ HĐ
               </span>
             ) : activeItem.reading ? (
-              <span
-                style={{
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  padding: "2px 10px",
-                  borderRadius: "9999px",
-                  background: "#ecfdf5",
-                  color: "#059669",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px",
-                }}
-              >
+              <span className="util-status-pill is-recorded">
                 <CheckCircle2 size={12} /> Đã ghi số
               </span>
             ) : (
-              <span
-                style={{
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  padding: "2px 10px",
-                  borderRadius: "9999px",
-                  background: "#fffbeb",
-                  color: "#d97706",
-                }}
-              >
-                Chưa chốt
-              </span>
+              <span className="util-status-pill is-pending">Chưa chốt</span>
             )}
           </div>
-          <span
-            style={{
-              fontSize: "13px",
-              color: "var(--util-text-muted)",
-            }}
-          >
-            Phòng {currentIndex + 1} / {filteredLength}
+          <span className="util-wizard-counter">
+            Phòng {currentIndex + 1} / {filteredItems.length}
           </span>
         </div>
 
-        {/* Pagination Controls */}
-        <div style={{ display: "flex", gap: "8px" }}>
+        {/* Desktop Pagination Controls */}
+        <div className="util-wizard-nav-desktop">
           <Button
             variant="secondary"
             compact
@@ -125,9 +120,11 @@ export default function UtilityWizardView({
           <Button
             variant="secondary"
             compact
-            disabled={currentIndex === filteredLength - 1}
+            disabled={currentIndex >= filteredItems.length - 1}
             onClick={() =>
-              setCurrentIndex((prev) => Math.min(filteredLength - 1, prev + 1))
+              setCurrentIndex((prev) =>
+                Math.min(filteredItems.length - 1, prev + 1),
+              )
             }
           >
             Phòng kế tiếp <ChevronRight size={16} />
@@ -136,252 +133,281 @@ export default function UtilityWizardView({
       </div>
 
       {/* Meter Input Cards */}
-      <div>
-        <div className="util-meter-card-grid">
-          {/* 1. Electric Meter Card */}
-          <div className="util-meter-card electric">
-            <div className="util-meter-title">
+      <div className="util-meter-card-grid">
+        {/* 1. Electric Meter Card */}
+        <div className="util-meter-card electric">
+          <div className="util-meter-title">
+            <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <Zap size={17} color="#d97706" />
+              Đồng hồ Điện (kWh)
+            </span>
+            {elecDiff !== null && (
               <span
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                }}
+                className={`util-consumed-badge ${
+                  elecDiff >= 0 ? "positive" : "danger"
+                }`}
               >
-                <Zap size={18} color="#d97706" />
-                Đồng hồ Điện (kWh)
+                {elecDiff >= 0
+                  ? `Tiêu thụ: +${elecDiff} kWh`
+                  : `Nhỏ hơn số cũ (${elecDiff})`}
               </span>
-              {elecDiff !== null && (
-                <span
-                  className={`util-consumed-badge ${
-                    elecDiff >= 0 ? "positive" : "warning"
-                  }`}
-                >
-                  Tiêu thụ: {elecDiff >= 0 ? `+${elecDiff}` : elecDiff} kWh
-                </span>
-              )}
-            </div>
+            )}
+          </div>
 
-            <div className="util-index-row">
-              <div className="util-index-box">
-                <span className="util-index-label">Chỉ số cũ</span>
-                <div className="util-old-val">
-                  {activeItem.previousElectricIndex}
-                </div>
-              </div>
-              <div className="util-index-box">
-                <span className="util-index-label">Chỉ số mới</span>
-                <input
-                  type="number"
-                  min={activeItem.previousElectricIndex}
-                  className="util-new-input"
-                  placeholder="Nhập số mới..."
-                  disabled={isLocked || submitting}
-                  value={vals.electricNewIndex}
-                  onChange={(e) =>
-                    handleInputChange(
-                      activeItem.room.id,
-                      "electricNewIndex",
-                      e.target.value,
-                    )
-                  }
-                />
+          <div className="util-index-row">
+            <div className="util-index-box">
+              <span className="util-index-label">Chỉ số cũ</span>
+              <div className="util-old-val">
+                {activeItem.previousElectricIndex}
               </div>
             </div>
-
-            {/* Image Link Input */}
-            <div className="util-image-field">
-              <Camera size={16} color="var(--util-text-muted)" />
+            <div className="util-index-box">
+              <span className="util-index-label">Chỉ số mới</span>
               <input
-                type="url"
-                placeholder="Link ảnh công tơ điện (http://...)"
+                type="number"
+                inputMode="numeric"
+                enterKeyHint={isMeterWater ? "next" : "done"}
+                min={activeItem.previousElectricIndex}
+                className={`util-new-input ${invalidElectric ? "is-invalid" : ""}`}
+                placeholder="Nhập số mới..."
                 disabled={isLocked || submitting}
-                value={vals.electricImage}
+                value={vals.electricNewIndex}
                 onChange={(e) =>
                   handleInputChange(
                     activeItem.room.id,
-                    "electricImage",
+                    "electricNewIndex",
                     e.target.value,
                   )
                 }
               />
-              {vals.electricImage && (
-                <a
-                  href={vals.electricImage}
-                  target="_blank"
-                  rel="noreferrer"
-                  title="Xem ảnh"
-                  style={{ color: "var(--util-primary-container)" }}
-                >
-                  <ExternalLink size={16} />
-                </a>
-              )}
             </div>
           </div>
 
-          {/* 2. Water Meter Card */}
-          <div className="util-meter-card water">
-            <div className="util-meter-title">
-              <span
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                }}
-              >
-                <Droplets size={18} color="#0284c7" />
-                Đồng hồ Nước (m³)
-              </span>
-              {isMeterWater ? (
-                waterDiff !== null && (
-                  <span
-                    className={`util-consumed-badge ${
-                      waterDiff >= 0 ? "positive" : "warning"
-                    }`}
-                  >
-                    Tiêu thụ: {waterDiff >= 0 ? `+${waterDiff}` : waterDiff} m³
-                  </span>
-                )
-              ) : (
-                <span
-                  style={{
-                    fontSize: "11px",
-                    padding: "2px 8px",
-                    borderRadius: "4px",
-                    background: "#f1f5f9",
-                    color: "#475569",
-                  }}
-                >
-                  {activeItem.waterBillingType === "PER_PERSON"
-                    ? "Tính theo đầu người"
-                    : "Khoán trọn gói"}
-                </span>
-              )}
+          {invalidElectric && (
+            <div className="util-input-error">
+              Chỉ số điện mới phải lớn hơn hoặc bằng{" "}
+              {activeItem.previousElectricIndex}.
             </div>
+          )}
 
-            {isMeterWater ? (
-              <>
-                <div className="util-index-row">
-                  <div className="util-index-box">
-                    <span className="util-index-label">Chỉ số cũ</span>
-                    <div className="util-old-val">
-                      {activeItem.previousWaterIndex}
-                    </div>
-                  </div>
-                  <div className="util-index-box">
-                    <span className="util-index-label">Chỉ số mới</span>
-                    <input
-                      type="number"
-                      min={activeItem.previousWaterIndex}
-                      className="util-new-input"
-                      placeholder="Nhập số mới..."
-                      disabled={isLocked || submitting}
-                      value={vals.waterNewIndex}
-                      onChange={(e) =>
-                        handleInputChange(
-                          activeItem.room.id,
-                          "waterNewIndex",
-                          e.target.value,
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="util-image-field">
-                  <Camera size={16} color="var(--util-text-muted)" />
-                  <input
-                    type="url"
-                    placeholder="Link ảnh công tơ nước (http://...)"
-                    disabled={isLocked || submitting}
-                    value={vals.waterImage}
-                    onChange={(e) =>
-                      handleInputChange(
-                        activeItem.room.id,
-                        "waterImage",
-                        e.target.value,
-                      )
-                    }
-                  />
-                  {vals.waterImage && (
-                    <a
-                      href={vals.waterImage}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Xem ảnh"
-                      style={{ color: "var(--util-primary-container)" }}
-                    >
-                      <ExternalLink size={16} />
-                    </a>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div
+          <div className="util-image-field">
+            <Camera
+              size={16}
+              color="var(--util-text-muted)"
+              style={{ flexShrink: 0 }}
+            />
+            <input
+              type="url"
+              placeholder="Link ảnh công tơ điện (tùy chọn)"
+              disabled={isLocked || submitting}
+              value={vals.electricImage}
+              onChange={(e) =>
+                handleInputChange(
+                  activeItem.room.id,
+                  "electricImage",
+                  e.target.value,
+                )
+              }
+            />
+            {vals.electricImage && (
+              <a
+                href={vals.electricImage}
+                target="_blank"
+                rel="noreferrer"
+                title="Xem ảnh"
                 style={{
-                  padding: "24px 16px",
-                  background: "#ffffff",
-                  borderRadius: "8px",
-                  textAlign: "center",
-                  fontSize: "13px",
-                  color: "var(--util-text-muted)",
-                  border: "1px dashed var(--util-border)",
+                  color: "var(--util-primary-container)",
+                  flexShrink: 0,
                 }}
               >
-                Phòng này áp dụng hình thức{" "}
-                <strong>
-                  {activeItem.waterBillingType === "PER_PERSON"
-                    ? "thu tiền nước theo đầu người"
-                    : "thu khoán trọn gói theo phòng"}
-                </strong>
-                . Không cần chốt chỉ số đồng hồ nước.
-              </div>
+                <ExternalLink size={16} />
+              </a>
             )}
           </div>
         </div>
 
-        {/* Action Bar */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            paddingTop: "14px",
-            borderTop: "1px solid var(--util-border)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "13px",
-              color: "var(--util-text-muted)",
-            }}
-          >
-            {isLocked ? (
-              <span style={{ color: "#7c3aed" }}>
-                Bản chốt số này đã lập hóa đơn, không thể chỉnh sửa.
-              </span>
+        {/* 2. Water Meter Card */}
+        <div className="util-meter-card water">
+          <div className="util-meter-title">
+            <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <Droplets size={17} color="#0284c7" />
+              Đồng hồ Nước (m³)
+            </span>
+            {isMeterWater ? (
+              waterDiff !== null && (
+                <span
+                  className={`util-consumed-badge ${
+                    waterDiff >= 0 ? "positive" : "danger"
+                  }`}
+                >
+                  {waterDiff >= 0
+                    ? `Tiêu thụ: +${waterDiff} m³`
+                    : `Nhỏ hơn số cũ (${waterDiff})`}
+                </span>
+              )
             ) : (
-              <span>
-                Dữ liệu sẽ tự động đồng bộ sang hóa đơn nháp kỳ {billingPeriod}.
+              <span
+                style={{
+                  fontSize: "11px",
+                  padding: "2px 8px",
+                  borderRadius: "4px",
+                  background: "#f1f5f9",
+                  color: "#475569",
+                }}
+              >
+                {activeItem.waterBillingType === "PER_PERSON"
+                  ? "Tính theo đầu người"
+                  : "Khoán trọn gói"}
               </span>
             )}
           </div>
 
-          {!isLocked && (
-            <div style={{ display: "flex", gap: "10px" }}>
-              <Button
-                busy={submitting}
-                onClick={() => submitReading(activeItem)}
-              >
-                {activeItem.reading
-                  ? "Cập nhật chỉ số"
-                  : "Lưu & Sang phòng tiếp"}
-              </Button>
+          {isMeterWater ? (
+            <>
+              <div className="util-index-row">
+                <div className="util-index-box">
+                  <span className="util-index-label">Chỉ số cũ</span>
+                  <div className="util-old-val">
+                    {activeItem.previousWaterIndex}
+                  </div>
+                </div>
+                <div className="util-index-box">
+                  <span className="util-index-label">Chỉ số mới</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    enterKeyHint="done"
+                    min={activeItem.previousWaterIndex}
+                    className={`util-new-input ${invalidWater ? "is-invalid" : ""}`}
+                    placeholder="Nhập số mới..."
+                    disabled={isLocked || submitting}
+                    value={vals.waterNewIndex}
+                    onChange={(e) =>
+                      handleInputChange(
+                        activeItem.room.id,
+                        "waterNewIndex",
+                        e.target.value,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              {invalidWater && (
+                <div className="util-input-error">
+                  Chỉ số nước mới phải lớn hơn hoặc bằng{" "}
+                  {activeItem.previousWaterIndex}.
+                </div>
+              )}
+
+              <div className="util-image-field">
+                <Camera
+                  size={16}
+                  color="var(--util-text-muted)"
+                  style={{ flexShrink: 0 }}
+                />
+                <input
+                  type="url"
+                  placeholder="Link ảnh công tơ nước (tùy chọn)"
+                  disabled={isLocked || submitting}
+                  value={vals.waterImage}
+                  onChange={(e) =>
+                    handleInputChange(
+                      activeItem.room.id,
+                      "waterImage",
+                      e.target.value,
+                    )
+                  }
+                />
+                {vals.waterImage && (
+                  <a
+                    href={vals.waterImage}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Xem ảnh"
+                    style={{
+                      color: "var(--util-primary-container)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <ExternalLink size={16} />
+                  </a>
+                )}
+              </div>
+            </>
+          ) : (
+            <div
+              style={{
+                padding: "22px 14px",
+                background: "#ffffff",
+                borderRadius: "8px",
+                textAlign: "center",
+                fontSize: "13px",
+                color: "var(--util-text-muted)",
+                border: "1px dashed var(--util-border)",
+              }}
+            >
+              Phòng này áp dụng hình thức{" "}
+              <strong>
+                {activeItem.waterBillingType === "PER_PERSON"
+                  ? "thu tiền nước theo đầu người"
+                  : "thu khoán trọn gói theo phòng"}
+              </strong>
+              . Không cần chốt chỉ số đồng hồ nước.
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Action Bar (with dedicated Mobile thumb controls) */}
+      <div className="util-wizard-footer">
+        <div className="util-wizard-hint">
+          {isLocked ? (
+            <span style={{ color: "#475569", fontWeight: 600 }}>
+              Bản chốt số này đã lập hóa đơn, không thể chỉnh sửa.
+            </span>
+          ) : (
+            <span>
+              Dữ liệu sẽ tự động đồng bộ sang hóa đơn nháp kỳ {billingPeriod}.
+            </span>
+          )}
+        </div>
+
+        {!isLocked && (
+          <div className="util-wizard-submit-group">
+            <Button
+              busy={submitting}
+              disabled={invalidElectric || invalidWater}
+              onClick={() => submitReading(activeItem)}
+            >
+              {activeItem.reading
+                ? "Cập nhật chỉ số"
+                : "Lưu & Sang phòng tiếp"}
+            </Button>
+          </div>
+        )}
+
+        <div className="util-wizard-mobile-nav">
+          <Button
+            variant="secondary"
+            disabled={currentIndex === 0}
+            onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+          >
+            <ChevronLeft size={16} /> Phòng trước
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={currentIndex >= filteredItems.length - 1}
+            onClick={() =>
+              setCurrentIndex((prev) =>
+                Math.min(filteredItems.length - 1, prev + 1),
+              )
+            }
+          >
+            Phòng kế tiếp <ChevronRight size={16} />
+          </Button>
         </div>
       </div>
     </div>
   );
 }
-

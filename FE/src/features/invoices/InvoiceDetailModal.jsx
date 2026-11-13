@@ -34,6 +34,7 @@ export function InvoiceDetailModal({
   onOpenCancelInvoice,
   onInvoiceUpdated,
   role,
+  permissions,
 }) {
   const { toast } = useToast();
   const [payments, setPayments] = useState([]);
@@ -60,7 +61,7 @@ export function InvoiceDetailModal({
 
   if (!invoice) return null;
 
-  const perms = invoicePermissions(role);
+  const perms = invoicePermissions(role, permissions);
   const isPayable = PAYABLE_STATUSES.includes(invoice.status);
   const statusMeta = getInvoiceStatusMeta(invoice.status, invoice.isOverdue);
   const invoiceId = invoice.id || invoice._id;

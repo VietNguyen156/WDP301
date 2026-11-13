@@ -53,7 +53,7 @@ export function useInvoiceList(externalSearchTerm = "") {
 
   const [params] = useSearchParams();
   const activeSearch = externalSearchTerm || params.get("search") || "";
-  const perms = invoicePermissions(user?.role);
+  const perms = invoicePermissions(user?.role, user?.permissions);
   const canGenerateInvoices = perms.canGenerate;
   const header = INVOICE_HEADER[user?.role] || INVOICE_HEADER.LANDLORD;
 

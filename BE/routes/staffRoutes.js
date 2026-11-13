@@ -8,4 +8,6 @@ router.use((req, res, next) => {
 });
 router.route("/").get(controller.listStaff).post(controller.createStaff);
 router.post("/:staffId/reset-password", controller.resetStaffPassword);
+router.put("/:staffId/permissions", controller.updateStaffPermissions);
+router.put("/:staffId/lock", controller.setStaffLock);
 module.exports = router;

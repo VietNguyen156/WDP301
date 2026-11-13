@@ -764,6 +764,33 @@
   min-width: 0;
 }
 
+/* CCCD checked while typing (ContractForm): wrong format, repeated, or on a running contract. */
+.cccd-input-invalid,
+.field input.cccd-input-invalid {
+  border-color: #dc2626 !important;
+  background: #fef2f2;
+}
+
+.cccd-input-invalid:focus {
+  outline: 2px solid rgba(220, 38, 38, 0.25);
+  outline-offset: 0;
+}
+
+.cccd-field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #b91c1c;
+}
+
+.cccd-field-error svg {
+  flex: none;
+  margin-top: 2px;
+}
+
 .form-grid-2col {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1823,6 +1850,390 @@
   }
 
   .contracts-btn-reset {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ==========================================================================
+   11. Contract Settlement & Termination Modal Redesign
+   ========================================================================== */
+.settlement-workflow {
+  padding: 20px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #f8fafc;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: calc(90vh - 90px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.settlement-workflow > * {
+  flex-shrink: 0;
+}
+
+.settlement-workflow::-webkit-scrollbar {
+  width: 6px;
+}
+
+.settlement-workflow::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.settlement-workflow::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.45);
+  border-radius: 9999px;
+}
+
+.settlement-workflow::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.7);
+}
+
+.settlement-summary-banner {
+  background: linear-gradient(135deg, #f0fdfa 0%, #ffffff 70%);
+  border: 1px solid #ccfbf1;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settlement-summary-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.settlement-summary-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0f766e;
+  background: #ffffff;
+  border: 1px solid #99f6e4;
+  border-radius: 9999px;
+  padding: 4px 12px;
+}
+
+.settlement-summary-pill strong {
+  color: #005c55;
+  font-weight: 800;
+}
+
+.settlement-formula-line {
+  font-size: 13px;
+  font-weight: 600;
+  color: #131b2e;
+  line-height: 1.5;
+}
+
+.settlement-formula-note {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+}
+
+.settlement-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settlement-section {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.settlement-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.settlement-section-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.settlement-section-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.settlement-delta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settlement-delta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #15803d;
+}
+
+.settlement-delta-chip.is-invalid {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.settlement-proof-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.settlement-deduction-empty {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  font-size: 12.5px;
+  color: #64748b;
+  text-align: center;
+}
+
+.settlement-deduction-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settlement-deduction-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(120px, 0.7fr) minmax(0, 1.2fr) 36px;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.settlement-deduction-row input {
+  height: 36px;
+  padding: 6px 10px;
+  font-size: 13px;
+  background: #ffffff;
+}
+
+/* Compensation for an item from the contract's handover list: name, quantity, amount, photo. */
+.settlement-deduction-row.is-furnishing {
+  grid-template-columns: minmax(0, 1.3fr) 70px minmax(110px, 0.7fr) minmax(0, 1.1fr) 36px;
+}
+
+.settlement-deduction-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settlement-deduction-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.settlement-furnishing-picker {
+  height: 34px;
+  max-width: 260px;
+  padding: 0 10px;
+  border: 1px solid #0f766e;
+  border-radius: 8px;
+  background: #f0fdfa;
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settlement-inline-error {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #b91c1c;
+}
+
+.settlement-result-title {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--contracts-on-surface);
+}
+
+.settlement-calc-row.is-total {
+  font-weight: 700;
+  border-bottom-style: solid;
+}
+
+.settlement-due-box {
+  padding: 12px;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  background: #fffbeb;
+}
+
+.settlement-due-box > strong {
+  display: block;
+  font-size: 13px;
+  color: #b45309;
+}
+
+.settlement-due-box > p {
+  margin: 4px 0 8px;
+  font-size: 12.5px;
+  color: #92400e;
+}
+
+.settlement-due-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px dashed #fde68a;
+  font-size: 12.5px;
+}
+
+.settlement-deduction-remove {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+  background: #ffffff;
+  color: #dc2626;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.settlement-deduction-remove:hover {
+  background: #fef2f2;
+}
+
+.settlement-confirm-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 14px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.settlement-confirm-box.is-checked {
+  background: #f0fdfa;
+  border-color: #99f6e4;
+}
+
+input.settlement-confirm-checkbox {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  padding: 0;
+  margin: 2px 0 0;
+  border-radius: 4px;
+  accent-color: #005c55;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.settlement-confirm-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+  line-height: 1.45;
+}
+
+.settlement-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.settlement-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .settlement-workflow {
+    padding: 14px;
+    gap: 12px;
+    max-height: calc(94dvh - 80px);
+  }
+
+  .settlement-proof-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settlement-deduction-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .settlement-deduction-remove {
+    width: 100%;
+    height: 36px;
+  }
+
+  .settlement-footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .settlement-footer .button,
+  .settlement-footer-actions,
+  .settlement-footer-actions .button {
     width: 100%;
     justify-content: center;
   }

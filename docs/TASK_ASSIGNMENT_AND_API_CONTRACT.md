@@ -213,6 +213,7 @@ POST body:
   "waterBillingType": "METER",
   "defaultWaterPrice": 30000,
   "defaultServices": [{ "name": "Wifi", "price": 100000, "billingType": "PER_ROOM" }],
+  "defaultFurnishings": [{ "name": "Dieu hoa", "quantity": 1, "price": 7000000, "note": "Moi 100%" }],
   "billingCycleDay": 1,
   "paymentDueDays": 5
 }
@@ -235,11 +236,17 @@ POST bulk body:
 { "fromFloor": 1, "toFloor": 4, "fromRoomNumber": 101, "toRoomNumber": 105, "prefix": "P.", "basePrice": 3500000 }
 ```
 
+Vat dung ban giao kem phong (don gia den bu): `{ name, quantity (1-1000), price, note? }`, toi da 100 mon, ten khong trung (`INVALID_FURNISHINGS`).
+
+- Branch `defaultFurnishings`: danh muc chuan cho phong day du do.
+- Room `furnishingType: "UNFURNISHED" | "FURNISHED"` + `furnishings` (LANDLORD). Khong co `furnishings` -> dung danh muc co so; `PUT` voi `furnishings: null` -> bo danh muc rieng.
+
 ### 4.4 Contract va Tenant
 
 ```http
 GET  /api/v1/contracts?status=DRAFT|ACTIVE|EXPIRING_SOON|EXPIRED|TERMINATED&branchId=&search=&depositStatus=&confirmation=PENDING|CONFIRMED
 POST /api/v1/contracts                               (LANDLORD)
+GET  /api/v1/contracts/citizen-check?citizenIds=a,b  (LANDLORD, toi da 30 CCCD)
 GET  /api/v1/contracts/:contractId
 POST /api/v1/contracts/:contractId/confirm/landlord  (LANDLORD)
 POST /api/v1/contracts/:contractId/confirm/tenant    (TENANT dung ten)
@@ -277,6 +284,13 @@ POST body tao hop dong:
 - `cancel` `{ reason? }`: `TERMINATED` + `cancelledAt`, phong ve `EMPTY`, coc da nhan ghi `REFUNDED`. Hop dong da ky -> `409 CONTRACT_NOT_DRAFT`.
 - `renew` `{ endDate, rentalPrice?, notes? }`: them `renewals[]`, mo lai tai khoan khach neu dang tam khoa.
 - `deposit/received` `{ paymentMethod?: "CASH" | "BANK_TRANSFER", note? }`: `UNPAID -> PAID`, tao `Payment` `purpose: CONTRACT_DEPOSIT`, thong bao nguoi thue.
+- CCCD: moi CCCD chi mot hop dong con hieu luc voi moi chu tro. Trung trong cung hop dong -> `400 DUPLICATE_CITIZEN_ID`; dang co ten (khach / nguoi o cung) trong hop dong `DRAFT` / dang chay -> `422 CITIZEN_ID_ALREADY_RENTING`. `citizen-check` tra `items: [{ citizenId, contractCode, roomNumber, as: "TENANT" | "ROOMMATE" }]` de form bao loi khi dang nhap.
+- Tao hop dong chep `furnishingType` + `furnishings` dang ap dung cho phong vao hop dong (khong doi khi sua co so / phong ve sau).
+- `settlement` body: `{ terminationReason, forfeitDeposit?, actualEndDate, finalElectricIndex, finalWaterIndex, electricImage?, waterImage?, deductions: [{ reason, amount, evidenceImage?, furnishingName?, quantity? }], settlementNotes?, confirmedByBothParties: true }`.
+  - `terminationReason`: `EXPIRED` (tu `endDate` tro di) | `MUTUAL` | `TENANT_EARLY` | `TENANT_BREACH` | `LANDLORD_EARLY` (3 ly do truoc han: truoc `endDate`). Sai -> `SETTLEMENT_REASON_DATE`.
+  - `forfeitDeposit` chi voi `TENANT_BREACH` (`SETTLEMENT_FORFEIT_NOT_ALLOWED`): giu phan coc con du sau moi khoan, `settlement.forfeitedDeposit`.
+  - Den bu vat dung: `furnishingName` phai co trong `contract.furnishings`, tong so luong <= so da ban giao, so tien <= don gia x so luong (`SETTLEMENT_FURNISHING_UNKNOWN` / `_QUANTITY` / `_OVER_PRICE`).
+- `terminate` body `{ refundMethod?: "CASH" | "BANK_TRANSFER", refundNote? }`: chi sau khi da lap bien ban (`SETTLEMENT_NOT_PREPARED`) va thu du (`SETTLEMENT_BALANCE_DUE`); co tien hoan coc thi bat buoc `refundMethod` (`REFUND_METHOD_REQUIRED`). Ket qua: `TERMINATED`, phong `CLEANING`.
 
 Danh ba khach thue - response:
 
@@ -466,7 +480,7 @@ PUT  /api/v1/dashboard/reminder-settings       (LANDLORD) body { "autoEmail": tr
 - Email gui thay mat chu tro: ten nguoi gui `<ten chu tro> - <ten co so>`, `Reply-To` = email chu tro, kem link No-App `/i/<token>` de quet VietQR.
 - `POST .../reminders` tra `{ id, invoiceId, to, auto, status, sentAt }`. Loi: `409 INVOICE_NOT_OWING`, `422 TENANT_EMAIL_MISSING`, `429 REMINDER_RECENTLY_SENT` (gui lai trong 10 phut), `503 EMAIL_NOT_CONFIGURED`, `502 EMAIL_UNAVAILABLE`.
 - Job `jobs/debtReminders.js`: moi gio, chi gui 8:00-20:00 gio VN; ngay gui: 3 ngay truoc han, dung han, 1 ngay sau han, roi 3 ngay mot lan toi 60 ngay qua han; toi da 1 email / hoa don / ngay. Chu tro tat bang `autoEmail: false`; tat toan he thong bang `DEBT_REMINDER_AUTO=false`.
-- Luon gui that. Env: `EMAIL_PROVIDER=smtp|brevo` (trong = tu chon theo khoa), `SMTP_USER`, `SMTP_PASS` (Gmail App Password), `SMTP_HOST`, `SMTP_PORT`, `BREVO_API_KEY`, `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME`. Chua cau hinh -> `503 EMAIL_NOT_CONFIGURED`, job khong gui.
+- Env: `EMAIL_PROVIDER=smtp|brevo` (trong = tu chon theo khoa), `SMTP_USER`, `SMTP_PASS` (Gmail App Password), `SMTP_HOST`, `SMTP_PORT`, `BREVO_API_KEY`, `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME`. Chua cau hinh -> `503 EMAIL_NOT_CONFIGURED`, job khong gui.
 
 ### 4.10 Incident va Staff
 
@@ -484,7 +498,12 @@ POST /api/v1/incidents/:incidentId/acceptance        (TENANT dung ten hop dong)
 GET  /api/v1/staff
 POST /api/v1/staff
 POST /api/v1/staff/:staffId/reset-password
+PUT  /api/v1/staff/:staffId/permissions   (LANDLORD) { permissions: { KEY: boolean } }
+PUT  /api/v1/staff/:staffId/lock          (LANDLORD) { locked: boolean }
 ```
+
+- Quyen cua Quan ly (mac dinh bat het, `User.deniedPermissions` luu quyen da tat; danh sach o `BE/utils/managerPermissions.js`): `UPDATE_ROOMS`, `UTILITY_READINGS`, `HANDLE_INCIDENTS`, `RECORD_EXPENSES`, `VIEW_FINANCE`, `REPORT_CASH`, `SEND_REMINDERS`. Route bi tat -> `403 PERMISSION_DISABLED` (middleware `permit()`). DTO user cua Manager co `permissions: { KEY: boolean }`.
+- Khoa: `status: SUSPENDED`, thu hoi session; dang nhap dung mat khau -> `403 ACCOUNT_LOCKED`; khong cap lai mat khau khi dang khoa. Mo khoa: `ACTIVE`, giu mat khau / quyen / co so. Audit `LOCK_STAFF_ACCOUNT` / `UNLOCK_STAFF_ACCOUNT` / `UPDATE_STAFF_PERMISSIONS`.
 
 Incident status:
 

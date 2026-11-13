@@ -25,7 +25,8 @@ const { hasFeature } = require("./planFeatures");
 const { simulatorEnabled } = require("../utils/paymentSimulator");
 const bankTransfer = require("./payments/bankTransferService");
 const { recordDepositPayment, manualDepositReference } = require("./payments/depositPayment");
-const DEPOSIT_RECEIVE_METHODS = ["CASH", "BANK_TRANSFER"];
+const { effectiveFurnishings } = require("../utils/furnishings");
+const DEPOSIT_RECEIVE_METHODS =["CASH", "BANK_TRANSFER"];
 const liveStatuses = LIVE_CONTRACT_STATUSES;
 const openStatuses = OPEN_CONTRACT_STATUSES;
 function displayStatus(contract, now = new Date()) {
@@ -92,7 +93,66 @@ function validateCreate(body) {
     });
   }
   if (body.notes !== undefined) v.text(body.notes, "Ghi chú", false);
+  const ids = contractCitizenIds(body);
+  const repeated = ids.find((id, i) => ids.indexOf(id) !== i);
+  if (repeated)
+    throw new ValidationError(
+      `CCCD ${repeated} bị nhập trùng trong hợp đồng. Mỗi người chỉ được khai một lần.`,
+      "DUPLICATE_CITIZEN_ID",
+    );
   return body;
+}
+// Every CCCD named in a new contract: the tenant plus the roommates who gave one.
+const contractCitizenIds = (body) =>
+  [body.tenant.citizenId, ...(body.roommates || []).map((r) => r.citizenId)]
+    .map((id) => (id || "").trim())
+    .filter(Boolean);
+// One person, one running contract per landlord: a CCCD already on a draft or live contract
+// (as tenant or roommate) cannot be entered on another one until that contract ends.
+// Returns one entry per CCCD in use: { citizenId, contractCode, roomNumber, as: TENANT|ROOMMATE }.
+async function citizenIdsInUse(landlordId, ids, session = null) {
+  if (!ids.length) return [];
+  const tenants = await User.find({ landlordId, role: "TENANT", citizenId: { $in: ids }, isDeleted: false })
+    .select("citizenId")
+    .session(session)
+    .lean();
+  const contracts = await Contract.find({
+    landlordId,
+    isDeleted: false,
+    status: { $in: openStatuses },
+    $or: [{ tenantId: { $in: tenants.map((t) => t._id) } }, { "roommates.citizenId": { $in: ids } }],
+  })
+    .select("contractCode roomId tenantId roommates.citizenId")
+    .populate({ path: "roomId", select: "roomNumber" })
+    .session(session)
+    .lean();
+  const found = new Map();
+  for (const c of contracts) {
+    const holder = { contractCode: c.contractCode, roomNumber: c.roomId?.roomNumber || null };
+    const tenantCccd = tenants.find((t) => String(t._id) === String(c.tenantId))?.citizenId;
+    if (tenantCccd && !found.has(tenantCccd)) found.set(tenantCccd, { citizenId: tenantCccd, ...holder, as: "TENANT" });
+    for (const r of c.roommates || [])
+      if (ids.includes(r.citizenId) && !found.has(r.citizenId))
+        found.set(r.citizenId, { citizenId: r.citizenId, ...holder, as: "ROOMMATE" });
+  }
+  return [...found.values()];
+}
+async function assertCitizenIdsFree(landlordId, ids, session) {
+  const [taken] = await citizenIdsInUse(landlordId, ids, session);
+  if (!taken) return;
+  throw new BusinessRuleError(
+    `CCCD ${taken.citizenId} đang có tên trong hợp đồng ${taken.contractCode} còn hiệu lực. Hãy kết thúc hoặc hủy hợp đồng đó trước khi lập hợp đồng mới.`,
+    "CITIZEN_ID_ALREADY_RENTING",
+  );
+}
+// GET /contracts/citizen-check?citizenIds=a,b: lets the contract form flag a CCCD while it is typed.
+async function citizenCheck(req) {
+  v.fields(req.query, ["citizenIds"]);
+  const ids = [...new Set(String(req.query.citizenIds || "").split(",").map((id) => id.trim()))].filter((id) =>
+    /^\d{12}$/.test(id),
+  );
+  if (ids.length > 30) throw new ValidationError("Tối đa 30 CCCD mỗi lần kiểm tra");
+  return { items: await citizenIdsInUse(req.user._id, ids) };
 }
 // Mongoose re-checks a per-document match on the fetched docs, so the matched
 // fields must be selected or every populate silently falls back to the raw id.
@@ -102,7 +162,9 @@ async function enrich(items) {
   return Contract.populate(items, [
     {
       path: "tenantId",
-      select: "name email phoneNumber citizenId hometown" + OWNED_FIELDS,
+      select:
+        "name email phoneNumber citizenId hometown temporaryResidenceRegistered" +
+        OWNED_FIELDS,
       match: owned,
     },
     {
@@ -113,14 +175,14 @@ async function enrich(items) {
     {
       path: "branchId",
       select:
-        "name address defaultElectricityPrice defaultWaterPrice waterBillingType" +
+        "name address defaultElectricityPrice defaultWaterPrice waterBillingType defaultFurnishings" +
         OWNED_FIELDS,
       match: owned,
     },
     {
       path: "roomId",
       select:
-        "roomNumber floor currentElectricIndex currentWaterIndex" +
+        "roomNumber floor currentElectricIndex currentWaterIndex furnishingType furnishings" +
         OWNED_FIELDS,
       match: owned,
     },
@@ -400,6 +462,7 @@ async function create(req) {
         "Chỉ số bàn giao không được nhỏ hơn chỉ số hiện tại",
         "READING_LOWER_THAN_PREVIOUS",
       );
+    await assertCitizenIdsFree(branch.landlordId, contractCitizenIds(body), session);
     const { user: tenant, credentials } = await accounts.tenantForContract(
       req,
       body.tenant,
@@ -410,6 +473,8 @@ async function create(req) {
       [
         {
           ...input,
+          // Copy of what is handed over with the room and its agreed prices, frozen at signing.
+          ...effectiveFurnishings(room, branch),
           landlordId: branch.landlordId,
           tenantId: tenant._id,
           contractCode: `HDT-${new Date().getUTCFullYear()}-${crypto.randomBytes(6).toString("hex").toUpperCase()}`,
@@ -681,6 +746,7 @@ module.exports = {
   get,
   list,
   create,
+  citizenCheck,
   terminate,
   displayStatus,
   prepareSettlement,

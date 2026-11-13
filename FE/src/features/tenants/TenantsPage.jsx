@@ -13,6 +13,7 @@ import {
   TenantsTable,
   TenantCreateModal,
 } from "../../components/tenants";
+import "./Tenants.css";
 
 export default function TenantsPage() {
   const {
@@ -24,9 +25,10 @@ export default function TenantsPage() {
     setSearchTerm,
     statusFilter,
     setStatusFilter,
-    hometownFilter,
-    setHometownFilter,
-    hometownOptions,
+    profileFilter,
+    setProfileFilter,
+    sortBy,
+    setSortBy,
     copiedKey,
     copyText,
     stats,
@@ -89,6 +91,8 @@ export default function TenantsPage() {
         hasActiveFilters={hasActiveFilters}
         statusFilter={statusFilter}
         setStatusFilter={setStatusFilter}
+        profileFilter={profileFilter}
+        setProfileFilter={setProfileFilter}
         onResetFilters={handleResetFilters}
       />
 
@@ -98,12 +102,12 @@ export default function TenantsPage() {
         setSearchTerm={setSearchTerm}
         statusFilter={statusFilter}
         setStatusFilter={setStatusFilter}
-        hometownFilter={hometownFilter}
-        setHometownFilter={setHometownFilter}
-        hometownOptions={hometownOptions}
+        profileFilter={profileFilter}
+        setProfileFilter={setProfileFilter}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
         totalCount={tenants.length}
         stats={stats}
-        hasActiveFilters={hasActiveFilters}
         onResetFilters={handleResetFilters}
       />
 

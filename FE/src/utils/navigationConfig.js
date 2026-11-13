@@ -16,6 +16,7 @@ import {
   ArrowUpCircle,
   ShieldCheck,
 } from "lucide-react";
+import { can } from "./managerPermissions";
 
 export const ROLE_LABELS = {
   LANDLORD: "Chủ chuỗi cơ sở",
@@ -87,7 +88,9 @@ export function resolveRoleAccess(user) {
 
   const propertyAccess = !isSuperAdmin && (isLandlord || isManager);
   const contractAccess = !isSuperAdmin && (isLandlord || isTenant);
-  const financeAccess = !isSuperAdmin && (isLandlord || isManager || isTenant);
+  const financeAccess =
+    !isSuperAdmin &&
+    (isLandlord || isTenant || (isManager && can(user, "VIEW_FINANCE")));
   const tenantDirAccess = !isSuperAdmin && isLandlord;
 
   const home = isSuperAdmin

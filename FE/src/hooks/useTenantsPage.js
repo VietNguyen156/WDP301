@@ -17,10 +17,11 @@ export function useTenantsPage() {
   const error = resource.error;
   const loadData = resource.reload;
 
-  // Search & Filter state
+  // Search, Filter & Sort state
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL"); // ALL | ACTIVE | MUST_CHANGE_PW | INACTIVE
-  const [hometownFilter, setHometownFilter] = useState("ALL");
+  const [profileFilter, setProfileFilter] = useState("ALL"); // ALL | COMPLETE | HAS_CCCD | MISSING_CCCD | MISSING_CONTACT
+  const [sortBy, setSortBy] = useState("DEFAULT"); // DEFAULT | NAME_ASC | NAME_DESC
   const [copiedKey, setCopiedKey] = useState(null);
 
   // Create Modal states
@@ -40,37 +41,33 @@ export function useTenantsPage() {
   // Credentials dialog for newly created or reset tenant
   const [issuedCreds, setIssuedCreds] = useState(null);
 
-  const hometownOptions = useMemo(() => {
-    const set = new Set();
-    tenants.forEach((t) => {
-      if (t.hometown && t.hometown.trim()) {
-        set.add(t.hometown.trim());
-      }
-    });
-    return Array.from(set).sort();
-  }, [tenants]);
-
   const stats = useMemo(() => {
     let activeCount = 0;
     let mustChangePwCount = 0;
+    let inactiveCount = 0;
     let citizenIdCount = 0;
+    let missingContactCount = 0;
 
     tenants.forEach((t) => {
       if (t.status === "ACTIVE" && !t.mustChangePassword) activeCount += 1;
       if (t.mustChangePassword) mustChangePwCount += 1;
+      if (t.status === "INACTIVE") inactiveCount += 1;
       if (t.citizenId && /^\d{12}$/.test(t.citizenId)) citizenIdCount += 1;
+      if (!t.phoneNumber?.trim() || !t.email?.trim()) missingContactCount += 1;
     });
 
     return {
       total: tenants.length,
       activeCount,
       mustChangePwCount,
+      inactiveCount,
       citizenIdCount,
+      missingContactCount,
     };
   }, [tenants]);
 
   const filteredTenants = useMemo(() => {
-    return tenants.filter((item) => {
+    const filtered = tenants.filter((item) => {
       if (statusFilter === "ACTIVE") {
         if (item.mustChangePassword || item.status !== "ACTIVE") return false;
       } else if (statusFilter === "MUST_CHANGE_PW") {
@@ -79,10 +76,18 @@ export function useTenantsPage() {
         if (item.status !== "INACTIVE") return false;
       }
 
-      if (hometownFilter !== "ALL") {
-        if (!item.hometown || item.hometown.trim() !== hometownFilter)
-          return false;
-      }
+      const hasValidCccd = Boolean(
+        item.citizenId && /^\d{12}$/.test(item.citizenId),
+      );
+      const hasFullContact = Boolean(
+        item.phoneNumber?.trim() && item.email?.trim(),
+      );
+
+      if (profileFilter === "HAS_CCCD" && !hasValidCccd) return false;
+      if (profileFilter === "MISSING_CCCD" && hasValidCccd) return false;
+      if (profileFilter === "MISSING_CONTACT" && hasFullContact) return false;
+      if (profileFilter === "COMPLETE" && (!hasValidCccd || !hasFullContact))
+        return false;
 
       if (searchTerm.trim()) {
         const term = searchTerm.trim().toLowerCase();
@@ -109,7 +114,19 @@ export function useTenantsPage() {
 
       return true;
     });
-  }, [tenants, statusFilter, hometownFilter, searchTerm]);
+
+    if (sortBy === "NAME_ASC") {
+      return [...filtered].sort((a, b) =>
+        (a.name || "").localeCompare(b.name || "", "vi"),
+      );
+    }
+    if (sortBy === "NAME_DESC") {
+      return [...filtered].sort((a, b) =>
+        (b.name || "").localeCompare(a.name || "", "vi"),
+      );
+    }
+    return filtered;
+  }, [tenants, statusFilter, profileFilter, searchTerm, sortBy]);
 
   function copyText(text, label, key) {
     if (!text) return;
@@ -122,7 +139,8 @@ export function useTenantsPage() {
   function handleResetFilters() {
     setSearchTerm("");
     setStatusFilter("ALL");
-    setHometownFilter("ALL");
+    setProfileFilter("ALL");
+    setSortBy("DEFAULT");
   }
 
   async function handleCreateTenant(e) {
@@ -199,7 +217,10 @@ export function useTenantsPage() {
   }
 
   const hasActiveFilters = Boolean(
-    searchTerm.trim() || statusFilter !== "ALL" || hometownFilter !== "ALL",
+    searchTerm.trim() ||
+    statusFilter !== "ALL" ||
+    profileFilter !== "ALL" ||
+    sortBy !== "DEFAULT",
   );
 
   return {
@@ -211,9 +232,10 @@ export function useTenantsPage() {
     setSearchTerm,
     statusFilter,
     setStatusFilter,
-    hometownFilter,
-    setHometownFilter,
-    hometownOptions,
+    profileFilter,
+    setProfileFilter,
+    sortBy,
+    setSortBy,
     copiedKey,
     copyText,
     stats,

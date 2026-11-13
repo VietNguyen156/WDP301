@@ -8,6 +8,7 @@ const branchFields = [
   "waterBillingType",
   "defaultWaterPrice",
   "defaultServices",
+  "defaultFurnishings",
   "billingCycleDay",
   "paymentDueDays",
   "status",
@@ -68,7 +69,25 @@ function branch(body, creating = false) {
     )
       throw new ValidationError("Tên dịch vụ không được trùng nhau");
   }
+  if (body.defaultFurnishings !== undefined) furnishings(body.defaultFurnishings);
   return body;
+}
+// Furniture handed over with a room: name, quantity >= 1, unit price (compensation value), note.
+function furnishings(list) {
+  if (!Array.isArray(list) || list.length > 100)
+    throw new ValidationError("Danh mục vật dụng không hợp lệ (tối đa 100 món)", "INVALID_FURNISHINGS");
+  list.forEach((item) => {
+    v.fields(item, ["name", "quantity", "price", "note"]);
+    v.text(item.name, "Tên vật dụng");
+    item.name = item.name.trim();
+    v.number(item.quantity, `Số lượng "${item.name}"`, 1, 1000);
+    v.number(item.price, `Đơn giá "${item.name}"`);
+    if (item.note !== undefined) v.text(item.note, "Ghi chú vật dụng", false);
+  });
+  const names = list.map((item) => item.name.toLowerCase());
+  if (new Set(names).size !== names.length)
+    throw new ValidationError("Tên vật dụng không được trùng nhau", "INVALID_FURNISHINGS");
+  return list;
 }
 function room(body, creating = false, manager = false) {
   v.fields(
@@ -87,8 +106,14 @@ function room(body, creating = false, manager = false) {
           "waterPrice",
           "waterBillingType",
           "services",
+          "furnishingType",
+          "furnishings",
         ],
   );
+  if (body.furnishingType !== undefined)
+    v.choice(body.furnishingType, ["UNFURNISHED", "FURNISHED"], "Loại phòng");
+  // null = drop the room's own list and use the branch catalogue again.
+  if (body.furnishings !== undefined && body.furnishings !== null) furnishings(body.furnishings);
   if (creating || body.roomNumber !== undefined)
     v.text(body.roomNumber, "Số phòng");
   if (body.floor !== undefined) v.number(body.floor, "Tầng", 1, 100);

@@ -13,6 +13,7 @@ const account = require("./accountValidation");
 const { publicUser } = require("./authService");
 const quota = require("./quotaService");
 const audit = require("./auditService");
+const { MANAGER_PERMISSIONS, permissionsOf } = require("../utils/managerPermissions");
 
 function profile(body, role) {
   v.fields(
@@ -180,7 +181,7 @@ async function list(req, role) {
   const [users, total] = await Promise.all([
     User.find(filter)
       .select(
-        "username name email phoneNumber citizenId hometown role status landlordId assignedBranches mustChangePassword",
+        "username name email phoneNumber citizenId hometown role status landlordId assignedBranches deniedPermissions mustChangePassword",
       )
       .sort({ createdAt: -1, _id: -1 })
       .skip(skip)
@@ -231,7 +232,76 @@ async function resetPassword(req, role, id) {
   });
 }
 
+// Landlord switches a manager's permissions on/off. Body: { permissions: { KEY: boolean } };
+// keys left out keep their current value. Applies to the manager's next request.
+async function updateStaffPermissions(req, id) {
+  v.fields(req.body || {}, ["permissions"]);
+  const changes = req.body?.permissions;
+  if (!changes || typeof changes !== "object" || Array.isArray(changes))
+    throw new ValidationError("Danh sách quyền không hợp lệ", "INVALID_PERMISSIONS");
+  for (const [key, value] of Object.entries(changes))
+    if (!MANAGER_PERMISSIONS.includes(key) || typeof value !== "boolean")
+      throw new ValidationError("Danh sách quyền không hợp lệ", "INVALID_PERMISSIONS");
+  return mongoose.connection.transaction(async (session) => {
+    const user = await User.findOne(
+      scoped(getTenantScope(req), { _id: validId(id), role: "PROPERTY_MANAGER" }),
+    ).session(session);
+    if (!user) throw new NotFoundError("Không tìm thấy tài khoản được cấp");
+    const before = permissionsOf(user);
+    const after = { ...before, ...changes };
+    user.deniedPermissions = MANAGER_PERMISSIONS.filter((key) => !after[key]);
+    await user.save({ session });
+    await audit.log({
+      req,
+      action: "UPDATE_STAFF_PERMISSIONS",
+      entityType: "USER",
+      entityId: user._id,
+      before: { permissions: before },
+      after: { permissions: after },
+      session,
+    });
+    return { user: publicUser(user) };
+  });
+}
+
+// Landlord locks / unlocks a manager. Body: { locked: boolean }. A locked account (SUSPENDED) is
+// signed out at once and cannot log in or get a new password until it is unlocked.
+async function setStaffLock(req, id) {
+  v.fields(req.body || {}, ["locked"]);
+  if (typeof req.body?.locked !== "boolean")
+    throw new ValidationError("Trạng thái khóa không hợp lệ", "INVALID_LOCK_STATE");
+  const status = req.body.locked ? "SUSPENDED" : "ACTIVE";
+  return mongoose.connection.transaction(async (session) => {
+    const user = await User.findOne(
+      scoped(getTenantScope(req), { _id: validId(id), role: "PROPERTY_MANAGER" }),
+    )
+      .select("+authVersion")
+      .session(session);
+    if (!user) throw new NotFoundError("Không tìm thấy tài khoản được cấp");
+    if (user.status === status) return { user: publicUser(user) };
+    const before = { status: user.status };
+    user.status = status;
+    if (req.body.locked) {
+      user.authVersion = (user.authVersion || 0) + 1;
+      await AuthSession.deleteMany({ userId: user._id }, { session });
+    }
+    await user.save({ session });
+    await audit.log({
+      req,
+      action: req.body.locked ? "LOCK_STAFF_ACCOUNT" : "UNLOCK_STAFF_ACCOUNT",
+      entityType: "USER",
+      entityId: user._id,
+      before,
+      after: { status },
+      session,
+    });
+    return { user: publicUser(user) };
+  });
+}
+
 module.exports = {
+  setStaffLock,
+  updateStaffPermissions,
   reopenTenant,
   createStaff,
   list,

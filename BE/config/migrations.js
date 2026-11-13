@@ -29,6 +29,13 @@ const LEGACY_INDEXES = [
   // Platform-wide login names, now unique per landlord (same CCCD with several landlords).
   ["users", (index) => index.name === "email_1" && index.unique],
   ["users", (index) => index.name === "username_1" && index.unique],
+  // One invoice of any type per room and month: blocked the settlement invoice in a month that
+  // already has a monthly one (409 on POST /contracts/:id/settlement). one_live_invoice_per_period
+  // is the rule now (per contract and invoice type, live invoices only).
+  [
+    "invoices",
+    (index) => index.name === "landlordId_1_roomId_1_billingPeriod_1" && index.unique,
+  ],
   // Replaced by the same keys plus the list sort order.
   ["invoices", (index) => index.name === "landlordId_1_isDeleted_1"],
   ["branches", (index) => index.name === "landlordId_1_isDeleted_1"],

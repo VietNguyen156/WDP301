@@ -44,7 +44,7 @@ export default function UtilityAbnormalModal({
         {abnormalWarning.details.warnings?.map((w, i) => (
           <div className="util-abnormal-item" key={i}>
             <span>
-              {w.type === "ELECTRIC" ? "⚡ Điện năng:" : "💧 Nước sạch:"}
+              {w.type === "ELECTRIC" ? "Điện năng:" : "Nước sạch:"}
             </span>
             <span>
               Tiêu thụ: <strong>{w.consumed}</strong> | Trung bình:{" "}

@@ -268,6 +268,7 @@ export function InvoiceList({ externalSearchTerm = "" }) {
           }}
           onInvoiceUpdated={loadInvoices}
           role={user?.role}
+          permissions={user?.permissions}
         />
       )}
 

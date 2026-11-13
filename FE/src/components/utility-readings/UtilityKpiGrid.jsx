@@ -8,7 +8,8 @@ export default function UtilityKpiGrid({
 }) {
   return (
     <div className="util-kpi-grid">
-      <div
+      <button
+        type="button"
         className={`util-kpi-card ${filterStatus === "ALL" ? "is-active" : ""}`}
         onClick={() => {
           setFilterStatus("ALL");
@@ -21,14 +22,15 @@ export default function UtilityKpiGrid({
             className="util-kpi-icon"
             style={{ background: "#f1f5f9", color: "#475569" }}
           >
-            <Layers size={17} />
+            <Layers size={16} />
           </div>
         </div>
         <div className="util-kpi-val">{stats.total}</div>
-        <div className="util-kpi-sub">Bao gồm phòng thuê & đã chốt</div>
-      </div>
+        <div className="util-kpi-sub">Phòng thuê &amp; đã chốt</div>
+      </button>
 
-      <div
+      <button
+        type="button"
         className={`util-kpi-card ${filterStatus === "RECORDED" ? "is-active" : ""}`}
         onClick={() => {
           setFilterStatus("RECORDED");
@@ -41,7 +43,7 @@ export default function UtilityKpiGrid({
             className="util-kpi-icon"
             style={{ background: "#ecfdf5", color: "#059669" }}
           >
-            <CheckCircle2 size={17} />
+            <CheckCircle2 size={16} />
           </div>
         </div>
         <div className="util-kpi-val" style={{ color: "#059669" }}>
@@ -49,11 +51,12 @@ export default function UtilityKpiGrid({
         </div>
         <div className="util-kpi-sub">
           {stats.total ? Math.round((stats.recorded / stats.total) * 100) : 0}%
-          tiến độ hoàn thành
+          hoàn thành
         </div>
-      </div>
+      </button>
 
-      <div
+      <button
+        type="button"
         className={`util-kpi-card ${filterStatus === "PENDING" ? "is-active" : ""}`}
         onClick={() => {
           setFilterStatus("PENDING");
@@ -66,31 +69,30 @@ export default function UtilityKpiGrid({
             className="util-kpi-icon"
             style={{ background: "#fffbeb", color: "#d97706" }}
           >
-            <Clock size={17} />
+            <Clock size={16} />
           </div>
         </div>
         <div className="util-kpi-val" style={{ color: "#d97706" }}>
           {stats.pending}
         </div>
-        <div className="util-kpi-sub">Cần nhập số đo tháng này</div>
-      </div>
+        <div className="util-kpi-sub">Cần nhập số đo</div>
+      </button>
 
-      <div className="util-kpi-card">
+      <div className="util-kpi-card is-static">
         <div className="util-kpi-top">
           <span className="util-kpi-label">Đã lập hóa đơn</span>
           <div
             className="util-kpi-icon"
-            style={{ background: "#f5f3ff", color: "#7c3aed" }}
+            style={{ background: "#f1f5f9", color: "#334155" }}
           >
-            <Lock size={17} />
+            <Lock size={16} />
           </div>
         </div>
-        <div className="util-kpi-val" style={{ color: "#7c3aed" }}>
+        <div className="util-kpi-val" style={{ color: "#334155" }}>
           {stats.billed}
         </div>
-        <div className="util-kpi-sub">Chỉ số đã khóa sổ hóa đơn</div>
+        <div className="util-kpi-sub">Chỉ số đã khóa sổ HĐ</div>
       </div>
     </div>
   );
 }
-

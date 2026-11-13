@@ -95,8 +95,9 @@ async function create(req, isBulk = false) {
       session,
     });
     const rooms = await Room.create(
-      inputs.map((r) => ({
+      inputs.map(({ furnishings, ...r }) => ({
         ...r,
+        ...(furnishings ? { furnishings } : {}),
         branchId: branch._id,
         landlordId: branch.landlordId,
       })),
@@ -163,9 +164,15 @@ async function update(req) {
       throw new BusinessRuleError(
         "Hãy thanh lý hợp đồng trước khi thay đổi trạng thái phòng",
       );
+    // furnishings: null drops the room's own list (back to the branch catalogue).
+    const { furnishings, ...rest } = body;
+    const change =
+      furnishings === null
+        ? { $set: rest, $unset: { furnishings: 1 } }
+        : { $set: furnishings === undefined ? rest : { ...rest, furnishings } };
     const after = await Room.findOneAndUpdate(
       scoped(getTenantScope(req), { _id: before._id }),
-      { $set: body },
+      change,
       { returnDocument: "after", runValidators: true, session },
     );
     await audit.log({

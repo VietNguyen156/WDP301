@@ -14,6 +14,7 @@ const v = require("../utils/validation");
 const account = require("./accountValidation");
 const audit = require("./auditService");
 const { currentSubscription } = require("./quotaService");
+const { permissionsOf } = require("../utils/managerPermissions");
 const hash = (token) => crypto.createHash("sha256").update(token).digest("hex");
 const authError = () =>
   new AppError(
@@ -45,6 +46,7 @@ function publicUser(user) {
     landlordId: user.role === "LANDLORD" ? user._id : user.landlordId,
     assignedBranches: user.assignedBranches || [],
     mustChangePassword: !!user.mustChangePassword,
+    ...(user.role === "PROPERTY_MANAGER" && { permissions: permissionsOf(user) }),
   };
 }
 
@@ -209,6 +211,12 @@ async function login(body) {
     throw new ForbiddenError(
       "Tài khoản đã tạm khóa vì không còn hợp đồng thuê. Khi bạn ký hợp đồng mới, tài khoản sẽ mở lại với mật khẩu cũ.",
       "TENANT_INACTIVE",
+    );
+  // Right password but the landlord locked this manager (PUT /staff/:staffId/lock).
+  if (user.role === "PROPERTY_MANAGER" && user.status === "SUSPENDED")
+    throw new ForbiddenError(
+      "Tài khoản đã bị chủ trọ khóa. Vui lòng liên hệ chủ trọ để được mở lại.",
+      "ACCOUNT_LOCKED",
     );
   const active = await activeUser(user._id);
   if ((user.authVersion || 0) !== (active.authVersion || 0)) throw authError();

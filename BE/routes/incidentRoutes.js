@@ -1,10 +1,10 @@
 const router = require("express").Router();
-const { authenticate, authorize } = require("../middlewares/auth");
+const { authenticate, authorize, permit } = require("../middlewares/auth");
 const c = require("../controllers/incidentController");
 router.use(authenticate, authorize("LANDLORD", "PROPERTY_MANAGER", "TENANT"));
 router.route("/").get(c.list).post(c.create);
 router.get("/:incidentId", c.get);
-const staff = authorize("LANDLORD", "PROPERTY_MANAGER");
+const staff = [authorize("LANDLORD", "PROPERTY_MANAGER"), permit("HANDLE_INCIDENTS")];
 router.put("/:incidentId/status", staff, c.updateStatus);
 router.put("/:incidentId/cost", staff, c.updateCost);
 // Sự cố do người thuê chi trả: báo giá → người thuê duyệt → nghiệm thu 2 bên → hóa đơn

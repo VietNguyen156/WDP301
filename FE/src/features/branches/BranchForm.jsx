@@ -15,7 +15,10 @@ import {
   Calendar,
   CreditCard,
   AlertTriangle,
+  Sofa,
 } from "lucide-react";
+import { FurnishingsEditor } from "../../components/furnishings/FurnishingsEditor";
+import { cleanFurnishings, furnishingsError } from "../../utils/furnishings";
 import { branchApi, profileApi, errorMessage } from "../../services/api";
 import {
   Button,
@@ -39,6 +42,7 @@ const initial = {
     { name: "Internet & Wifi cáp quang", price: 100000, billingType: "PER_ROOM" },
     { name: "Vệ sinh & Thu gom rác", price: 50000, billingType: "PER_PERSON" },
   ],
+  defaultFurnishings: [],
   billingCycleDay: 1,
   paymentDueDays: 5,
   status: "ACTIVE",
@@ -84,6 +88,9 @@ export default function BranchForm({ branch, onClose, onSaved }) {
           defaultServices: (branch.defaultServices || []).map(
             ({ name, price, billingType }) => ({ name, price, billingType }),
           ),
+          defaultFurnishings: (branch.defaultFurnishings || []).map(
+            ({ name, quantity, price, note }) => ({ name, quantity, price, note: note || "" }),
+          ),
         }
       : initial,
   );
@@ -114,6 +121,12 @@ export default function BranchForm({ branch, onClose, onSaved }) {
 
   async function submit(e) {
     e.preventDefault();
+    const furnishingProblem = furnishingsError(form.defaultFurnishings);
+    if (furnishingProblem) {
+      setActiveTab("services");
+      setError(furnishingProblem);
+      return;
+    }
     setBusy(true);
     setError("");
 
@@ -121,6 +134,7 @@ export default function BranchForm({ branch, onClose, onSaved }) {
       Object.keys(initial).map((key) => [key, form[key]]),
     );
     body.address = { fullAddress: form.address };
+    body.defaultFurnishings = cleanFurnishings(form.defaultFurnishings);
 
     try {
       if (branch) {
@@ -182,7 +196,7 @@ export default function BranchForm({ branch, onClose, onSaved }) {
           onClick={() => setActiveTab("services")}
         >
           <Layers size={16} />
-          <span>03. Dịch vụ cố định ({form.defaultServices.length})</span>
+          <span>03. Dịch vụ &amp; Vật dụng ({form.defaultServices.length + form.defaultFurnishings.length})</span>
         </button>
 
         <button
@@ -567,6 +581,28 @@ export default function BranchForm({ branch, onClose, onSaved }) {
                     </div>
                   ))
                 )}
+
+                {/* Danh mục vật dụng bàn giao kèm phòng + đơn giá đền bù */}
+                <div className="section-heading" style={{ marginTop: "24px" }}>
+                  <div>
+                    <h3>
+                      <Sofa size={18} />
+                      Vật dụng bàn giao kèm phòng &amp; đơn giá
+                    </h3>
+                    <p style={{ fontSize: "12px", color: "#64748b", margin: "2px 0 0" }}>
+                      Danh mục chuẩn cho các phòng <strong>đầy đủ đồ</strong> của cơ sở. Đơn giá là giá trị khách
+                      thuê bồi thường khi làm mất hoặc hỏng; được ghi vào hợp đồng lúc ký để tránh tranh chấp. Từng
+                      phòng có thể đặt là phòng trống hoặc khai danh mục riêng.
+                    </p>
+                  </div>
+                </div>
+                <FurnishingsEditor
+                  items={form.defaultFurnishings}
+                  disabled={busy}
+                  onChange={(defaultFurnishings) =>
+                    setForm((current) => ({ ...current, defaultFurnishings }))
+                  }
+                />
               </div>
             )}
 

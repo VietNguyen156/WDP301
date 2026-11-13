@@ -21,4 +21,11 @@ const authorize =
     if (!roles.includes(req.user?.role)) throw new ForbiddenError();
     next();
   };
-module.exports = { authenticate, authenticateAccount, authorize };
+// Blocks a branch manager whose landlord switched this permission off (utils/managerPermissions.js).
+// Other roles pass: their access is decided by authorize().
+const permit = (key) => (req, res, next) => {
+  if (req.user?.role === "PROPERTY_MANAGER" && req.user.deniedPermissions?.includes(key))
+    throw new ForbiddenError("Chủ trọ đã tắt quyền này của bạn", "PERMISSION_DISABLED");
+  next();
+};
+module.exports = { authenticate, authenticateAccount, authorize, permit };

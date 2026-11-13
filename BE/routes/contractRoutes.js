@@ -3,6 +3,8 @@ const { authenticate, authorize } = require("../middlewares/auth");
 const c = require("../controllers/contractController");
 router.use(authenticate, authorize("LANDLORD", "TENANT"));
 router.route("/").get(c.list).post(authorize("LANDLORD"), c.create);
+// Kiểm tra CCCD đang có hợp đồng còn hiệu lực (form lập hợp đồng báo trùng khi đang nhập)
+router.get("/citizen-check", authorize("LANDLORD"), c.citizenCheck);
 router.get("/:contractId", c.get);
 router.post(
   "/:contractId/settlement",

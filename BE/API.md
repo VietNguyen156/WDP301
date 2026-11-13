@@ -165,9 +165,35 @@ Hỗ trợ `page`, `limit`; trả `data: { items, total, page, limit }`, chỉ c
 
 Body `{}`. Chỉ Landlord sở hữu tài khoản được cấp lại mật khẩu ngẫu nhiên. Response giống cấp tài khoản, HTTP 200. Thu hồi session cũ, bắt đổi mật khẩu lần nữa; hỗ trợ chuyển Tenant cũ `PENDING_ACTIVATION` sang `ACTIVE`. Không tự mở khóa tài khoản `SUSPENDED`.
 
+#### PUT /staff/:staffId/permissions — bật/tắt quyền của Quản lý
+
+Chỉ Landlord sở hữu tài khoản. Body `{ "permissions": { "REPORT_CASH": false } }`; key không gửi thì giữ nguyên. Response `data.user` (DTO có `permissions: { KEY: boolean }`, cũng có trong `GET /staff` và session của Manager). Sai key hoặc giá trị không phải boolean: `400 INVALID_PERMISSIONS`. Ghi audit `UPDATE_STAFF_PERMISSIONS`.
+
+Mặc định mọi quyền đều bật; DB chỉ lưu quyền đã tắt (`User.deniedPermissions`). Có hiệu lực ngay ở request kế tiếp của Manager: route bị tắt trả `403 PERMISSION_DISABLED`.
+
+| Key | Chặn khi tắt |
+| --- | --- |
+| `UPDATE_ROOMS` | `PUT /rooms/:roomId` |
+| `UTILITY_READINGS` | `POST /utility-readings`, `PUT /utility-readings/:readingId` |
+| `HANDLE_INCIDENTS` | `PUT /incidents/:id/status`, `/cost`, `POST /incidents/:id/quote`, `/triage` |
+| `RECORD_EXPENSES` | `POST /expenses` |
+| `VIEW_FINANCE` | `GET /invoices`, `/invoices/:id`, `/invoices/:id/payments`, `/payments`, `/payments/:id`, `/expenses` |
+| `REPORT_CASH` | `POST /payments/cash` |
+| `SEND_REMINDERS` | `POST /invoices/:invoiceId/reminders` |
+
+#### PUT /staff/:staffId/lock — khóa / mở khóa tài khoản Quản lý
+
+Chỉ Landlord sở hữu tài khoản. Body `{ "locked": true | false }` (sai kiểu: `400 INVALID_LOCK_STATE`). Khóa: `status: SUSPENDED`, thu hồi mọi session, Manager không đăng nhập và không được cấp lại mật khẩu cho đến khi mở khóa. Mở khóa: `status: ACTIVE`, giữ nguyên mật khẩu, quyền và cơ sở đã gán. Response `data.user`. Ghi audit `LOCK_STAFF_ACCOUNT` / `UNLOCK_STAFF_ACCOUNT`. Manager bị khóa đăng nhập đúng mật khẩu nhận `403 ACCOUNT_LOCKED`. Tài khoản đang khóa vẫn tính vào quota manager của gói.
+
 #### POST /contracts — tích hợp tài khoản Tenant
 
 Giữ request hợp đồng cũ, nhưng `tenant.email` và `tenant.phoneNumber` không còn bắt buộc; `tenant.name` và CCCD 12 chữ số bắt buộc. Tìm Tenant theo CCCD trong scope Landlord. Nếu đã có, liên kết và giữ nguyên mật khẩu. Nếu chưa có, tạo tài khoản ACTIVE có mật khẩu tạm, lập hợp đồng và cập nhật phòng trong cùng transaction.
+
+Mỗi CCCD chỉ có một hợp đồng còn hiệu lực với một Landlord. CCCD của khách thuê và của người ở cùng không được trùng nhau trong một hợp đồng (`400 DUPLICATE_CITIZEN_ID`). CCCD đã có tên (khách thuê hoặc người ở cùng) trong hợp đồng `DRAFT`, `ACTIVE`, `EXPIRING_SOON` hoặc `EXPIRED` chưa thanh lý của Landlord thì không lập được hợp đồng mới (`422 CITIZEN_ID_ALREADY_RENTING`, message nêu mã hợp đồng đang giữ CCCD). Hợp đồng đã `TERMINATED` hoặc nháp đã hủy thì CCCD dùng lại được.
+
+#### GET /contracts/citizen-check?citizenIds=001095012345,002096012345
+
+Chỉ Landlord. Cho form lập hợp đồng báo trùng ngay khi đang nhập. Nhận tối đa 30 CCCD (phân cách dấu phẩy; giá trị không đủ 12 chữ số bị bỏ qua). Trả `data.items`: mỗi CCCD đang có tên trong hợp đồng còn hiệu lực của Landlord là một phần tử `{ citizenId, contractCode, roomNumber, as: "TENANT" | "ROOMMATE" }`; CCCD còn trống thì không có trong danh sách. `POST /contracts` vẫn tự kiểm tra lại khi lưu.
 
 Response vẫn là contract trong `data`; **chỉ khi tạo mới Tenant** mới thêm `data.tenantCredentials: { username, temporaryPassword, mustChangePassword: true }`. Không lưu field này vào document Contract; GET hợp đồng không trả lại mật khẩu.
 
@@ -319,6 +345,18 @@ Chỉ Backend `/BE`. Prefix `/api/v1`. Operations (Utility Reading, Incident) xe
 - Room nhận thêm các field tùy chọn `electricityPrice`, `waterPrice`, `waterBillingType`, `services` để đồng bộ cấu hình với Finance. Manager không được sửa các field giá. Nếu không khai báo, dùng giá/dịch vụ Branch. `services: []` nghĩa là không thu dịch vụ cho phòng đó.
 - Tên dịch vụ không trùng nhau, không chứa `.` hoặc `$`. Tiền/số lượng là số nguyên không âm. Số phòng đã xóa mềm vẫn được giữ để bảo toàn định danh lịch sử.
 
+#### Vật dụng bàn giao kèm phòng (đơn giá đền bù)
+
+Mỗi vật dụng: `{ name, quantity, price, note? }`. `quantity` là số nguyên 1–1000, `price` là đơn giá đền bù cho một cái (VNĐ, số nguyên không âm), `note` là tình trạng khi giao. Mỗi danh sách tối đa 100 món, tên không trùng (không phân biệt hoa thường). Sai: `400 INVALID_FURNISHINGS` hoặc `400` của validation chung.
+
+- **Branch** `defaultFurnishings: [...]`: danh mục chuẩn cho các phòng đầy đủ đồ của cơ sở (gửi trong `POST`/`PUT /branches`).
+- **Room** `furnishingType: "UNFURNISHED" | "FURNISHED"` và `furnishings: [...]` (chỉ Landlord sửa).
+  - `UNFURNISHED`: phòng trống, không bàn giao vật dụng.
+  - `FURNISHED` không có `furnishings`: dùng danh mục của cơ sở.
+  - `FURNISHED` có `furnishings`: danh mục riêng của phòng. Gửi `furnishings: null` trong `PUT /rooms/:roomId` để bỏ danh mục riêng, quay về danh mục cơ sở.
+  - Phòng cũ chưa có `furnishingType`: coi là đầy đủ đồ nếu danh mục áp dụng có ít nhất một món.
+- **Contract**: `POST /contracts` chép danh mục đang áp dụng của phòng vào `furnishingType` và `furnishings` của hợp đồng. Sửa cơ sở hoặc phòng sau đó không làm đổi hợp đồng đã lập. Hợp đồng lập trước tính năng này không có hai trường đó; trang chi tiết hiển thị danh mục hiện tại của phòng và ghi rõ là chưa chốt trong hợp đồng (`GET /contracts/:id` populate thêm `roomId.furnishingType`, `roomId.furnishings`, `branchId.defaultFurnishings`).
+
 ### Tạo Contract
 
 `POST /contracts` chỉ dành cho Landlord. Giữ các field request cũ; Tenant mới được tự động cấp tài khoản bằng CCCD trong cùng transaction tạo hợp đồng và chuyển phòng `EMPTY → RENTED`. Không có bước cấp Tenant độc lập.
@@ -341,18 +379,26 @@ Bearer token của Landlord sở hữu hợp đồng. Body:
 
 ```json
 {
+  "terminationReason": "TENANT_EARLY",
+  "forfeitDeposit": false,
   "actualEndDate": "2026-10-14",
   "finalElectricIndex": 120,
   "finalWaterIndex": 12,
   "electricImage": "https://example.com/electric.jpg",
   "waterImage": "https://example.com/water.jpg",
   "deductions": [
-    { "reason": "Sửa khóa", "amount": 100000, "evidenceImage": "https://example.com/lock.jpg" }
+    { "reason": "Sửa khóa", "amount": 100000, "evidenceImage": "https://example.com/lock.jpg" },
+    { "reason": "Đền bù hư hỏng/mất: Điều hòa", "amount": 3000000, "furnishingName": "Điều hòa", "quantity": 1 }
   ],
   "confirmedByBothParties": true,
   "settlementNotes": "Biên bản trả phòng đã được hai bên xác nhận"
 }
 ```
+
+- `terminationReason` bắt buộc: `EXPIRED` (hết hạn; ngày trả phòng phải từ `endDate` trở đi), `MUTUAL` (hai bên thỏa thuận), `TENANT_EARLY` (khách trả trước hạn có báo trước), `TENANT_BREACH` (khách vi phạm/tự ý bỏ đi), `LANDLORD_EARLY` (chủ trọ chấm dứt trước hạn). Ba lý do "trước hạn" yêu cầu ngày trả phòng trước `endDate`. Sai: `400 SETTLEMENT_REASON_DATE`.
+- `forfeitDeposit: true` chỉ dùng với `TENANT_BREACH` (`400 SETTLEMENT_FORFEIT_NOT_ALLOWED`): chủ trọ giữ lại phần cọc còn lại sau mọi khoản phải trả, ghi thành dòng phí "Giữ lại tiền cọc..." trên hóa đơn quyết toán, `settlement.forfeitedDeposit` là số tiền đó (lưu cả khi bằng 0), hoàn cọc = 0. Không bao giờ làm khách nợ thêm.
+- Ảnh công tơ và ảnh nghiệm thu không bắt buộc; nếu gửi phải là URL http/https.
+- Khoản đền bù vật dụng có `furnishingName` (đúng tên trong `contract.furnishings`) và `quantity`: tổng số lượng mỗi món không vượt số đã bàn giao (`SETTLEMENT_FURNISHING_QUANTITY`), số tiền không vượt `đơn giá x số lượng` trong hợp đồng (`SETTLEMENT_FURNISHING_OVER_PRICE`); tên lạ: `SETTLEMENT_FURNISHING_UNKNOWN`.
 
 Backend tạo Invoice `invoiceType: SETTLEMENT` đã phát hành và dùng phần cọc đã nhận để thanh toán các hóa đơn còn nợ theo hạn thanh toán, rồi đến hóa đơn cuối kỳ. Mỗi lần cấn cọc có Payment `paymentMethod: DEPOSIT`, mã tham chiếu duy nhất, người xác nhận và audit. Cọc không được coi là khoản thu tiền mặt mới.
 
@@ -363,6 +409,8 @@ HTTP 200, `data` gồm hợp đồng, `settlement` và `settlementInvoices`. Cá
 - `settlement.invoiceId`: ID hóa đơn cuối kỳ.
 - `settlement.invoiceIds`: các hóa đơn liên quan đến quyết toán.
 - `settlement.heldDeposit`, `depositAppliedAmount`, `refundedDepositAmount`: cọc đã nhận, đã cấn và phải hoàn.
+- `settlement.outstandingDebt`, `roomAmount`, `electricAmount`, `waterAmount`, `serviceAmount`, `deductionAmount`, `forfeitedDeposit`, `totalCharges`: các dòng của biên bản (nợ cũ, tiền phòng/dịch vụ những ngày chưa có hóa đơn, điện nước cuối kỳ, đền bù, cọc giữ lại, tổng).
+- `terminationReason` ở cấp hợp đồng.
 - `settlement.remainingDue`: tổng số tiền cần thu thêm hiện tại.
 - `settlementInvoices`: số dư từng hóa đơn và thông tin thanh toán.
 
@@ -376,7 +424,7 @@ Ví dụ cọc 1 triệu, tổng nợ và chi phí 1,5 triệu: backend ghi nh�
 
 #### 3. POST /contracts/:contractId/terminate
 
-Sau khi đã lập phiếu và thu đủ, gửi `{}`. Backend kiểm tra số dư từ Invoice trong DB, cập nhật `TERMINATED`, `settlement.state = COMPLETED`, tiền cọc hoàn và trạng thái cọc; Room chuyển `CLEANING`, bỏ `currentContractId`.
+Chỉ gọi sau khi đã lập biên bản qua `/settlement` (chưa lập: `422 SETTLEMENT_NOT_PREPARED`) và đã thu đủ (`SETTLEMENT_BALANCE_DUE`). Body `{ "refundMethod": "CASH" | "BANK_TRANSFER", "refundNote": "..." }`: bắt buộc `refundMethod` khi `settlement.refundedDepositAmount > 0` (`400 REFUND_METHOD_REQUIRED`), không có tiền hoàn thì gửi `{}`. Backend cập nhật `TERMINATED`, `settlement.state = COMPLETED`, `settlement.completedAt`, ghi `refundMethod/refundNote/refundedAt/refundedBy`, tiền cọc hoàn và trạng thái cọc; Room chuyển `CLEANING`, bỏ `currentContractId`.
 
 `confirmedByBothParties` trong biên bản là xác nhận nghiệm thu và số tiền hoàn cọc; chủ trọ cần thực hiện bàn giao tiền hoàn cho khách theo biên bản trước khi kết thúc luồng.
 
@@ -403,6 +451,8 @@ Với backend đã dừng, chủ dự án cập nhật thủ công database cũ:
 3. Sau khi tạo index mới thành công, bỏ unique index cũ `(landlordId, roomId, billingPeriod)`.
 
 Không xóa Invoice/Payment. Cần cập nhật dữ liệu/index cũ trước khi dùng quyết toán. Database mới dùng schema/index mới trực tiếp. Không còn file script migration; agent chưa cập nhật database.
+
+Cập nhật 13/11/2026: bước 3 nay chạy tự động khi server khởi động (`config/migrations.js`, `LEGACY_INDEXES`). Index cũ `landlordId_1_roomId_1_billingPeriod_1` còn sót trong DB dùng chung đã làm `POST /contracts/:id/settlement` trả `409 CONFLICT` khi phòng đã có hóa đơn tháng cùng kỳ; index đã được xóa. Quy tắc hiện tại là `one_live_invoice_per_period` (theo hợp đồng và loại hóa đơn, chỉ hóa đơn còn hiệu lực).
 
 ### Kiểm tra thủ công
 
@@ -923,9 +973,9 @@ Email được gửi **thay mặt chủ trọ**: tên người gửi là `<tên 
 - `PUT /dashboard/reminder-settings` (LANDLORD), body `{ "autoEmail": true | false }`: bật / tắt tự động nhắc cho khách thuê của mình (mặc định bật).
 - Job `jobs/debtReminders.js` chạy mỗi giờ, chỉ gửi 8:00–20:00 giờ VN, cho hóa đơn `ISSUED / PARTIALLY_PAID / UNPAID` còn nợ, vào các ngày: 3 ngày trước hạn, đúng ngày hạn, 1 ngày sau hạn, rồi cứ 3 ngày một lần tới 60 ngày quá hạn. Mỗi hóa đơn tối đa 1 email/ngày (kể cả email gửi tay), khách không có email thì bỏ qua. `DEBT_REMINDER_AUTO=false` tắt job cho toàn hệ thống.
 - Mỗi lần gửi lưu một bản ghi `DebtReminder` (người nhận, tự động hay gửi tay, người gửi, trạng thái, lỗi).
-- Luôn gửi thật, có hai cách (`EMAIL_PROVIDER` để trống thì tự chọn theo khóa đã khai báo):
-  - `smtp`: `SMTP_USER` + `SMTP_PASS` (Gmail: địa chỉ Gmail + App Password), tùy chọn `SMTP_HOST` (mặc định `smtp.gmail.com`), `SMTP_PORT` (mặc định 465). Dùng khi chạy local; Render bản miễn phí chặn cổng SMTP.
-  - `brevo`: `BREVO_API_KEY` + `EMAIL_FROM_ADDRESS` đã xác minh trong Brevo (HTTP API, chạy được trên Render).
+- Có hai cách gửi (`EMAIL_PROVIDER` để trống thì tự chọn theo khóa đã khai báo):
+  - `smtp`: `SMTP_USER` + `SMTP_PASS` (Gmail: địa chỉ Gmail + App Password), tùy chọn `SMTP_HOST` (mặc định `smtp.gmail.com`), `SMTP_PORT` (mặc định 465). Dùng khi chạy local; Render bản miễn phí chặn cổng SMTP nên trên Render dùng `brevo`.
+  - `brevo`: `BREVO_API_KEY` + `EMAIL_FROM_ADDRESS` (HTTP API, chạy được trên Render). Địa chỉ gửi chỉ cần xác minh dạng một người gửi trong Brevo (dùng Gmail được, không cần tên miền).
   - Chưa cấu hình: gửi tay báo `503 EMAIL_NOT_CONFIGURED`, job tự động không làm gì.
 
 ### 2. Realtime (Socket.io)

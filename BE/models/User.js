@@ -88,6 +88,8 @@ const userSchema = new mongoose.Schema(
         ref: "Branch",
       },
     ],
+    // Quyền của Quản lý mà chủ trọ đã tắt (utils/managerPermissions.js). Rỗng = đủ quyền.
+    deniedPermissions: [{ type: String }],
 
     // Thông tin bổ sung cho TENANT
     citizenId: {
