@@ -1,4 +1,4 @@
-import { Plus, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useTenantsPage } from "../../hooks/useTenantsPage";
 import {
   Button,
@@ -11,7 +11,6 @@ import {
   TenantsKpiRibbon,
   TenantsFilterBar,
   TenantsTable,
-  TenantCreateModal,
 } from "../../components/tenants";
 import "./Tenants.css";
 
@@ -35,21 +34,6 @@ export default function TenantsPage() {
     filteredTenants,
     hasActiveFilters,
     handleResetFilters,
-    isCreateOpen,
-    setIsCreateOpen,
-    name,
-    setName,
-    citizenId,
-    setCitizenId,
-    phoneNumber,
-    setPhoneNumber,
-    email,
-    setEmail,
-    hometown,
-    setHometown,
-    busy,
-    formError,
-    handleCreateTenant,
     resettingTenant,
     setResettingTenant,
     resetBusy,
@@ -65,8 +49,8 @@ export default function TenantsPage() {
         <div>
           <h1>Hồ sơ Khách thuê &amp; Cư dân</h1>
           <p>
-            Cấp và quản lý tài khoản khách thuê theo CCCD (12 số). Mật khẩu tạm
-            thời chỉ hiển thị một lần duy nhất tại đây.
+            Quản lý tài khoản khách thuê theo CCCD (12 số). Mật khẩu tạm thời
+            chỉ hiển thị một lần duy nhất tại đây.
           </p>
         </div>
         <div className="page-actions">
@@ -77,10 +61,6 @@ export default function TenantsPage() {
           >
             <RefreshCw size={15} />
             <span>Làm mới</span>
-          </Button>
-          <Button onClick={() => setIsCreateOpen(true)}>
-            <Plus size={16} />
-            <span>Cấp tài khoản Khách thuê</span>
           </Button>
         </div>
       </header>
@@ -123,13 +103,7 @@ export default function TenantsPage() {
       ) : tenants.length === 0 ? (
         <EmptyState
           title="Chưa có Khách thuê nào trong chuỗi"
-          description="Khách thuê có thể được cấp tài khoản tại đây hoặc tự động khởi tạo khi lập Hợp đồng thuê phòng mới."
-          action={
-            <Button onClick={() => setIsCreateOpen(true)}>
-              <Plus size={16} />
-              Cấp tài khoản Khách thuê đầu tiên
-            </Button>
-          }
+          description="Tài khoản Khách thuê sẽ được tự động khởi tạo khi lập Hợp đồng thuê phòng mới."
         />
       ) : (
         <TenantsTable
@@ -142,25 +116,6 @@ export default function TenantsPage() {
           onResetPassword={requestResetPassword}
         />
       )}
-
-      {/* Modal Cấp tài khoản Tenant mới */}
-      <TenantCreateModal
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-        busy={busy}
-        name={name}
-        setName={setName}
-        citizenId={citizenId}
-        setCitizenId={setCitizenId}
-        phoneNumber={phoneNumber}
-        setPhoneNumber={setPhoneNumber}
-        email={email}
-        setEmail={setEmail}
-        hometown={hometown}
-        setHometown={setHometown}
-        formError={formError}
-        onSubmit={handleCreateTenant}
-      />
 
       {/* Modal Xác nhận cấp lại mật khẩu tạm */}
       {resettingTenant && (

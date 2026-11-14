@@ -146,7 +146,6 @@ export const staffApi = {
 
 export const tenantApi = {
   list: (params) => axiosInstance.get("/tenants", { params }).then(payload),
-  create: (body) => axiosInstance.post("/tenants", body).then(payload),
   resetPassword: (tenantId) =>
     axiosInstance.post(`/tenants/${tenantId}/reset-password`, {}).then(payload),
 };

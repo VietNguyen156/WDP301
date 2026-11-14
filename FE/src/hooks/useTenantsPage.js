@@ -24,16 +24,6 @@ export function useTenantsPage() {
   const [sortBy, setSortBy] = useState("DEFAULT"); // DEFAULT | NAME_ASC | NAME_DESC
   const [copiedKey, setCopiedKey] = useState(null);
 
-  // Create Modal states
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [citizenId, setCitizenId] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [email, setEmail] = useState("");
-  const [hometown, setHometown] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [formError, setFormError] = useState("");
-
   // Reset Password Confirmation Modal state
   const [resettingTenant, setResettingTenant] = useState(null);
   const [resetBusy, setResetBusy] = useState(false);
@@ -143,51 +133,6 @@ export function useTenantsPage() {
     setSortBy("DEFAULT");
   }
 
-  async function handleCreateTenant(e) {
-    e.preventDefault();
-    setBusy(true);
-    setFormError("");
-
-    if (!/^\d{12}$/.test(citizenId.trim())) {
-      setFormError("Số CCCD phải gồm đúng 12 chữ số.");
-      setBusy(false);
-      return;
-    }
-
-    try {
-      const res = await tenantApi.create({
-        name: name.trim(),
-        citizenId: citizenId.trim(),
-        phoneNumber: phoneNumber.trim() || undefined,
-        email: email.trim() || undefined,
-        hometown: hometown.trim() || undefined,
-      });
-
-      toast.success("Cấp tài khoản Khách thuê thành công!");
-      setIsCreateOpen(false);
-      setName("");
-      setCitizenId("");
-      setPhoneNumber("");
-      setEmail("");
-      setHometown("");
-
-      if (res?.credentials) {
-        setIssuedCreds({
-          credentials: res.credentials,
-          recipientName: res.user?.name || name,
-          roleLabel: "Khách thuê (Tenant)",
-        });
-      }
-      loadData();
-    } catch (err) {
-      const msg = errorMessage(err);
-      setFormError(msg);
-      toast.error(msg);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   function requestResetPassword(tenant) {
     setResettingTenant(tenant);
   }
@@ -242,21 +187,6 @@ export function useTenantsPage() {
     filteredTenants,
     hasActiveFilters,
     handleResetFilters,
-    isCreateOpen,
-    setIsCreateOpen,
-    name,
-    setName,
-    citizenId,
-    setCitizenId,
-    phoneNumber,
-    setPhoneNumber,
-    email,
-    setEmail,
-    hometown,
-    setHometown,
-    busy,
-    formError,
-    handleCreateTenant,
     resettingTenant,
     setResettingTenant,
     resetBusy,

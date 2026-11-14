@@ -36,7 +36,7 @@ export default function DashboardShortcuts({ userRole, navigate }) {
               </div>
               <div>
                 <strong>Ký hợp đồng khách mới</strong>
-                <p>Cấp tài khoản CCCD và ghi nhận cọc</p>
+                <p>Nhập thông tin khách thuê và ghi nhận cọc</p>
               </div>
             </div>
 
