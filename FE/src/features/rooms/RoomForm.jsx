@@ -14,6 +14,7 @@ import {
   Sofa,
 } from "lucide-react";
 import { FurnishingsEditor } from "../../components/furnishings/FurnishingsEditor";
+import { ContractFurnishings } from "../../components/furnishings/FurnishingsTable";
 import {
   cleanFurnishings,
   effectiveFurnishings,
@@ -58,6 +59,17 @@ export default function RoomForm({
   );
   const shownFurnishings =
     furnishingType === "UNFURNISHED" ? [] : ownFurnishings ? furnishingItems : branchFurnishings;
+  // Furniture and prices are part of the contract: editable with no contract or a draft one,
+  // read-only once the contract is signed (the server refuses it too: ROOM_FURNISHINGS_LOCKED).
+  // The room list sends the current contract's status and code next to its id.
+  const roomContract = room?.currentContractId
+    ? { status: room.currentContractStatus, contractCode: room.currentContractCode }
+    : null;
+  // Also set when the server answers ROOM_FURNISHINGS_LOCKED (list data was stale or not populated).
+  const [lockedByServer, setLockedByServer] = useState(false);
+  const furnishingsLocked =
+    lockedByServer || Boolean(roomContract?.status && roomContract.status !== "DRAFT");
+  const draftContract = roomContract?.status === "DRAFT" ? roomContract : null;
 
   const [form, setForm] = useState(
     bulk
@@ -224,7 +236,7 @@ export default function RoomForm({
       return;
     }
 
-    if (!bulk && !manager && furnishingType === "FURNISHED" && ownFurnishings) {
+    if (!bulk && !manager && !furnishingsLocked && furnishingType === "FURNISHED" && ownFurnishings) {
       const problem = furnishingsError(furnishingItems);
       if (problem) {
         setActiveTab("furnishings");
@@ -286,8 +298,8 @@ export default function RoomForm({
           delete body.floor;
         }
 
-        body.furnishingType = furnishingType;
-        if (furnishingType === "FURNISHED") {
+        if (!furnishingsLocked) body.furnishingType = furnishingType;
+        if (!furnishingsLocked && furnishingType === "FURNISHED") {
           if (ownFurnishings) body.furnishings = cleanFurnishings(furnishingItems);
           else if (Array.isArray(room?.furnishings)) body.furnishings = null; // back to the branch list
         }
@@ -353,7 +365,12 @@ export default function RoomForm({
       );
       onSaved();
     } catch (err) {
-      setError(errorMessage(err));
+      // Server refusals are shown as a toast; the form stays open with the user's input.
+      toast.error(errorMessage(err));
+      if (err?.response?.data?.errorCode === "ROOM_FURNISHINGS_LOCKED") {
+        setLockedByServer(true);
+        setActiveTab("furnishings");
+      }
     } finally {
       setBusy(false);
     }
@@ -604,6 +621,18 @@ export default function RoomForm({
             ) : activeTab === "furnishings" ? (
               /* Single Room - Furniture handed over with the room */
               <div className="form-section" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                {furnishingsLocked ? (
+                  <>
+                    <p className="room-furnishings-lock">
+                      Phòng đang có hợp đồng {roomContract?.contractCode || ""} đã ký: vật dụng bàn giao và đơn giá
+                      là một phần của hợp đồng nên chỉ xem, không sửa được. Sửa được khi phòng chưa có hợp đồng
+                      hoặc hợp đồng còn nháp; sau khi thanh lý, danh mục mới áp dụng cho hợp đồng sau. Danh mục đã
+                      ký xem trong chi tiết hợp đồng.
+                    </p>
+                    <ContractFurnishings contract={{ furnishingType, furnishings: shownFurnishings }} />
+                  </>
+                ) : (
+                <>
                 <div className="furnishing-type-options" role="radiogroup" aria-label="Loại phòng">
                   <label className={`furnishing-type-option ${furnishingType === "UNFURNISHED" ? "is-selected" : ""}`}>
                     <input
@@ -658,7 +687,11 @@ export default function RoomForm({
                     </label>
 
                     {ownFurnishings ? (
-                      <FurnishingsEditor items={furnishingItems} onChange={setFurnishingItems} disabled={busy} />
+                      <FurnishingsEditor
+                        items={furnishingItems}
+                        onChange={setFurnishingItems}
+                        disabled={busy}
+                      />
                     ) : branchFurnishings.length === 0 ? (
                       <div className="furnishings-empty">
                         Cơ sở chưa có danh mục vật dụng. Khai ở Cơ sở &gt; Cấu hình &gt; Dịch vụ &amp; Vật dụng, hoặc
@@ -697,12 +730,15 @@ export default function RoomForm({
                   </>
                 )}
 
-                {room?.status === "RENTED" && (
-                  <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>
-                    Phòng đang cho thuê: hợp đồng hiện tại giữ nguyên danh mục đã ký. Thay đổi ở đây áp dụng cho
-                    hợp đồng lập sau.
-                  </p>
+                </>
                 )}
+
+                {draftContract ? (
+                  <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>
+                    Hợp đồng {draftContract.contractCode || ""} còn nháp: khi lưu, hợp đồng nháp nhận danh mục và đơn
+                    giá mới.
+                  </p>
+                ) : null}
               </div>
             ) : (
               /* Single Room - Custom Pricing & Services Tab */

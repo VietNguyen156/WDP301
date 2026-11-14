@@ -35,6 +35,29 @@ const subscriptionView = (sub) => ({
   startsInFuture: sub.startDate > new Date(),
 });
 
+// The subscription to show for each landlord: the one in force (ACTIVE, started, not ended,
+// newest first, same rule as quotaService.currentSubscription), otherwise the newest one.
+// User.subscriptionId is only refreshed when the landlord adds resources, so it can be stale.
+async function shownSubscriptions(landlordIds) {
+  const now = new Date();
+  const subs = await Subscription.find({ landlordId: { $in: landlordIds }, isDeleted: false })
+    .sort({ startDate: -1, createdAt: -1, _id: -1 })
+    .populate({
+      path: "planId",
+      select: "name code price maxBranches maxRooms maxManagers",
+      match: { isDeleted: false },
+    })
+    .lean();
+  const shown = new Map();
+  for (const sub of subs) {
+    const key = String(sub.landlordId);
+    const current = sub.status === "ACTIVE" && sub.startDate <= now && sub.endDate > now;
+    const held = shown.get(key);
+    if (!held || (current && !held.current)) shown.set(key, { sub, current });
+  }
+  return new Map([...shown].map(([key, value]) => [key, value.sub]));
+}
+
 async function listLandlords(req) {
   const { page, limit, skip } = v.pagination(req.query);
   const filter = { role: "LANDLORD", isDeleted: false };
@@ -52,18 +75,10 @@ async function listLandlords(req) {
       .sort({ createdAt: -1, _id: -1 })
       .skip(skip)
       .limit(limit)
-      .populate({
-        path: "subscriptionId",
-        match: { isDeleted: false },
-        populate: {
-          path: "planId",
-          select: "name code maxBranches maxRooms maxManagers",
-          match: { isDeleted: false },
-        },
-      })
       .lean(),
     User.countDocuments(filter),
   ]);
+  const subscriptionBy = await shownSubscriptions(items.map((u) => u._id));
   // Banking is set up by the landlord (Bank Hub link), never by the admin: this is monitoring only.
   const ids = items.map((u) => u._id);
   const [unmatched, lastTransfers, linked, manual] = await Promise.all([
@@ -86,7 +101,8 @@ async function listLandlords(req) {
   const lastTransferBy = new Map(lastTransfers.map((r) => [String(r._id), r.at]));
   return {
     items: items.map((u) => {
-      const subscription = u.subscriptionId ? subscriptionView(u.subscriptionId) : null;
+      const shown = subscriptionBy.get(String(u._id));
+      const subscription = shown ? subscriptionView(shown) : null;
       const { bankHub, ...rest } = u;
       const viaBankHub = !!bankHub?.bankAccountXid;
       return {
@@ -260,7 +276,40 @@ async function listSubscriptions(req) {
       .lean(),
     Subscription.countDocuments(filter),
   ]);
-  return { items: items.map(subscriptionView), total, page, limit };
+  return {
+    items: items.map(subscriptionView),
+    total,
+    page,
+    limit,
+    summary: await subscriptionSummary(req.query.landlordId ? { landlordId: filter.landlordId } : {}),
+  };
+}
+
+// KPI cards of the subscriptions tab: counted over every subscription, not the current page.
+async function subscriptionSummary(scope) {
+  const now = new Date();
+  const soon = new Date(now.getTime() + 7 * 86400000);
+  // Only landlords that still exist: subscriptions of deleted accounts are history, not customers.
+  const landlords = await User.distinct("_id", { role: "LANDLORD", isDeleted: false });
+  const owners = scope.landlordId
+    ? landlords.filter((id) => String(id) === String(scope.landlordId))
+    : landlords;
+  scope = { landlordId: { $in: owners } };
+  const base = { isDeleted: false, ...scope };
+  const [active, pendingPayment, expiringSoon, expired, revenue] = await Promise.all([
+    Subscription.countDocuments({ ...base, status: "ACTIVE", startDate: { $lte: now }, endDate: { $gt: now } }),
+    Subscription.countDocuments({ ...base, status: "PENDING_PAYMENT" }),
+    Subscription.countDocuments({ ...base, status: "ACTIVE", startDate: { $lte: now }, endDate: { $gt: now, $lte: soon } }),
+    Subscription.countDocuments({
+      ...base,
+      $or: [{ status: "EXPIRED" }, { status: "ACTIVE", endDate: { $lte: now } }],
+    }),
+    PlatformInvoice.aggregate([
+      { $match: { isDeleted: false, status: "PAID", ...scope } },
+      { $group: { _id: null, amount: { $sum: "$amount" } } },
+    ]),
+  ]);
+  return { active, pendingPayment, expiringSoon, expired, collectedAmount: revenue[0]?.amount || 0 };
 }
 
 function subscriptionInput(body, creating) {
@@ -468,7 +517,33 @@ async function listInvoices(req) {
       .lean(),
     PlatformInvoice.countDocuments(filter),
   ]);
+  const now = new Date();
+  // KPI cards of the invoices tab: every invoice (of the landlord when filtered), not the page.
+  const groups = await PlatformInvoice.aggregate([
+    { $match: { isDeleted: false, ...(filter.landlordId ? { landlordId: filter.landlordId } : {}) } },
+    {
+      $group: {
+        _id: {
+          $cond: [
+            { $and: [{ $eq: ["$status", "PENDING"] }, { $lt: ["$dueDate", now] }] },
+            "OVERDUE",
+            "$status",
+          ],
+        },
+        count: { $sum: 1 },
+        amount: { $sum: "$amount" },
+      },
+    },
+  ]);
+  const by = (key) => groups.find((g) => g._id === key) || { count: 0, amount: 0 };
+  const summary = Object.fromEntries(
+    ["PAID", "PENDING", "OVERDUE", "CANCELLED"].map((key) => [
+      key.toLowerCase(),
+      { count: by(key).count, amount: by(key).amount },
+    ]),
+  );
   return {
+    summary,
     items: items.map((i) => ({
       ...i,
       displayStatus:

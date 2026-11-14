@@ -31,6 +31,8 @@ export function AdminInvoicesView() {
 
   // Payment Confirmation Modal
   const [confirmingInvoice, setConfirmingInvoice] = useState(null);
+  // Totals over every invoice (GET /admin/invoices summary), for the KPI cards.
+  const [summary, setSummary] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   const [payForm, setPayForm] = useState(() => {
@@ -54,6 +56,7 @@ export function AdminInvoicesView() {
       const res = await adminApi.listInvoices(params);
       setInvoices(res?.items || []);
       setTotal(res?.total || 0);
+      setSummary(res?.summary || null);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -78,23 +81,10 @@ export function AdminInvoicesView() {
     });
   }, [invoices, searchQuery]);
 
-  const kpiStats = useMemo(() => {
-    let paidCount = 0;
-    let pendingOrOverdueCount = 0;
-    let paidAmount = 0;
-    let unpaidAmount = 0;
-    for (const inv of invoices) {
-      const st = inv.displayStatus || inv.status;
-      if (st === "PAID") {
-        paidCount += 1;
-        paidAmount += Number(inv.amount || 0);
-      } else if (st === "PENDING" || st === "OVERDUE") {
-        pendingOrOverdueCount += 1;
-        unpaidAmount += Number(inv.amount || 0);
-      }
-    }
-    return { paidCount, pendingOrOverdueCount, paidAmount, unpaidAmount };
-  }, [invoices]);
+  const empty = { count: 0, amount: 0 };
+  const paid = summary?.paid || empty;
+  const pending = summary?.pending || empty;
+  const overdue = summary?.overdue || empty;
 
   function openConfirmModal(inv) {
     setConfirmingInvoice(inv);
@@ -102,9 +92,8 @@ export function AdminInvoicesView() {
       .toISOString()
       .slice(0, 16);
 
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     setPayForm({
-      paymentReference: `SAAS-BANK-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${randomSuffix}`,
+      paymentReference: "",
       paymentGateway: "BANK_TRANSFER_MANUAL",
       paidAt: dateFormatted,
       paymentEvidence: "",
@@ -170,43 +159,45 @@ export function AdminInvoicesView() {
 
         <div className="admin-kpi-card">
           <div className="admin-kpi-top">
-            <span className="admin-kpi-label">Đã thu tiền (Trang này)</span>
+            <span className="admin-kpi-label">Đã thu tiền</span>
             <div className="admin-kpi-icon success">
               <DollarSign size={18} />
             </div>
           </div>
-          <div className="admin-kpi-num">{money(kpiStats.paidAmount)}</div>
+          <div className="admin-kpi-num">{money(paid.amount)}</div>
           <div className="admin-kpi-sub success">
             <CheckCircle2 size={13} />
-            <span>{kpiStats.paidCount} hóa đơn đã đối soát hoàn tất</span>
+            <span>{paid.count} hóa đơn đã thu</span>
           </div>
         </div>
 
         <div className="admin-kpi-card">
           <div className="admin-kpi-top">
-            <span className="admin-kpi-label">Công nợ chờ thu (Trang này)</span>
+            <span className="admin-kpi-label">Chờ thu (chưa đến hạn)</span>
             <div className="admin-kpi-icon warning">
               <Clock size={18} />
             </div>
           </div>
-          <div className="admin-kpi-num">{money(kpiStats.unpaidAmount)}</div>
+          <div className="admin-kpi-num">{money(pending.amount)}</div>
           <div className="admin-kpi-sub warning">
-            <span>{kpiStats.pendingOrOverdueCount} hóa đơn chờ thu / quá hạn</span>
+            <span>{pending.count} hóa đơn còn trong hạn nộp</span>
           </div>
         </div>
 
         <div className="admin-kpi-card">
           <div className="admin-kpi-top">
-            <span className="admin-kpi-label">Thời hạn nộp hóa đơn</span>
+            <span className="admin-kpi-label">Quá hạn chưa thu</span>
             <div className="admin-kpi-icon secondary">
               <CreditCard size={18} />
             </div>
           </div>
-          <div className="admin-kpi-num" style={{ fontSize: 18 }}>
-            07 ngày / Hóa đơn
+          <div className="admin-kpi-num" style={overdue.count ? { color: "#dc2626" } : undefined}>
+            {money(overdue.amount)}
           </div>
           <div className="admin-kpi-sub secondary">
-            <span>Sau 7 ngày chưa đóng sẽ chuyển sang Quá hạn</span>
+            <span>
+              {overdue.count ? `${overdue.count} hóa đơn cần đôn đốc` : "Không có hóa đơn quá hạn"}
+            </span>
           </div>
         </div>
       </div>
@@ -550,7 +541,7 @@ export function AdminInvoicesView() {
                 type="text"
                 required
                 className="admin-input"
-                placeholder="VD: SAAS-VCB-20261014-001 hoặc Mã giao dịch SePay..."
+                placeholder="Mã giao dịch trên sao kê ngân hàng hoặc mã giao dịch SePay"
                 value={payForm.paymentReference}
                 onChange={(e) => setPayForm({ ...payForm, paymentReference: e.target.value })}
               />

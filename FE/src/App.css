@@ -2429,20 +2429,32 @@ dialog.modal[open],
 .room-modal-wrapper > .room-form-tabs {
   flex-shrink: 0;
 }
+/* Chromium does not scroll with the mouse wheel while the pointer is over a disabled field:
+   let the wheel go to the scrolling modal body instead. */
+.modal-inner input:disabled,
+.modal-inner select:disabled,
+.modal-inner textarea:disabled {
+  pointer-events: none;
+}
+/* The form scrolls (a <fieldset> scroll box ignores the mouse wheel in Chromium); the footer is
+   pinned to its bottom so Save / Cancel stay visible. */
 .room-modal-wrapper > form {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
-}
-.room-modal-wrapper > form > fieldset {
-  flex: 1 1 auto;
-  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+.room-modal-wrapper > form > fieldset {
+  flex: 0 0 auto;
+}
 .room-modal-wrapper > form > .modal-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   flex-shrink: 0;
+  background: #ffffff;
 }
 .modal-inner > .modal-body {
   display: flex;
@@ -5250,6 +5262,17 @@ dialog.modal[open],
   font-size: 12.5px;
   line-height: 1.5;
   color: #64748b;
+}
+
+.room-furnishings-lock {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 
 .furnishing-type-options {

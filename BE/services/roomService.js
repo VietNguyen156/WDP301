@@ -9,6 +9,7 @@ const v = require("../utils/validation");
 const validate = require("./propertyValidation");
 const quota = require("./quotaService");
 const audit = require("./auditService");
+const { effectiveFurnishings } = require("../utils/furnishings");
 async function get(req, id, session = null) {
   const room = await Room.findOne(
     scoped(getTenantScope(req), { _id: validId(id) }),
@@ -43,7 +44,7 @@ async function list(req) {
       .limit(limit)
       .populate({
         path: "currentContractId",
-        select: "tenantId landlordId branchId isDeleted",
+        select: "tenantId landlordId branchId isDeleted status contractCode",
         match: {
           landlordId: branch.landlordId,
           branchId: branch._id,
@@ -73,6 +74,9 @@ async function list(req) {
       ...room,
       currentTenantName: room.currentContractId?.tenantId?.name || null,
       currentContractId: room.currentContractId?._id || null,
+      // Lets the room form lock furniture edits once the contract is signed (not DRAFT).
+      currentContractStatus: room.currentContractId?.status || null,
+      currentContractCode: room.currentContractId?.contractCode || null,
     })),
     total,
     page,
@@ -134,8 +138,9 @@ async function update(req) {
     );
     if (body.floor > branch.totalFloors)
       throw new BusinessRuleError("Tầng phòng vượt quá số tầng của cơ sở");
+    let contract = null;
     if (before.currentContractId) {
-      const contract = await Contract.findOne({
+      contract = await Contract.findOne({
         _id: before.currentContractId,
         landlordId: before.landlordId,
         roomId: before._id,
@@ -164,6 +169,9 @@ async function update(req) {
       throw new BusinessRuleError(
         "Hãy thanh lý hợp đồng trước khi thay đổi trạng thái phòng",
       );
+    // Furniture and its prices are part of the contract: they can change while the room has no
+    // contract or only a draft (the draft takes the new list), never once a contract is signed.
+    const furnishingChange = await applyFurnishingChange(req, before, branch, contract, body, session);
     // furnishings: null drops the room's own list (back to the branch catalogue).
     const { furnishings, ...rest } = body;
     const change =
@@ -181,11 +189,34 @@ async function update(req) {
       entityType: "ROOM",
       entityId: before._id,
       before,
-      after: after.toObject(),
+      after: { ...after.toObject(), ...(furnishingChange ? { draftContractFurnishings: furnishingChange } : {}) },
       session,
     });
     return after;
   });
+}
+
+// Returns the new list copied into the draft contract, or null when nothing changed for a contract.
+async function applyFurnishingChange(req, room, branch, contract, body, session) {
+  if (body.furnishingType === undefined && body.furnishings === undefined) return null;
+  const current = effectiveFurnishings(room, branch);
+  const next = effectiveFurnishings(
+    {
+      furnishingType: body.furnishingType ?? room.furnishingType,
+      furnishings: body.furnishings === null ? undefined : (body.furnishings ?? room.furnishings),
+    },
+    branch,
+  );
+  if (JSON.stringify(current) === JSON.stringify(next) || !contract) return null;
+  if (contract.status !== "DRAFT")
+    throw new BusinessRuleError(
+      `Phòng đang có hợp đồng ${contract.contractCode} đã ký: vật dụng bàn giao và đơn giá là một phần của hợp đồng nên không sửa được. Chỉ sửa khi phòng chưa có hợp đồng hoặc hợp đồng còn nháp.`,
+      "ROOM_FURNISHINGS_LOCKED",
+    );
+  contract.furnishingType = next.furnishingType;
+  contract.furnishings = next.furnishings;
+  await contract.save({ session });
+  return next;
 }
 async function remove(req) {
   return mongoose.connection.transaction(async (session) => {

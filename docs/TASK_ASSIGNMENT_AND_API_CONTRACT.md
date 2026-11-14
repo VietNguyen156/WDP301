@@ -239,7 +239,7 @@ POST bulk body:
 Vat dung ban giao kem phong (don gia den bu): `{ name, quantity (1-1000), price, note? }`, toi da 100 mon, ten khong trung (`INVALID_FURNISHINGS`).
 
 - Branch `defaultFurnishings`: danh muc chuan cho phong day du do.
-- Room `furnishingType: "UNFURNISHED" | "FURNISHED"` + `furnishings` (LANDLORD). Khong co `furnishings` -> dung danh muc co so; `PUT` voi `furnishings: null` -> bo danh muc rieng.
+- Room `furnishingType: "UNFURNISHED" | "FURNISHED"` + `furnishings` (LANDLORD). Khong co `furnishings` -> dung danh muc co so; `PUT` voi `furnishings: null` -> bo danh muc rieng. Chi sua khi phong chua co hop dong hoac hop dong `DRAFT` (nhap nhan danh muc moi); hop dong da ky -> `422 ROOM_FURNISHINGS_LOCKED`.
 
 ### 4.4 Contract va Tenant
 

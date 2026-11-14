@@ -62,7 +62,7 @@ Một CCCD / SĐT có thể là khách của nhiều chủ trọ → khi đăng 
 ### 4.2 Cơ sở, phòng, quản lý
 
 - Tạo cơ sở (địa chỉ, bảng giá điện / nước / dịch vụ mặc định, **danh mục vật dụng bàn giao kèm đơn giá đền bù**) → tạo phòng (lẻ hoặc hàng loạt), phòng có thể ghi đè giá.
-- **Vật dụng bàn giao** (tránh tranh chấp hư hỏng): mỗi món có tên, số lượng, đơn giá đền bù, tình trạng. Mỗi phòng chọn **phòng trống** (không kèm đồ) hoặc **đầy đủ đồ** (dùng danh mục của cơ sở hoặc danh mục riêng của phòng).
+- **Vật dụng bàn giao** (tránh tranh chấp hư hỏng): mỗi món có tên, số lượng, đơn giá đền bù, tình trạng. Mỗi phòng chọn **phòng trống** (không kèm đồ) hoặc **đầy đủ đồ** (dùng danh mục của cơ sở hoặc danh mục riêng của phòng). Chỉ sửa được khi phòng chưa có hợp đồng hoặc hợp đồng còn nháp (nháp nhận luôn danh mục mới); hợp đồng đã ký thì danh mục khóa, chỉ xem.
 - Tạo tài khoản quản lý, gán cơ sở. Quản lý đăng nhập bằng SĐT + mật khẩu tạm, bị buộc đổi mật khẩu lần đầu.
 - **Phân quyền quản lý**: chủ trọ bật / tắt 8 quyền cho từng người (sửa phòng, chốt điện nước, xử lý sự cố, lập phiếu chi, xem hóa đơn & thanh toán, xem hợp đồng, báo thu tiền mặt, gửi email nhắc nợ). Mặc định bật hết; quyền bị tắt trả lỗi `PERMISSION_DISABLED` từ thao tác kế tiếp.
 - **Khóa tài khoản quản lý**: đăng xuất ngay, không đăng nhập và không cấp lại mật khẩu được cho đến khi mở khóa; mở khóa giữ nguyên mật khẩu, quyền, cơ sở. Tài khoản bị khóa vẫn tính vào hạn ngạch quản lý của gói.

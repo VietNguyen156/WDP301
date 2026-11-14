@@ -20,7 +20,17 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { adminApi, errorMessage } from "../../services/api";
-import { money } from "../../utils/format";
+import { money, today } from "../../utils/format";
+
+// YYYY-MM-DD of a Vietnam calendar day, n days before today.
+const vnDay = (daysAgo = 0) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(
+    new Date(Date.now() - daysAgo * 86400000),
+  );
+const vnMonthStart = () => `${today().slice(0, 8)}01`;
+
+// One colour per plan in the plan-mix card (cheapest first), grey for "no plan".
+const PLAN_COLORS = ["#94a3b8", "#0284c7", "#059669", "#0f766e", "#7c3aed", "#d97706", "#db2777"];
 import { useToast } from "../../context/ToastContext";
 import { LoadingState, ErrorState, Button } from "../../components/ui";
 import { useLiveRefresh } from "../../hooks/useLiveRefresh";
@@ -35,12 +45,8 @@ export function AdminAnalyticsView({ onNavigateTab }) {
   const [priorityFilter, setPriorityFilter] = useState("ALL");
   const [activePreset, setActivePreset] = useState("month");
 
-  const [from, setFrom] = useState(() =>
-    new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-      .toISOString()
-      .slice(0, 10),
-  );
-  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [from, setFrom] = useState(vnMonthStart);
+  const [to, setTo] = useState(today);
 
   const fetchStats = useCallback(
     async (silent) => {
@@ -79,24 +85,10 @@ export function AdminAnalyticsView({ onNavigateTab }) {
 
   function setPreset(presetKey) {
     setActivePreset(presetKey);
-    const end = new Date();
-    const start = new Date();
-    if (presetKey === "month") {
-      const first = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-        .toISOString()
-        .slice(0, 10);
-      setFrom(first);
-      setTo(end.toISOString().slice(0, 10));
-      return;
-    }
-    if (presetKey === "all") {
-      setFrom("2026-01-01");
-      setTo(end.toISOString().slice(0, 10));
-      return;
-    }
-    start.setDate(end.getDate() - Number(presetKey));
-    setFrom(start.toISOString().slice(0, 10));
-    setTo(end.toISOString().slice(0, 10));
+    setTo(today());
+    if (presetKey === "month") setFrom(vnMonthStart());
+    else if (presetKey === "all") setFrom("2026-01-01");
+    else setFrom(vnDay(Number(presetKey)));
   }
 
   const handleExportReport = () => {
@@ -106,42 +98,34 @@ export function AdminAnalyticsView({ onNavigateTab }) {
     }, 400);
   };
 
-  const planDistribution = useMemo(() => {
-    const total = landlordsList.length || stats?.users?.landlords || 0;
-    let freeCount = 0;
-    let starterCount = 0;
-    let proCount = 0;
-    let enterpriseCount = 0;
-
-    if (landlordsList.length > 0) {
-      landlordsList.forEach((landlord) => {
-        const code = landlord.subscriptionId?.planId?.code?.toUpperCase() || "";
-        const price = landlord.subscriptionId?.planId?.price || 0;
-        if (!landlord.subscriptionId || code === "FREE_TRIAL" || price === 0) {
-          freeCount++;
-        } else if (code === "STARTER" || price <= 199000) {
-          starterCount++;
-        } else if (code === "ENTERPRISE" || price >= 999000) {
-          enterpriseCount++;
-        } else {
-          proCount++;
-        }
+  const planMix = useMemo(() => {
+    const mix = stats?.saas?.planMix;
+    const total = mix?.total || 0;
+    const pct = (count) => (total ? Math.round((count / total) * 1000) / 10 : 0);
+    const rows = (mix?.plans || []).map((p, i) => ({
+      key: String(p.planId),
+      name: p.name,
+      code: p.code,
+      price: p.price,
+      isActive: p.isActive,
+      count: p.count,
+      pct: pct(p.count),
+      color: PLAN_COLORS[i % PLAN_COLORS.length],
+    }));
+    if (mix?.withoutPlan)
+      rows.push({
+        key: "none",
+        name: "Chưa có gói hiệu lực",
+        code: "",
+        price: null,
+        isActive: true,
+        count: mix.withoutPlan,
+        pct: pct(mix.withoutPlan),
+        color: "#e2e8f0",
       });
-    }
-
-    const freePct = total ? Math.round((freeCount / total) * 100) : 0;
-    const starterPct = total ? Math.round((starterCount / total) * 100) : 0;
-    const proPct = total ? Math.round((proCount / total) * 100) : 0;
-    const entPct = total ? Math.max(0, 100 - freePct - starterPct - proPct) : 0;
-
-    return {
-      total,
-      free: { count: freeCount, pct: freePct },
-      starter: { count: starterCount, pct: starterPct },
-      pro: { count: proCount, pct: proPct },
-      enterprise: { count: enterpriseCount, pct: entPct },
-    };
-  }, [landlordsList, stats]);
+    const paying = (mix?.plans || []).filter((p) => p.price > 0).reduce((n, p) => n + p.count, 0);
+    return { total, rows, paying };
+  }, [stats]);
 
   const unmatchedTotal = useMemo(
     () =>
@@ -224,7 +208,7 @@ export function AdminAnalyticsView({ onNavigateTab }) {
         iconColor: "#0284c7",
         title: `Ghi nhận +${users.newAccounts} tài khoản mới tạo trong kỳ thống kê`,
         detail:
-          "Các tài khoản chủ trọ mới đã được khởi tạo và sẵn sàng cấu hình cơ sở lưu trú.",
+          "Gồm chủ trọ tự đăng ký, quản lý và khách thuê được chủ trọ cấp tài khoản.",
         time: "Kỳ báo cáo",
         status: "Đã kích hoạt",
         statusBadgeClass: "stitch-badge-info",
@@ -269,7 +253,7 @@ export function AdminAnalyticsView({ onNavigateTab }) {
   const totalLandlords = users?.landlords || 0;
   const activeLandlords = Math.max(
     0,
-    totalLandlords - (users?.suspendedAccounts || 0),
+    totalLandlords - (users?.suspendedLandlords || 0),
   );
   const activePercent =
     totalLandlords > 0
@@ -609,7 +593,7 @@ export function AdminAnalyticsView({ onNavigateTab }) {
                           </div>
                         </td>
                         <td>
-                          <span className="plan-code-badge pro">
+                          <span className="plan-code-badge">
                             {item.plan?.code || item.plan?.name || "SAAS"}
                           </span>
                         </td>
@@ -634,79 +618,62 @@ export function AdminAnalyticsView({ onNavigateTab }) {
 
         {/* Right Column: Plan Breakdown + Banking Integration Status */}
         <div className="stitch-side-cards-col">
-          {/* Card A: Phân bố Gói Cước SaaS */}
+          {/* Card A: Cơ cấu gói dịch vụ (gói đang hiệu lực của từng chủ trọ) */}
           <div className="stitch-card-box">
             <div className="stitch-card-header">
-              <h3 className="stitch-card-title-sm">Cơ cấu Gói dịch vụ SaaS</h3>
+              <div>
+                <h3 className="stitch-card-title-sm">Cơ cấu Gói dịch vụ SaaS</h3>
+                <p className="stitch-card-subtitle">Theo gói đang hiệu lực của từng chủ trọ</p>
+              </div>
               <span className="stitch-card-meta">
-                {planDistribution.total} chủ trọ
+                {planMix.total} chủ trọ · {planMix.paying} trả phí
               </span>
             </div>
 
-            <div className="stitch-segmented-bar">
-              <div
-                className="stitch-seg-fill gray"
-                style={{ width: `${planDistribution.free.pct}%` }}
-                title={`Free Trial: ${planDistribution.free.pct}%`}
-              />
-              <div
-                className="stitch-seg-fill blue"
-                style={{ width: `${planDistribution.starter.pct}%` }}
-                title={`Starter: ${planDistribution.starter.pct}%`}
-              />
-              <div
-                className="stitch-seg-fill emerald"
-                style={{ width: `${planDistribution.pro.pct}%` }}
-                title={`Pro Chuỗi: ${planDistribution.pro.pct}%`}
-              />
-              <div
-                className="stitch-seg-fill teal"
-                style={{ width: `${planDistribution.enterprise.pct}%` }}
-                title={`Enterprise: ${planDistribution.enterprise.pct}%`}
-              />
-            </div>
-
-            <div className="stitch-plan-legend-grid">
-              <div className="stitch-legend-pill-box">
-                <div className="stitch-pill-label">
-                  <span className="stitch-dot-circle gray" />
-                  <span>Free Trial ({planDistribution.free.pct}%)</span>
+            {planMix.total === 0 ? (
+              <p className="admin-planmix-empty">Chưa có chủ trọ nào trên hệ thống.</p>
+            ) : (
+              <>
+                <div className="admin-planmix-bar" role="img" aria-label="Tỷ lệ chủ trọ theo gói">
+                  {planMix.rows.map((row) => (
+                    <span
+                      key={row.key}
+                      style={{ width: `${row.pct}%`, background: row.color }}
+                      title={`${row.name}: ${row.count} (${row.pct}%)`}
+                    />
+                  ))}
                 </div>
-                <span className="stitch-pill-val">
-                  {planDistribution.free.count}
-                </span>
-              </div>
-
-              <div className="stitch-legend-pill-box">
-                <div className="stitch-pill-label">
-                  <span className="stitch-dot-circle blue" />
-                  <span>Starter ({planDistribution.starter.pct}%)</span>
-                </div>
-                <span className="stitch-pill-val">
-                  {planDistribution.starter.count}
-                </span>
-              </div>
-
-              <div className="stitch-legend-pill-box">
-                <div className="stitch-pill-label">
-                  <span className="stitch-dot-circle emerald" />
-                  <span>Pro Chuỗi ({planDistribution.pro.pct}%)</span>
-                </div>
-                <span className="stitch-pill-val highlight-emerald">
-                  {planDistribution.pro.count}
-                </span>
-              </div>
-
-              <div className="stitch-legend-pill-box">
-                <div className="stitch-pill-label">
-                  <span className="stitch-dot-circle teal" />
-                  <span>Enterprise ({planDistribution.enterprise.pct}%)</span>
-                </div>
-                <span className="stitch-pill-val highlight-emerald">
-                  {planDistribution.enterprise.count}
-                </span>
-              </div>
-            </div>
+                <ul className="admin-planmix-list">
+                  {planMix.rows.map((row) => (
+                    <li key={row.key}>
+                      <span className="admin-planmix-dot" style={{ background: row.color }} />
+                      <div className="admin-planmix-name">
+                        <strong>{row.name}</strong>
+                        <small>
+                          {row.price === null
+                            ? "Hết hạn, đã hủy hoặc chưa đăng ký"
+                            : row.price === 0
+                              ? "Miễn phí"
+                              : `${money(row.price)} / tháng`}
+                          {!row.isActive && " · ngừng bán"}
+                        </small>
+                      </div>
+                      <div className="admin-planmix-count">
+                        <strong>{row.count}</strong>
+                        <small>{row.pct}%</small>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  className="stitch-link-btn"
+                  onClick={() => onNavigateTab?.("subscriptions")}
+                >
+                  Xem thuê bao theo gói <ArrowRight size={13} />
+                </button>
+              </>
+            )}
           </div>
 
           {/* Card B: Liên kết Ngân hàng & SePay Bank Hub */}

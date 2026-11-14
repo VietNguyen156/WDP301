@@ -217,26 +217,7 @@ export default function ContractDetail({ id, onClose, onSaved }) {
   const isLandlord = user?.role === "LANDLORD";
   const isTenant = user?.role === "TENANT";
 
-  const [cancellingDraft, setCancellingDraft] = useState(false);
-  async function handleCancelDraft() {
-    const reason = window.prompt(
-      "Hủy hợp đồng nháp này? Phòng sẽ trở về trống" +
-        (c?.depositStatus === "PAID" ? " và tiền cọc được ghi là đã hoàn trả" : "") +
-        ".\nLý do (không bắt buộc):",
-    );
-    if (reason === null) return;
-    setCancellingDraft(true);
-    try {
-      await contractApi.cancelDraft(id, reason.trim() ? { reason: reason.trim() } : {});
-      toast.success("Đã hủy hợp đồng nháp");
-      resource.reload();
-      onSaved?.();
-    } catch (err) {
-      toast.error(errorMessage(err));
-    } finally {
-      setCancellingDraft(false);
-    }
-  }
+  const [cancellingDraftModalOpen, setCancellingDraftModalOpen] = useState(false);
 
   async function handleConfirmContract() {
     setConfirming(true);
@@ -473,12 +454,12 @@ export default function ContractDetail({ id, onClose, onSaved }) {
                 </div>
                 {isLandlord && (
                   <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleCancelDraft}
-                    disabled={cancellingDraft}
+                    type="button"
+                    compact
+                    variant="secondary"
+                    onClick={() => setCancellingDraftModalOpen(true)}
                   >
-                    {cancellingDraft ? "Đang hủy..." : "Hủy hợp đồng nháp"}
+                    Hủy hợp đồng nháp
                   </Button>
                 )}
               </div>
@@ -1410,7 +1391,92 @@ export default function ContractDetail({ id, onClose, onSaved }) {
           }}
         />
       )}
+
+      {cancellingDraftModalOpen && c && (
+        <CancelDraftModal
+          contract={c}
+          onClose={() => setCancellingDraftModalOpen(false)}
+          onDone={() => {
+            setCancellingDraftModalOpen(false);
+            resource.reload();
+            onSaved?.();
+          }}
+        />
+      )}
     </>
+  );
+}
+
+function CancelDraftModal({ contract, onClose, onDone }) {
+  const toast = useToast();
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(e) {
+    e?.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      await contractApi.cancelDraft(
+        contract._id,
+        reason.trim() ? { reason: reason.trim() } : {},
+      );
+      toast.success("Đã hủy hợp đồng nháp");
+      onDone();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Xác nhận hủy hợp đồng nháp"
+      subtitle={`${contract.contractCode} · Phòng ${contract.roomId?.roomNumber || ""}`}
+      onClose={onClose}
+      busy={busy}
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
+            Quay lại
+          </Button>
+          <Button type="button" variant="danger" onClick={submit} busy={busy}>
+            Xác nhận hủy hợp đồng
+          </Button>
+        </>
+      }
+    >
+      <form className="contract-cancel-draft-form" onSubmit={submit}>
+        <div className="contract-cancel-warning">
+          <AlertCircle size={18} />
+          <div>
+            <strong>Hành động này không thể hoàn tác.</strong> Sau khi hủy, bản hợp đồng nháp sẽ
+            đóng lại và phòng <strong>{contract.roomId?.roomNumber || ""}</strong> sẽ tự động
+            chuyển về trạng thái <strong>Phòng trống</strong>.
+            {contract.depositStatus === "PAID" && (
+              <p>
+                Khoản tiền cọc đã nhận (<strong>{money(contract.depositAmount)}</strong>) sẽ được
+                ghi nhận trạng thái <strong>Đã hoàn trả</strong>.
+              </p>
+            )}
+          </div>
+        </div>
+
+        <Field label="Lý do hủy hợp đồng (không bắt buộc)">
+          <textarea
+            rows={3}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Ví dụ: Khách đổi ý không chuyển vào, cần điều chỉnh lại thông tin phòng..."
+            disabled={busy}
+          />
+        </Field>
+
+        <FormError error={error} />
+      </form>
+    </Modal>
   );
 }
 
@@ -1454,58 +1520,82 @@ function RenewContractModal({ contract, onClose, onDone }) {
   return (
     <Modal
       title="Gia hạn hợp đồng"
-      subtitle={`${contract.contractCode} · Phòng ${contract.roomId?.roomNumber || ""} · đang hết hạn ${date(contract.endDate)}`}
+      subtitle={`${contract.contractCode} · Phòng ${contract.roomId?.roomNumber || ""} · hiệu lực đến ${date(contract.endDate)}`}
       onClose={onClose}
       busy={busy}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={busy}>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
             Hủy
           </Button>
-          <Button onClick={submit} busy={busy}>
+          <Button type="button" onClick={submit} busy={busy}>
             Xác nhận gia hạn
           </Button>
         </>
       }
     >
       <form className="contract-renew-form" onSubmit={submit}>
-        <div className="contract-renew-presets" role="group" aria-label="Chọn nhanh thời hạn">
-          {[3, 6, 12].map((m) => (
-            <button
-              key={m}
-              type="button"
-              className={endDate === addMonths(m) ? "is-active" : ""}
-              onClick={() => setEndDate(addMonths(m))}
-            >
-              +{m} tháng
-            </button>
-          ))}
+        <div className="contract-renew-summary">
+          <div>
+            <span>Hiệu lực hiện tại</span>
+            <strong>Đến {date(contract.endDate)}</strong>
+          </div>
+          <div>
+            <span>Giá thuê hiện tại</span>
+            <strong>{money(contract.rentalPrice)}/tháng</strong>
+          </div>
         </div>
-        <Field
-          label="Ngày kết thúc mới"
-          type="date"
-          required
-          min={addMonths(0)}
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-        />
-        <Field
-          label="Giá thuê từ kỳ tới (VNĐ/tháng)"
-          type="number"
-          min="0"
-          step="1000"
-          value={rentalPrice}
-          onChange={(e) => setRentalPrice(e.target.value)}
-          hint={`Hiện tại ${money(contract.rentalPrice)}. Giá mới áp dụng cho các hóa đơn tạo sau khi gia hạn.`}
-        />
+
+        <div className="contract-renew-presets-group">
+          <span className="contract-renew-label">Chọn nhanh thời hạn gia hạn</span>
+          <div className="contract-renew-presets" role="group" aria-label="Chọn nhanh thời hạn">
+            {[3, 6, 12].map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={endDate === addMonths(m) ? "is-active" : ""}
+                onClick={() => setEndDate(addMonths(m))}
+              >
+                +{m} tháng
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="contract-renew-grid">
+          <Field
+            label="Ngày kết thúc mới"
+            type="date"
+            required
+            min={addMonths(0)}
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+          <Field
+            label="Giá thuê từ kỳ tới (VNĐ/tháng)"
+            type="number"
+            min="0"
+            step="1000"
+            value={rentalPrice}
+            onChange={(e) => setRentalPrice(e.target.value)}
+            hint="Áp dụng cho các hóa đơn tạo sau khi gia hạn."
+          />
+        </div>
+
         <Field label="Ghi chú phụ lục (không bắt buộc)">
-          <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="VD: Giữ nguyên các điều khoản khác" />
+          <textarea
+            rows={2}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="VD: Giữ nguyên các điều khoản khác"
+          />
         </Field>
+
         <p className="contract-renew-note">
-          Mã hợp đồng, tiền cọc và các điều khoản khác giữ nguyên. Nếu tài khoản khách đã bị tạm khóa do hết hạn, tài khoản sẽ
-          được mở lại với mật khẩu cũ.
+          Mã hợp đồng, tiền cọc và các điều khoản khác giữ nguyên. Nếu tài khoản khách đã bị tạm khóa do hết hạn, tài
+          khoản sẽ được mở lại với mật khẩu cũ.
         </p>
-        <FormError message={error} />
+        <FormError error={error} />
       </form>
     </Modal>
   );

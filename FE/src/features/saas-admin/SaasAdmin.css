@@ -1341,95 +1341,90 @@
   font-weight: 500;
 }
 
-/* Segmented progress bar */
-.stitch-segmented-bar {
+/* Plan mix card (AdminAnalyticsView): one bar split by plan, then one row per plan. */
+.admin-planmix-bar {
+  display: flex;
   width: 100%;
-  height: 12px;
+  height: 10px;
+  margin: 4px 0 14px;
   border-radius: 9999px;
   overflow: hidden;
-  display: flex;
-  background-color: #f1f5f9;
-  margin-bottom: 14px;
+  background: #f1f5f9;
 }
 
-.stitch-seg-fill {
+.admin-planmix-bar > span {
   height: 100%;
   transition: width 0.3s ease;
 }
 
-.stitch-seg-fill.gray {
-  background-color: #94a3b8;
+.admin-planmix-bar > span + span {
+  border-left: 2px solid #ffffff;
 }
 
-.stitch-seg-fill.blue {
-  background-color: #3b82f6;
-}
-
-.stitch-seg-fill.emerald {
-  background-color: #005c55;
-}
-
-.stitch-seg-fill.purple {
-  background-color: #9333ea;
-}
-
-/* Legend grid for plans */
-.stitch-plan-legend-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-
-.stitch-legend-pill-box {
+.admin-planmix-list {
   display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-planmix-list li {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   padding: 8px 10px;
   border-radius: 8px;
-  background-color: var(--surface);
-  font-size: 12.5px;
 }
 
-.stitch-pill-label {
+.admin-planmix-list li:hover {
+  background: #f8fafc;
+}
+
+.admin-planmix-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.admin-planmix-name,
+.admin-planmix-count {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #334155;
+  flex-direction: column;
+  min-width: 0;
 }
 
-.stitch-dot-circle {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
+.admin-planmix-name strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.stitch-dot-circle.gray {
-  background-color: #94a3b8;
+.admin-planmix-name small,
+.admin-planmix-count small {
+  font-size: 11.5px;
+  color: #64748b;
 }
 
-.stitch-dot-circle.blue {
-  background-color: #3b82f6;
+.admin-planmix-count {
+  align-items: flex-end;
+  font-variant-numeric: tabular-nums;
 }
 
-.stitch-dot-circle.emerald {
-  background-color: #005c55;
-}
-
-.stitch-dot-circle.purple {
-  background-color: #9333ea;
-}
-
-.stitch-pill-val {
-  font-weight: 700;
+.admin-planmix-count strong {
+  font-size: 15px;
   color: #0f172a;
 }
 
-.stitch-pill-val.highlight-emerald {
-  color: #005c55;
-}
-
-.stitch-pill-val.highlight-purple {
-  color: #7e22ce;
+.admin-planmix-empty {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #64748b;
 }
 
 /* Gateway metrics */

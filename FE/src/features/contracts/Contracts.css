@@ -1521,11 +1521,122 @@
 .contract-renewals h4 { margin: 0 0 8px; font-size: 13px; color: #0f766e; }
 .contract-renewals ol { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
 .contract-renewal-note { color: #64748b; }
-.contract-renew-form { display: grid; gap: 12px; }
-.contract-renew-presets { display: inline-flex; gap: 6px; }
-.contract-renew-presets button { padding: 6px 12px; border-radius: 8px; border: 1px solid #cbd5e1; background: #ffffff; font-size: 13px; font-weight: 600; color: #334155; cursor: pointer; }
-.contract-renew-presets button.is-active { border-color: #0f766e; background: #f0fdfa; color: #0f766e; }
-.contract-renew-note { margin: 0; font-size: 12.5px; color: #64748b; }
+.contract-renew-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px;
+}
+
+.contract-renew-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f0fdfa;
+  border: 1px solid #ccfbf1;
+}
+
+.contract-renew-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.contract-renew-summary span {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.contract-renew-summary strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: #005c55;
+  font-variant-numeric: tabular-nums;
+}
+
+.contract-renew-presets-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.contract-renew-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #131b2e;
+}
+
+.contract-renew-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.contract-renew-presets button {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.contract-renew-presets button:hover {
+  border-color: #0f766e;
+  color: #0f766e;
+}
+
+.contract-renew-presets button.is-active {
+  border-color: #0f766e;
+  background: #f0fdfa;
+  color: #0f766e;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12);
+}
+
+.contract-renew-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.contract-renew-form .field textarea {
+  padding: 10px 12px;
+  line-height: 1.5;
+}
+
+.contract-renew-note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #475569;
+}
+
+@media (max-width: 640px) {
+  .contract-renew-form {
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .contract-renew-summary,
+  .contract-renew-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
 
 /* Draft contract: not in force until both parties sign */
 .contract-draft-note {
@@ -1549,6 +1660,48 @@
 }
 .contract-draft-note > button {
   flex-shrink: 0;
+}
+
+.contract-cancel-draft-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px;
+}
+
+.contract-cancel-draft-form .field textarea {
+  padding: 10px 12px;
+  line-height: 1.5;
+}
+
+.contract-cancel-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.contract-cancel-warning > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.contract-cancel-warning p {
+  margin: 6px 0 0;
+  color: #991b1b;
+}
+
+@media (max-width: 640px) {
+  .contract-cancel-draft-form {
+    padding: 16px;
+    gap: 14px;
+  }
 }
 @media print {
   .contract-draft-note > button {

@@ -13,6 +13,8 @@ const v = require("../utils/validation");
 const validate = require("./propertyValidation");
 const quota = require("./quotaService");
 const audit = require("./auditService");
+const Contract = require("../models/Contract");
+const { effectiveFurnishings } = require("../utils/furnishings");
 async function get(req, id, session = null) {
   assertBranchScope(req, validId(id));
   const branch = await Branch.findOne(scoped(getBranchScope(req), { _id: id }))
@@ -171,6 +173,8 @@ async function update(req) {
       { $set: body },
       { returnDocument: "after", runValidators: true, session },
     );
+    if (body.defaultFurnishings !== undefined)
+      await syncDraftFurnishings(after.toObject(), session);
     await audit.log({
       req,
       action: "UPDATE_BRANCH_PRICING",
@@ -182,6 +186,27 @@ async function update(req) {
     });
     return after;
   });
+}
+// Branch catalogue edited: draft (unsigned) contracts of rooms that use the catalogue take the
+// new list. Signed contracts keep the copy made when they were created.
+async function syncDraftFurnishings(branch, session) {
+  const drafts = await Contract.find({
+    landlordId: branch.landlordId,
+    branchId: branch._id,
+    status: "DRAFT",
+    isDeleted: false,
+  }).session(session);
+  if (!drafts.length) return;
+  const rooms = await Room.find({ _id: { $in: drafts.map((c) => c.roomId) } })
+    .select("furnishingType furnishings")
+    .session(session)
+    .lean();
+  for (const contract of drafts) {
+    const room = rooms.find((r) => String(r._id) === String(contract.roomId));
+    if (!room || Array.isArray(room.furnishings) || room.furnishingType === "UNFURNISHED") continue;
+    Object.assign(contract, effectiveFurnishings(room, branch));
+    await contract.save({ session });
+  }
 }
 async function remove(req) {
   return mongoose.connection.transaction(async (session) => {

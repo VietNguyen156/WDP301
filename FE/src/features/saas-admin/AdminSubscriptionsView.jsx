@@ -14,6 +14,10 @@ import {
 } from "lucide-react";
 import { adminApi, errorMessage } from "../../services/api";
 import { money } from "../../utils/format";
+
+// YYYY-MM-DD of a moment as a Vietnam calendar day (toISOString is UTC: a day off before 7:00).
+const vnDay = (value = Date.now()) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(value));
 import { useToast } from "../../context/ToastContext";
 import {
   LoadingState,
@@ -28,6 +32,7 @@ import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 export function AdminSubscriptionsView() {
   const toast = useToast();
   const [subscriptions, setSubscriptions] = useState([]);
+  const [summary, setSummary] = useState(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -52,8 +57,8 @@ export function AdminSubscriptionsView() {
   const [form, setForm] = useState(() => ({
     landlordId: "",
     planId: "",
-    startDate: new Date().toISOString().slice(0, 10),
-    endDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+    startDate: vnDay(),
+    endDate: vnDay(Date.now() + 30 * 86400000),
   }));
 
   const fetchSubscriptions = useCallback(async (silent) => {
@@ -69,6 +74,7 @@ export function AdminSubscriptionsView() {
       const res = await adminApi.listSubscriptions(params);
       setSubscriptions(res?.items || []);
       setTotal(res?.total || 0);
+      setSummary(res?.summary || null);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -91,18 +97,13 @@ export function AdminSubscriptionsView() {
     });
   }, [subscriptions, searchQuery]);
 
-  const kpiStats = useMemo(() => {
-    let active = 0;
-    let pending = 0;
-    let revenueOnPage = 0;
-    for (const sub of subscriptions) {
-      const st = sub.displayStatus || sub.status;
-      if (st === "ACTIVE") active += 1;
-      if (st === "PENDING_PAYMENT") pending += 1;
-      revenueOnPage += Number(sub.pricePaid || 0);
-    }
-    return { active, pending, revenueOnPage };
-  }, [subscriptions]);
+  // Totals over every subscription of existing landlords (GET /admin/subscriptions summary).
+  const kpiStats = {
+    active: summary?.active || 0,
+    pending: summary?.pendingPayment || 0,
+    expiringSoon: summary?.expiringSoon || 0,
+    collected: summary?.collectedAmount || 0,
+  };
 
   // Load landlords and plans when create modal is opened
   async function loadCreateOptions() {
@@ -129,10 +130,8 @@ export function AdminSubscriptionsView() {
 
   function openCreate() {
     loadCreateOptions();
-    const today = new Date().toISOString().slice(0, 10);
-    const monthLater = new Date(Date.now() + 30 * 86400000)
-      .toISOString()
-      .slice(0, 10);
+    const today = vnDay();
+    const monthLater = vnDay(Date.now() + 30 * 86400000);
     setForm({
       landlordId: landlordsList[0]?._id || "",
       planId: plansList[0]?._id || "",
@@ -148,8 +147,8 @@ export function AdminSubscriptionsView() {
     setForm({
       landlordId: sub.landlordId?._id || "",
       planId: sub.planId?._id || "",
-      startDate: new Date(sub.startDate).toISOString().slice(0, 10),
-      endDate: new Date(sub.endDate).toISOString().slice(0, 10),
+      startDate: vnDay(sub.startDate),
+      endDate: vnDay(sub.endDate),
     });
   }
 
@@ -257,7 +256,11 @@ export function AdminSubscriptionsView() {
           <div className="admin-kpi-num">{kpiStats.active}</div>
           <div className="admin-kpi-sub success">
             <span className="live-dot" />
-            <span>Thuê bao hoạt động trong trang hiện tại</span>
+            <span>
+              {kpiStats.expiringSoon
+                ? `${kpiStats.expiringSoon} hết hạn trong 7 ngày tới`
+                : "Chủ trọ có gói đang hiệu lực"}
+            </span>
           </div>
         </div>
 
@@ -276,14 +279,14 @@ export function AdminSubscriptionsView() {
 
         <div className="admin-kpi-card">
           <div className="admin-kpi-top">
-            <span className="admin-kpi-label">Thực thu Thuê bao (Trang này)</span>
+            <span className="admin-kpi-label">Đã thu phí thuê bao</span>
             <div className="admin-kpi-icon secondary">
               <DollarSign size={18} />
             </div>
           </div>
-          <div className="admin-kpi-num">{money(kpiStats.revenueOnPage)}</div>
+          <div className="admin-kpi-num">{money(kpiStats.collected)}</div>
           <div className="admin-kpi-sub secondary">
-            <span>Tổng tiền đã thu của các thuê bao hiển thị</span>
+            <span>Tổng hóa đơn gói đã thanh toán</span>
           </div>
         </div>
       </div>

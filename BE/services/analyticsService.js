@@ -63,6 +63,56 @@ async function overdueInvoices(now, limit = 20) {
   }));
 }
 
+// Plan mix: every non-deleted landlord counted once, under the plan of their current subscription
+// (ACTIVE, started, not ended; latest first, same rule as quotaService.currentSubscription).
+// Landlords with no such subscription are counted separately, so the parts add up to the total.
+async function planMix(now, totalLandlords) {
+  const rows = await Subscription.aggregate([
+    {
+      $match: {
+        isDeleted: false,
+        status: "ACTIVE",
+        startDate: { $lte: now },
+        endDate: { $gt: now },
+      },
+    },
+    {
+      $lookup: {
+        from: User.collection.name,
+        localField: "landlordId",
+        foreignField: "_id",
+        as: "owner",
+        pipeline: [{ $project: { role: 1, isDeleted: 1 } }],
+      },
+    },
+    { $match: { "owner.0.role": "LANDLORD", "owner.0.isDeleted": false } },
+    { $sort: { startDate: -1, createdAt: -1, _id: -1 } },
+    { $group: { _id: "$landlordId", planId: { $first: "$planId" } } },
+    { $group: { _id: "$planId", count: { $sum: 1 } } },
+    {
+      $lookup: {
+        from: "saasplans",
+        localField: "_id",
+        foreignField: "_id",
+        as: "plan",
+        pipeline: [{ $project: { code: 1, name: 1, price: 1, isActive: 1 } }],
+      },
+    },
+  ]);
+  const plans = rows
+    .map((row) => ({
+      planId: row._id,
+      code: row.plan[0]?.code || "UNKNOWN",
+      name: row.plan[0]?.name || "Gói đã xóa",
+      price: row.plan[0]?.price ?? 0,
+      isActive: row.plan[0]?.isActive ?? false,
+      count: row.count,
+    }))
+    .sort((a, b) => a.price - b.price || b.count - a.count);
+  const withPlan = plans.reduce((sum, p) => sum + p.count, 0);
+  return { plans, withoutPlan: Math.max(totalLandlords - withPlan, 0), total: totalLandlords };
+}
+
 async function stats(req) {
   const now = new Date();
   let from = req.query.from
@@ -96,7 +146,13 @@ async function stats(req) {
           role: { $in: ["LANDLORD", "PROPERTY_MANAGER", "TENANT"] },
         },
       },
-      { $group: { _id: "$role", count: { $sum: 1 } } },
+      {
+        $group: {
+          _id: "$role",
+          count: { $sum: 1 },
+          suspended: { $sum: { $cond: [{ $eq: ["$status", "SUSPENDED"] }, 1, 0] } },
+        },
+      },
     ]),
     User.countDocuments({
       isDeleted: false,
@@ -191,6 +247,8 @@ async function stats(req) {
     overdueInvoices(now),
   ]);
   const counts = Object.fromEntries(users.map((u) => [u._id, u.count]));
+  const suspendedLandlords = users.find((u) => u._id === "LANDLORD")?.suspended || 0;
+  const mix = await planMix(now, counts.LANDLORD || 0);
   const paidOwners = new Set(converted.map(String));
   const convertedTrials = trials.filter((id) =>
     paidOwners.has(String(id)),
@@ -203,6 +261,7 @@ async function stats(req) {
       tenants: counts.TENANT || 0,
       newAccounts,
       suspendedAccounts: suspended,
+      suspendedLandlords,
     },
     saas: {
       mrr: Math.round(recurring[0]?.mrr || 0),
@@ -218,6 +277,7 @@ async function stats(req) {
         ? Math.round((convertedTrials / trials.length) * 10000) / 100
         : 0,
       overdueInvoices: overdueList,
+      planMix: mix,
     },
     property: { activeRoomCount: rooms },
   };

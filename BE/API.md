@@ -356,6 +356,7 @@ Mỗi vật dụng: `{ name, quantity, price, note? }`. `quantity` là số nguy
   - `FURNISHED` không có `furnishings`: dùng danh mục của cơ sở.
   - `FURNISHED` có `furnishings`: danh mục riêng của phòng. Gửi `furnishings: null` trong `PUT /rooms/:roomId` để bỏ danh mục riêng, quay về danh mục cơ sở.
   - Phòng cũ chưa có `furnishingType`: coi là đầy đủ đồ nếu danh mục áp dụng có ít nhất một món.
+  - **Chỉ sửa được khi phòng chưa có hợp đồng hoặc hợp đồng còn `DRAFT`.** Phòng có hợp đồng đã ký mà danh mục áp dụng thay đổi: `422 ROOM_FURNISHINGS_LOCKED` (gửi lại đúng danh mục cũ thì không lỗi). Hợp đồng nháp nhận luôn danh mục mới. Sửa `defaultFurnishings` của cơ sở cũng cập nhật các hợp đồng nháp của phòng đang dùng danh mục cơ sở; hợp đồng đã ký giữ bản đã chép. `GET /branches/:id/rooms` populate thêm `currentContractId.status`, `contractCode`.
 - **Contract**: `POST /contracts` chép danh mục đang áp dụng của phòng vào `furnishingType` và `furnishings` của hợp đồng. Sửa cơ sở hoặc phòng sau đó không làm đổi hợp đồng đã lập. Hợp đồng lập trước tính năng này không có hai trường đó; trang chi tiết hiển thị danh mục hiện tại của phòng và ghi rõ là chưa chốt trong hợp đồng (`GET /contracts/:id` populate thêm `roomId.furnishingType`, `roomId.furnishings`, `branchId.defaultFurnishings`).
 
 ### Tạo Contract
@@ -1282,6 +1283,8 @@ HTTP 200 trả:
 - `saas.collectedAmount` / `paidInvoiceCount`: tiền thực thu và số hóa đơn SaaS PAID theo paidAt trong kỳ; không cộng Invoice/Payment tiền phòng.
 - `overdueInvoiceCount`, `expiringWithin7Days`: số hóa đơn quá hạn và thuê bao sắp hết hạn.
 - `trialLandlords`, `convertedTrialLandlords`, `trialConversionRate`: Landlord từng dùng gói miễn phí và từng có thuê bao trả phí đã thanh toán.
+- `planMix: { total, withoutPlan, plans: [{ planId, code, name, price, isActive, count }] }`: cơ cấu gói. Mỗi Landlord chưa xóa được tính một lần theo gói của thuê bao hiện hành (`ACTIVE`, đã bắt đầu, chưa hết hạn; lấy bản mới nhất, cùng quy tắc `quotaService.currentSubscription`). `withoutPlan` là Landlord không có thuê bao hiện hành; tổng các phần bằng `total`. `plans` xếp theo giá tăng dần.
+- `users.suspendedLandlords`: số Landlord đang bị khóa (`users.suspendedAccounts` đếm mọi vai trò trừ SUPER_ADMIN).
 - `property.activeRoomCount`: chỉ số phòng chưa xóa/chưa INACTIVE; không trả chi tiết phòng/hợp đồng.
 
 ### Dữ liệu cũ
@@ -1326,6 +1329,12 @@ Dependencies added: None. Automated testing chưa thực hiện; việc kiểm t
 ## Admin: tài khoản nhận tiền của chủ trọ (chỉ xem)
 
 `GET /admin/landlords` trả thêm cho mỗi chủ trọ `banking { source: "BANK_HUB" | "MANUAL" | null, linkedAt, autoReconcile, pendingUnmatched, lastTransferAt }` và `bankingSummary { linked, manual, none }` (theo bộ lọc hiện tại). Chủ trọ tự liên kết ngân hàng qua SePay Bank Hub (Hồ sơ › Ngân hàng); quản trị không nhập STK, khóa API hay webhook thay. `autoReconcile` = đã liên kết Bank Hub + tài khoản chủ trọ ACTIVE + gói đang hiệu lực (cùng điều kiện với webhook).
+
+`GET /admin/landlords`: `subscriptionId` của mỗi chủ trọ là thuê bao hiện hành (`ACTIVE`, đã bắt đầu, chưa hết hạn; mới nhất), nếu không có thì thuê bao mới nhất. Không còn đọc con trỏ `User.subscriptionId` (chỉ được cập nhật khi chủ trọ thêm tài nguyên nên có thể cũ).
+
+`GET /admin/invoices` trả thêm `summary { paid, pending, overdue, cancelled }`, mỗi mục `{ count, amount }`, tính trên mọi hóa đơn gói (theo `landlordId` nếu lọc), không theo trang. `pending` là chưa đến hạn; `PENDING` đã quá `dueDate` tính vào `overdue`.
+
+`GET /admin/subscriptions` trả thêm `summary { active, pendingPayment, expiringSoon, expired, collectedAmount }`, chỉ tính chủ trọ chưa xóa, không theo trang. `expiringSoon`: còn hiệu lực và hết hạn trong 7 ngày; `collectedAmount`: tổng hóa đơn gói đã thanh toán.
 
 ## Hợp đồng nháp và ký xác nhận 2 bên
 
