@@ -1,11 +1,14 @@
 const router = require("express").Router();
-const { authenticate, authorize } = require("../middlewares/auth");
+const { authenticate, authorize, permit } = require("../middlewares/auth");
 const c = require("../controllers/contractController");
-router.use(authenticate, authorize("LANDLORD", "TENANT"));
-router.route("/").get(c.list).post(authorize("LANDLORD"), c.create);
+// Quản lý cơ sở chỉ xem (danh sách + chi tiết, trong các cơ sở được giao); mọi thao tác ghi
+// do chủ trọ hoặc khách thuê thực hiện.
+router.use(authenticate, authorize("LANDLORD", "PROPERTY_MANAGER", "TENANT"));
+const read = permit("VIEW_CONTRACTS");
+router.route("/").get(read, c.list).post(authorize("LANDLORD"), c.create);
 // Kiểm tra CCCD đang có hợp đồng còn hiệu lực (form lập hợp đồng báo trùng khi đang nhập)
 router.get("/citizen-check", authorize("LANDLORD"), c.citizenCheck);
-router.get("/:contractId", c.get);
+router.get("/:contractId", read, c.get);
 router.post(
   "/:contractId/settlement",
   authorize("LANDLORD"),
@@ -30,7 +33,7 @@ router.post(
   c.markDepositReceived,
 );
 // Sandbox: giả lập khách chuyển khoản tiền cọc qua luồng đối soát ngân hàng thật
-router.post("/:contractId/deposit/simulate", c.simulateDeposit);
+router.post("/:contractId/deposit/simulate", authorize("LANDLORD", "TENANT"), c.simulateDeposit);
 // Hủy hợp đồng nháp (chưa đủ chữ ký 2 bên), trả phòng về trống
 router.post("/:contractId/cancel", authorize("LANDLORD"), c.cancelDraft);
 // Gia hạn hợp đồng (phụ lục gia hạn)

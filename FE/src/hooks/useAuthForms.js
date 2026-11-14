@@ -121,6 +121,8 @@ export function useRegisterForm() {
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
+  // Only checked here; the API receives the password once.
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -133,7 +135,7 @@ export function useRegisterForm() {
     event.preventDefault();
     setError("");
 
-    const validationError = validateRegisterInput({ name, email, password });
+    const validationError = validateRegisterInput({ name, email, password, confirmPassword });
     if (validationError) {
       setError(validationError);
       return;
@@ -167,6 +169,8 @@ export function useRegisterForm() {
     setPhoneNumber,
     password,
     setPassword,
+    confirmPassword,
+    setConfirmPassword,
     passwordStrength,
     busy,
     error,

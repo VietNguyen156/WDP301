@@ -178,6 +178,7 @@ Mặc định mọi quyền đều bật; DB chỉ lưu quyền đã tắt (`Use
 | `HANDLE_INCIDENTS` | `PUT /incidents/:id/status`, `/cost`, `POST /incidents/:id/quote`, `/triage` |
 | `RECORD_EXPENSES` | `POST /expenses` |
 | `VIEW_FINANCE` | `GET /invoices`, `/invoices/:id`, `/invoices/:id/payments`, `/payments`, `/payments/:id`, `/expenses` |
+| `VIEW_CONTRACTS` | `GET /contracts`, `GET /contracts/:contractId` (Manager chỉ xem hợp đồng của cơ sở được giao; không lập, ký, nhận cọc, gia hạn, hủy, quyết toán) |
 | `REPORT_CASH` | `POST /payments/cash` |
 | `SEND_REMINDERS` | `POST /invoices/:invoiceId/reminders` |
 

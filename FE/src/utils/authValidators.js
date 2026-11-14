@@ -153,7 +153,7 @@ export function evaluatePasswordStrength(password = "") {
   };
 }
 
-export function validateRegisterInput({ name, email, password }) {
+export function validateRegisterInput({ name, email, password, confirmPassword }) {
   if (!name?.trim()) {
     return "Vui lòng nhập họ và tên Chủ trọ.";
   }
@@ -162,6 +162,9 @@ export function validateRegisterInput({ name, email, password }) {
   }
   if (!password || password.length < 8) {
     return "Mật khẩu phải chứa tối thiểu 8 ký tự.";
+  }
+  if (password !== confirmPassword) {
+    return "Mật khẩu xác nhận không khớp.";
   }
   return "";
 }

@@ -38,6 +38,8 @@ export function useContractsPage() {
   );
   const branches = branchResource.data?.items || [];
   const landlord = user.role === "LANDLORD";
+  // Branch managers only read contracts of their branches (no create / sign / settle).
+  const manager = user.role === "PROPERTY_MANAGER";
 
   const [creating, setCreating] = useState(
     params.get("create") === "1" && landlord,
@@ -222,6 +224,7 @@ export function useContractsPage() {
     selectedBranchId,
     branches,
     landlord,
+    manager,
     creating,
     setCreating,
     exportingResidence,

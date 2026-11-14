@@ -1035,7 +1035,7 @@ export default function ContractDetail({ id, onClose, onSaved }) {
                             ? "Gói hiện tại chưa có đối soát tự động: khi tiền về tài khoản, bấm “Xác nhận đã nhận cọc”."
                             : "Vui lòng ghi đúng nội dung chuyển khoản. Chủ trọ sẽ xác nhận khi nhận được tiền."}
                       </p>
-                      {c.depositPayment.simulator && (
+                      {c.depositPayment.simulator && (isLandlord || isTenant) && (
                         <Button
                           size="sm"
                           variant="secondary"

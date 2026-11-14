@@ -25,7 +25,7 @@ Hai dòng tiền tách biệt hoàn toàn:
 | --- | --- | --- |
 | **SUPER_ADMIN** (nền tảng) | Tạo tay trong DB | Quản lý gói SaaS, chủ trọ (khóa / mở), thuê bao, hóa đơn gói, duyệt yêu cầu đổi gói, xem analytics, audit log, giám sát tài khoản nhận tiền của chủ trọ (chỉ xem). |
 | **LANDLORD** (chủ trọ) | Tự đăng ký | Toàn quyền dữ liệu của mình: cơ sở, phòng, hợp đồng, hóa đơn, duyệt tiền mặt, đối soát, phiếu chi, quản lý, gói phần mềm, liên kết ngân hàng, dashboard doanh thu. |
-| **PROPERTY_MANAGER** (quản lý cơ sở) | Chủ trọ tạo, cấp mật khẩu tạm | Chỉ trong các cơ sở được giao: phòng, chốt điện nước, xem hóa đơn, thu tiền mặt (chờ chủ trọ duyệt), xử lý sự cố, báo giá, phiếu chi, gửi email nhắc nợ. Không xem doanh thu tổng. Chủ trọ **bật / tắt từng quyền** và **khóa / mở khóa** tài khoản (mục 4.2). |
+| **PROPERTY_MANAGER** (quản lý cơ sở) | Chủ trọ tạo, cấp mật khẩu tạm | Chỉ trong các cơ sở được giao: phòng, chốt điện nước, xem hóa đơn, thu tiền mặt (chờ chủ trọ duyệt), xử lý sự cố, báo giá, phiếu chi, gửi email nhắc nợ. Không xem doanh thu tổng. Xem (không lập, ký, sửa) hợp đồng của cơ sở được giao. Chủ trọ **bật / tắt từng quyền** và **khóa / mở khóa** tài khoản (mục 4.2). |
 | **TENANT** (khách thuê) | Tự sinh khi lập hợp đồng (theo CCCD) | Ký hợp đồng, xem / trả hóa đơn, báo sự cố, duyệt báo giá và nghiệm thu sửa chữa, xem biên nhận cọc. Tài khoản tự khóa khi hết hợp đồng và hết nợ. |
 
 Một CCCD / SĐT có thể là khách của nhiều chủ trọ → khi đăng nhập trùng, hệ thống cho chọn tài khoản.
@@ -64,7 +64,7 @@ Một CCCD / SĐT có thể là khách của nhiều chủ trọ → khi đăng 
 - Tạo cơ sở (địa chỉ, bảng giá điện / nước / dịch vụ mặc định, **danh mục vật dụng bàn giao kèm đơn giá đền bù**) → tạo phòng (lẻ hoặc hàng loạt), phòng có thể ghi đè giá.
 - **Vật dụng bàn giao** (tránh tranh chấp hư hỏng): mỗi món có tên, số lượng, đơn giá đền bù, tình trạng. Mỗi phòng chọn **phòng trống** (không kèm đồ) hoặc **đầy đủ đồ** (dùng danh mục của cơ sở hoặc danh mục riêng của phòng).
 - Tạo tài khoản quản lý, gán cơ sở. Quản lý đăng nhập bằng SĐT + mật khẩu tạm, bị buộc đổi mật khẩu lần đầu.
-- **Phân quyền quản lý**: chủ trọ bật / tắt 7 quyền cho từng người (sửa phòng, chốt điện nước, xử lý sự cố, lập phiếu chi, xem hóa đơn & thanh toán, báo thu tiền mặt, gửi email nhắc nợ). Mặc định bật hết; quyền bị tắt trả lỗi `PERMISSION_DISABLED` từ thao tác kế tiếp.
+- **Phân quyền quản lý**: chủ trọ bật / tắt 8 quyền cho từng người (sửa phòng, chốt điện nước, xử lý sự cố, lập phiếu chi, xem hóa đơn & thanh toán, xem hợp đồng, báo thu tiền mặt, gửi email nhắc nợ). Mặc định bật hết; quyền bị tắt trả lỗi `PERMISSION_DISABLED` từ thao tác kế tiếp.
 - **Khóa tài khoản quản lý**: đăng xuất ngay, không đăng nhập và không cấp lại mật khẩu được cho đến khi mở khóa; mở khóa giữ nguyên mật khẩu, quyền, cơ sở. Tài khoản bị khóa vẫn tính vào hạn ngạch quản lý của gói.
 
 ### 4.3 Hợp đồng và tiền cọc

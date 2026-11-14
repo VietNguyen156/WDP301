@@ -2409,6 +2409,41 @@ dialog.modal[open],
 .modal-inner > .modal-body-padded {
   padding: 20px 24px;
 }
+/* Any other block placed directly in a modal (lists, wrappers) shrinks and scrolls instead of
+   being cut off by .modal's max-height; header and footer always stay visible. */
+.modal-inner > header,
+.modal-inner > footer {
+  flex-shrink: 0;
+}
+.modal-inner > :not(header):not(footer) {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* Room form: the tabs and the Save/Cancel footer stay put, only the tab content scrolls. */
+.modal-inner > .room-modal-wrapper {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.room-modal-wrapper > .room-form-tabs {
+  flex-shrink: 0;
+}
+.room-modal-wrapper > form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.room-modal-wrapper > form > fieldset {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.room-modal-wrapper > form > .modal-footer {
+  flex-shrink: 0;
+}
 .modal-inner > .modal-body {
   display: flex;
   flex-direction: column;

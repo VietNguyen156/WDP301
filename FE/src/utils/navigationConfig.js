@@ -87,7 +87,10 @@ export function resolveRoleAccess(user) {
   const isTenant = user?.role === "TENANT";
 
   const propertyAccess = !isSuperAdmin && (isLandlord || isManager);
-  const contractAccess = !isSuperAdmin && (isLandlord || isTenant);
+  // Managers read contracts of their branches (no create / sign / settle) unless switched off.
+  const contractAccess =
+    !isSuperAdmin &&
+    (isLandlord || isTenant || (isManager && can(user, "VIEW_CONTRACTS")));
   const financeAccess =
     !isSuperAdmin &&
     (isLandlord || isTenant || (isManager && can(user, "VIEW_FINANCE")));

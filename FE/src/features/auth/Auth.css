@@ -607,6 +607,19 @@
   font-weight: 500;
 }
 
+/* Inline field error (register: confirm password does not match). */
+.domus-field-error {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--auth-error);
+}
+
+.domus-text-input[aria-invalid="true"] {
+  border-color: var(--auth-error);
+}
+
 /* Dynamic Role Badge */
 .domus-role-badge {
   padding: 2px 8px;

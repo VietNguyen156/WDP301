@@ -22,6 +22,8 @@ export default function RegisterForm({ form, onSwitchToLogin }) {
     setPhoneNumber,
     password,
     setPassword,
+    confirmPassword,
+    setConfirmPassword,
     passwordStrength,
     busy,
     error,
@@ -29,6 +31,8 @@ export default function RegisterForm({ form, onSwitchToLogin }) {
   } = form;
 
   const [showPassword, setShowPassword] = useState(false);
+  // Mismatch is shown once the second field has text, before submitting.
+  const confirmMismatch = confirmPassword.length > 0 && confirmPassword !== password;
 
   return (
     <div className="domus-form-box">
@@ -178,10 +182,44 @@ export default function RegisterForm({ form, onSwitchToLogin }) {
           )}
         </div>
 
+        {/* Confirm password */}
+        <div className="domus-input-group">
+          <div className="domus-label-row">
+            <label htmlFor="reg-password-confirm" className="domus-field-label">
+              <span>Xác nhận mật khẩu</span>
+              <span className="domus-required">*</span>
+            </label>
+          </div>
+          <div className="domus-input-wrap">
+            <div className="domus-input-icon-left">
+              <KeyRound size={19} />
+            </div>
+            <input
+              id="reg-password-confirm"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              placeholder="Nhập lại mật khẩu"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              maxLength={72}
+              disabled={busy}
+              aria-invalid={confirmMismatch}
+              aria-describedby={confirmMismatch ? "reg-password-confirm-error" : undefined}
+              className="domus-text-input"
+            />
+          </div>
+          {confirmMismatch && (
+            <span id="reg-password-confirm-error" className="domus-field-error" role="alert">
+              Mật khẩu xác nhận không khớp.
+            </span>
+          )}
+        </div>
+
         <FormError error={error} />
 
         <div className="domus-submit-wrap">
-          <button type="submit" disabled={busy} className="domus-submit-btn">
+          <button type="submit" disabled={busy || confirmMismatch} className="domus-submit-btn">
             {busy ? (
               <>
                 <Loader2 size={19} className="domus-spin" />

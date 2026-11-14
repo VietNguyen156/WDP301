@@ -26,6 +26,11 @@ export const MANAGER_PERMISSIONS = [
     hint: "Tắt thì ẩn mục Hóa đơn và Lịch sử thanh toán",
   },
   {
+    key: "VIEW_CONTRACTS",
+    label: "Xem hợp đồng",
+    hint: "Xem danh sách và chi tiết hợp đồng (chỉ xem, không lập hay sửa)",
+  },
+  {
     key: "REPORT_CASH",
     label: "Báo cáo thu tiền mặt",
     hint: "Báo đã thu tiền mặt để chủ trọ xác nhận",

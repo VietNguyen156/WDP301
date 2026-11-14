@@ -17,6 +17,7 @@ export default function ContractsPage() {
     selectedBranchId,
     branches,
     landlord,
+    manager,
     creating,
     setCreating,
     exportingResidence,
@@ -60,7 +61,9 @@ export default function ContractsPage() {
           <h1 className="contracts-header-title">
             {landlord
               ? "Quản lý Hợp đồng & Khách thuê"
-              : "Hợp đồng Thuê phòng của tôi"}
+              : manager
+                ? "Hợp đồng các cơ sở được giao"
+                : "Hợp đồng Thuê phòng của tôi"}
           </h1>
           <p className="contracts-header-subtext">
             Theo dõi thời hạn thuê phòng trên toàn hệ thống, tự động cảnh báo

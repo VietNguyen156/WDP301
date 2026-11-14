@@ -244,7 +244,7 @@ Vat dung ban giao kem phong (don gia den bu): `{ name, quantity (1-1000), price,
 ### 4.4 Contract va Tenant
 
 ```http
-GET  /api/v1/contracts?status=DRAFT|ACTIVE|EXPIRING_SOON|EXPIRED|TERMINATED&branchId=&search=&depositStatus=&confirmation=PENDING|CONFIRMED
+GET  /api/v1/contracts?status=DRAFT|ACTIVE|EXPIRING_SOON|EXPIRED|TERMINATED&branchId=&search=&depositStatus=&confirmation=PENDING|CONFIRMED   (LANDLORD, TENANT; PROPERTY_MANAGER chi xem, theo co so duoc giao)
 POST /api/v1/contracts                               (LANDLORD)
 GET  /api/v1/contracts/citizen-check?citizenIds=a,b  (LANDLORD, toi da 30 CCCD)
 GET  /api/v1/contracts/:contractId
@@ -502,7 +502,7 @@ PUT  /api/v1/staff/:staffId/permissions   (LANDLORD) { permissions: { KEY: boole
 PUT  /api/v1/staff/:staffId/lock          (LANDLORD) { locked: boolean }
 ```
 
-- Quyen cua Quan ly (mac dinh bat het, `User.deniedPermissions` luu quyen da tat; danh sach o `BE/utils/managerPermissions.js`): `UPDATE_ROOMS`, `UTILITY_READINGS`, `HANDLE_INCIDENTS`, `RECORD_EXPENSES`, `VIEW_FINANCE`, `REPORT_CASH`, `SEND_REMINDERS`. Route bi tat -> `403 PERMISSION_DISABLED` (middleware `permit()`). DTO user cua Manager co `permissions: { KEY: boolean }`.
+- Quyen cua Quan ly (mac dinh bat het, `User.deniedPermissions` luu quyen da tat; danh sach o `BE/utils/managerPermissions.js`): `UPDATE_ROOMS`, `UTILITY_READINGS`, `HANDLE_INCIDENTS`, `RECORD_EXPENSES`, `VIEW_FINANCE`, `VIEW_CONTRACTS`, `REPORT_CASH`, `SEND_REMINDERS`. Route bi tat -> `403 PERMISSION_DISABLED` (middleware `permit()`). DTO user cua Manager co `permissions: { KEY: boolean }`.
 - Khoa: `status: SUSPENDED`, thu hoi session; dang nhap dung mat khau -> `403 ACCOUNT_LOCKED`; khong cap lai mat khau khi dang khoa. Mo khoa: `ACTIVE`, giu mat khau / quyen / co so. Audit `LOCK_STAFF_ACCOUNT` / `UNLOCK_STAFF_ACCOUNT` / `UPDATE_STAFF_PERMISSIONS`.
 
 Incident status:
